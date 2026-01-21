@@ -1,0 +1,1819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emojio Paint Composer</title>
+    <!-- Tone.js for Audio Synthesis -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <!-- Pixel Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            /* Toy Palette */
+            --bg-color: #e0f7fa; /* Light Cyan */
+            --panel-bg: #fff9c4; /* Pale Yellow */
+            --header-bg: #81d4fa; /* Sky Blue */
+            --accent-color: #ff4081; /* Hot Pink */
+            --highlight-color: #ffd740; /* Amber */
+            --text-color: #37474f; /* Dark Blue Grey */
+            --line-color: #90a4ae; /* Staff Lines */
+            --border-width: 4px;
+            --border-radius: 12px;
+        }
+
+        body {
+            font-family: 'Press Start 2P', cursive;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            width: 100vw;
+            box-sizing: border-box;
+            overflow: hidden;
+            background-image: radial-gradient(#b2ebf2 15%, transparent 15%);
+            background-position: 0 0;
+            background-size: 24px 24px;
+            /* Hide default cursor everywhere to use custom emoji cursor */
+            cursor: none; 
+        }
+
+        /* Force hide cursor on interactive elements by default */
+        button, input, canvas, .emoji-btn, .picker-item, .picker-tab, a, textarea {
+            cursor: none !important;
+        }
+
+        /* Header Exception: Show standard "Cute Hand" (Pointer) */
+        header, header * {
+            cursor: pointer !important;
+        }
+
+        /* Show pointer in Modals too */
+        .modal-overlay, .modal-overlay * {
+            cursor: default !important;
+        }
+        .modal-overlay button {
+            cursor: pointer !important;
+        }
+
+        /* Custom Cursor Container - STAMP TOOL LOOK */
+        #customCursor {
+            position: fixed;
+            top: 0; 
+            left: 0;
+            width: 64px; 
+            height: 64px;
+            pointer-events: none; /* Let clicks pass through */
+            z-index: 10000;
+            transform: translate(-50%, -50%); /* Center image on mouse point */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            
+            /* No container visuals */
+            background: transparent;
+            border: none;
+            
+            /* Springy return */
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s, background 0.2s;
+        }
+
+        #customCursor img {
+            width: 48px;
+            height: 48px;
+            /* No internal shadow, the block casts the shadow */
+            filter: drop-shadow(8px 8px 0px rgba(0,0,0,0.2));
+            will-change: transform;
+        }
+
+        /* Cursor Click Animation Class - PRESS DOWN */
+        #customCursor.pressing {
+            /* Significant shrink to simulate pressing into the screen */
+            transform: translate(-50%, -50%) scale(0.75);
+            /* Fast press down, no bounce */
+            transition: transform 0.05s ease-out;
+        }
+        
+        #customCursor.pressing img {
+             /* Shadow collapses to simulate contact */
+            filter: drop-shadow(2px 2px 0px rgba(0,0,0,0.3));
+            transition: filter 0.05s ease-out;
+        }
+
+        /* Header */
+        header {
+            background: var(--header-bg);
+            padding: 10px 15px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: var(--border-width) solid var(--text-color);
+            z-index: 20;
+            flex-shrink: 0;
+            gap: 10px;
+            box-shadow: 0 6px 0 rgba(0,0,0,0.15);
+            flex-wrap: wrap; /* Allow wrapping on small screens */
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 0.9rem; /* Adjusted font size */
+            color: #fff;
+            text-shadow: 3px 3px 0px var(--text-color);
+            white-space: nowrap;
+            letter-spacing: 1px;
+            line-height: 1.4;
+            /* Give it a little breathing room */
+            margin-right: auto; 
+            flex-shrink: 1; /* Allow shrinking if needed */
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: flex;
+            align-items: center;
+        }
+
+        h1 img {
+            width: 28px;
+            height: 28px;
+            margin-right: 12px;
+            filter: drop-shadow(2px 2px 0px rgba(0,0,0,0.2));
+        }
+
+        .controls {
+            display: flex;
+            gap: 8px; /* Reduced gap */
+            align-items: center;
+            flex-wrap: wrap; /* Allow wrapping of buttons */
+            justify-content: flex-end;
+        }
+
+        /* Buttons */
+        button {
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.6rem; /* Smaller font */
+            background-color: var(--accent-color);
+            color: white;
+            border: var(--border-width) solid var(--text-color);
+            padding: 8px 12px; /* Reduced padding */
+            cursor: pointer;
+            border-radius: 30px; /* Pill shape for elegance */
+            box-shadow: 3px 3px 0px var(--text-color);
+            transition: transform 0.1s, box-shadow 0.1s;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            line-height: 1;
+            white-space: nowrap;
+        }
+
+        /* Button Icons (Twemojis) */
+        button img {
+            width: 16px;
+            height: 16px;
+            pointer-events: none;
+            display: block;
+        }
+
+        button:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 5px 5px 0px var(--text-color);
+            filter: brightness(1.1);
+        }
+
+        button:active {
+            transform: translate(2px, 2px);
+            box-shadow: 1px 1px 0px var(--text-color);
+        }
+        
+        button:focus, .emoji-btn:focus, .picker-item:focus {
+            outline: none; /* Remove default outline */
+            box-shadow: 0 0 0 3px rgba(255, 64, 129, 0.5), 4px 4px 0px var(--text-color); /* Custom focus ring + shadow */
+        }
+
+        /* Distinct Button Styles */
+        button.play-btn {
+            background-color: #4caf50; /* Green for go */
+            padding: 10px 18px; 
+            font-size: 0.65rem;
+        }
+        button.play-btn.playing {
+            background-color: #f44336; /* Red for stop */
+            box-shadow: 1px 1px 0px var(--text-color);
+            transform: translate(2px, 2px);
+        }
+
+        button.action-btn {
+            background-color: #ffffff;
+            color: var(--text-color);
+        }
+        
+        button.action-btn:hover {
+            background-color: #f5f5f5;
+        }
+        
+        button.secondary {
+            background-color: #ab47bc; /* Purple */
+            color: white;
+        }
+
+        /* Tempo */
+        .tempo-control {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255,255,255,0.4);
+            padding: 6px 12px;
+            border-radius: 30px;
+            border: 2px solid var(--text-color);
+        }
+        
+        /* Custom Icon Display for Tempo */
+        .tempo-icon {
+            width: 20px; 
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .tempo-icon img {
+            width: 100%;
+            height: 100%;
+        }
+
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+            width: 70px; /* Compact width */
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            height: 6px;
+            background: #fff;
+            border: 2px solid var(--text-color);
+            border-radius: 4px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 14px;
+            width: 14px;
+            background: var(--highlight-color);
+            border: 2px solid var(--text-color);
+            border-radius: 50%;
+            margin-top: -6px;
+            cursor: pointer;
+            box-shadow: 1px 1px 0px var(--text-color);
+        }
+
+        /* Palette Bar */
+        .palette-bar {
+            background: var(--panel-bg);
+            background: linear-gradient(to bottom, #fff9c4, #fff59d);
+            padding: 15px 30px; 
+            display: flex;
+            align-items: center;
+            gap: 25px;
+            border-bottom: var(--border-width) solid var(--text-color);
+            flex-shrink: 0;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.05);
+            min-height: 90px;
+            position: relative;
+            z-index: 15;
+            overflow-x: auto; /* Allow scroll on very small screens */
+        }
+
+        /* Hide scrollbar for cleaner look but keep functionality */
+        .palette-bar::-webkit-scrollbar {
+            height: 6px;
+        }
+        .palette-bar::-webkit-scrollbar-thumb {
+            background: var(--text-color);
+            border-radius: 3px;
+        }
+        .palette-bar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .current-emoji-wrapper {
+            position: relative;
+            width: 64px;
+            height: 64px;
+            background: #fff;
+            border: var(--border-width) solid var(--text-color);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: inset 3px 3px 0px rgba(0,0,0,0.1);
+            flex-shrink: 0;
+        }
+        
+        .current-label {
+            position: absolute;
+            top: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.5rem;
+            color: var(--text-color);
+            text-transform: uppercase;
+            white-space: nowrap;
+            background: var(--highlight-color);
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 2px solid var(--text-color);
+        }
+
+        .current-emoji-img {
+            width: 42px;
+            height: 42px;
+            image-rendering: pixelated;
+        }
+
+        /* Palette Container */
+        .palette-container {
+            flex-grow: 1;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            /* Use nowrap to force horizontal scroll if needed, keeps it in one line */
+            flex-wrap: nowrap; 
+            padding-right: 15px; /* Padding for end of scroll */
+        }
+
+        .emoji-btn {
+            background: #fff;
+            padding: 6px;
+            border: 3px solid transparent; /* Invisible border for sizing */
+            width: 54px;
+            height: 54px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border-radius: 14px;
+            transition: all 0.1s ease;
+            box-shadow: 3px 3px 0px rgba(0,0,0,0.1);
+            flex-shrink: 0;
+            position: relative;
+        }
+        
+        .emoji-btn img {
+            width: 36px;
+            height: 36px;
+            pointer-events: none;
+            loading: lazy;
+        }
+
+        .emoji-btn:hover { 
+            background: #fff; 
+            transform: translateY(-3px);
+            z-index: 5;
+            box-shadow: 4px 4px 0px rgba(0,0,0,0.15);
+        }
+        
+        .emoji-btn.active {
+            background: var(--highlight-color);
+            border: 3px solid var(--text-color);
+            box-shadow: 4px 4px 0px var(--text-color);
+            transform: translateY(-6px);
+            z-index: 10;
+        }
+
+        /* Add Button */
+        #openPickerBtn {
+            background: #eceff1;
+            border: 3px dashed #b0bec5;
+            color: #78909c;
+            box-shadow: none;
+        }
+        #openPickerBtn:hover {
+            border-color: var(--text-color);
+            background: #fff;
+            transform: translateY(-2px);
+        }
+        
+        /* Plus icon inside add button */
+        #openPickerBtn img {
+             width: 24px;
+             height: 24px;
+        }
+
+
+        /* Custom Picker Popover */
+        .picker-popover {
+            position: absolute;
+            top: 160px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            background: #fff;
+            border: var(--border-width) solid var(--text-color);
+            box-shadow: 10px 10px 0px rgba(0,0,0,0.2);
+            border-radius: 16px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 60vh;
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .picker-popover.visible { display: flex; }
+
+        /* Filter Tabs */
+        .picker-tabs {
+            display: flex;
+            background: #fffde7;
+            border-bottom: 2px solid var(--text-color);
+            overflow-x: auto;
+            padding: 5px;
+            gap: 5px;
+        }
+        
+        .picker-tab {
+            padding: 8px 12px;
+            font-size: 1.2rem; /* Emoji size */
+            cursor: pointer;
+            border-radius: 8px;
+            border: 2px solid transparent;
+            background: #fff;
+            transition: all 0.1s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .picker-tab img {
+            width: 24px;
+            height: 24px;
+        }
+        
+        .picker-tab:hover {
+            background: #fff9c4;
+            transform: translateY(-2px);
+        }
+        
+        .picker-tab.active {
+            background: var(--highlight-color);
+            border-color: var(--text-color);
+            box-shadow: 2px 2px 0px var(--text-color);
+        }
+
+        .picker-header {
+            background: var(--highlight-color);
+            padding: 10px;
+            border-bottom: 2px solid var(--text-color);
+            font-size: 0.7rem;
+            text-align: center;
+            text-transform: uppercase;
+            color: var(--text-color);
+        }
+
+        .picker-content {
+            padding: 20px;
+            overflow-y: auto;
+            background: #f8f9fa;
+        }
+
+        .picker-section {
+            margin-bottom: 25px;
+        }
+
+        .picker-section.hidden {
+            display: none;
+        }
+
+        .picker-section-title {
+            font-size: 0.7rem;
+            color: #78909c;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            border-bottom: 2px solid #eceff1;
+            padding-bottom: 5px;
+        }
+
+        .picker-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(45px, 1fr));
+            gap: 10px;
+        }
+
+        .picker-item {
+            width: 45px;
+            height: 45px;
+            background: #fff;
+            border: 2px solid #cfd8dc;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        .picker-item:hover {
+            transform: scale(1.1);
+            border-color: var(--text-color);
+            background: #fffde7;
+        }
+
+        .picker-item img {
+            width: 30px;
+            height: 30px;
+            loading: lazy;
+        }
+
+        /* Confirmation Modal */
+        .modal-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.4);
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(2px);
+        }
+        
+        .modal-overlay.hidden { display: none; }
+
+        .modal-box {
+            background: #fff;
+            border: var(--border-width) solid var(--text-color);
+            box-shadow: 8px 8px 0px rgba(0,0,0,0.5);
+            padding: 30px;
+            border-radius: 20px;
+            text-align: center;
+            max-width: 380px;
+            width: 90%;
+            animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes popIn {
+            from { transform: scale(0.8); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        .modal-title {
+            font-size: 1rem;
+            margin-bottom: 20px;
+            line-height: 1.5;
+            color: var(--text-color);
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+        
+        .modal-actions button {
+             border-radius: 8px;
+             font-size: 0.8rem;
+        }
+
+        /* Textarea for Sharing */
+        textarea {
+            font-family: 'Press Start 2P', cursive;
+            border: 2px solid var(--text-color);
+            border-radius: 8px;
+            padding: 10px;
+            background: #e0f7fa;
+            color: var(--text-color);
+            resize: none;
+        }
+        textarea:focus {
+            outline: 2px solid var(--accent-color);
+            background: #fff;
+        }
+
+        /* Canvas Area */
+        .canvas-wrapper {
+            flex-grow: 1;
+            position: relative;
+            background: #ffffff;
+            /* Keep cursor:none here to be doubly sure */
+            cursor: none; 
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated; 
+        }
+
+        .hidden { display: none !important; }
+
+        @media (max-width: 800px) {
+            header { flex-direction: column; align-items: stretch; gap: 15px; padding: 15px; }
+            h1 { text-align: center; margin-right: 0; font-size: 0.8rem; white-space: normal; }
+            .controls { justify-content: center; flex-wrap: wrap; gap: 10px; }
+            .palette-bar { padding: 15px; overflow-x: auto; justify-content: flex-start; }
+            .palette-container { justify-content: flex-start; flex-wrap: nowrap; }
+            .tempo-control { width: 100%; justify-content: center; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Custom Cursor Element -->
+    <div id="customCursor"></div>
+
+    <header>
+        <h1><img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f3a8.png" alt="🎨"> Emojio Paint Composer</h1>
+        <div class="controls">
+            <!-- Buttons now populated by JS with icons AND text -->
+            <button id="playToggle" class="play-btn">
+                <img id="playIcon" alt="play">
+                <span id="playLabel">Play</span>
+            </button>
+            
+            <button id="randomBtn" class="action-btn" title="Randomize Notes" aria-label="Randomize notes">
+                 <img id="randomIcon" alt="random">
+                 <span>Random</span>
+            </button>
+            <button id="clearBtn" class="action-btn" title="Clear All" aria-label="Clear all notes">
+                 <img id="clearIcon" alt="clear">
+                 <span>Clear</span>
+            </button>
+            <button id="shareBtn" class="action-btn" title="Share Song" aria-label="Share song">
+                 <img id="shareIcon" alt="share">
+                 <span>Share</span>
+            </button>
+            
+            <div class="tempo-control">
+                <!-- Programmatically filled with emoji icons -->
+                <div id="tempoIconSlow" class="tempo-icon"></div>
+                <input type="range" id="tempo" min="60" max="180" value="100">
+                <div id="tempoIconFast" class="tempo-icon"></div>
+            </div>
+        </div>
+    </header>
+
+    <div class="palette-bar">
+        <div class="current-emoji-wrapper" id="currentEmojiContainer">
+            <div class="current-label">Active</div>
+            <!-- Img injected by JS -->
+        </div>
+
+        <div class="palette-container" id="emojiPalette">
+            <!-- Dynamic Palette Buttons -->
+            <button id="openPickerBtn" class="emoji-btn" aria-label="Open Sticker Picker">
+                <!-- Img injected by JS -->
+            </button>
+        </div>
+    </div>
+
+    <!-- Custom Picker Popover -->
+    <div id="pickerPopover" class="picker-popover">
+        <div class="picker-tabs" id="pickerTabs">
+            <!-- Tabs injected by JS -->
+        </div>
+        <div class="picker-header">Choose Your Sticker</div>
+        <div class="picker-content" id="pickerContent">
+            <!-- Sections injected by JS -->
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmModal" class="modal-overlay hidden">
+        <div class="modal-box">
+            <div class="modal-title" id="modalText">Are you sure?</div>
+            <div class="modal-actions">
+                <button id="modalConfirmBtn" class="play-btn">Yes!</button>
+                <button id="modalCancelBtn" class="action-btn">No</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Share Modal -->
+    <div id="shareModal" class="modal-overlay hidden">
+        <div class="modal-box">
+            <div class="modal-title" style="margin-bottom:10px;">Share Your Song</div>
+            <p style="font-size:0.65rem; line-height:1.5; margin-bottom:15px; color: #555;">
+              Copy this code to save or share your song. Paste a code below to load one.
+            </p>
+
+            <!-- Output (read-only) -->
+            <textarea id="songCodeOutput" readonly style="width:100%; height:60px; font-size:0.6rem; margin-bottom:8px;"></textarea>
+
+            <button id="copySongCodeBtn" class="play-btn" style="width:100%; margin-bottom:20px;">Copy Song Code</button>
+
+            <!-- Input for loading -->
+            <textarea id="songCodeInput" placeholder="Paste song code here..." style="width:100%; height:60px; font-size:0.6rem; margin-bottom:8px;"></textarea>
+
+            <button id="loadSongCodeBtn" class="action-btn" style="width:100%; margin-bottom:12px;">Load Song From Code</button>
+
+            <button id="closeShareModalBtn" class="danger" style="width:100%;">Close</button>
+        </div>
+    </div>
+
+    <div class="canvas-wrapper" id="canvasContainer">
+        <canvas id="musicCanvas"></canvas>
+    </div>
+
+    <script>
+        /**
+         * 1. CONFIGURATION & CONSTANTS
+         */
+        const GRID_COLS = 16; 
+        const SCALE = [
+            'G5', 'F5', 'E5', 'D5', 'C5', 'B4', 'A4', 'G4', 'F4', 'E4', 'D4', 'C4', 'B3', 'A3', 'G3'
+        ];
+        const GRID_ROWS = SCALE.length; 
+
+        const COLORS = {
+            bg: '#ffffff',
+            staffLine: '#90a4ae', 
+            beatLine: '#eceff1', 
+            barLine: '#cfd8dc', 
+            playhead: '#ff4081',
+            clef: '#37474f'
+        };
+
+        const MAIN_STAFF_LINES = [1, 3, 5, 7, 9, 11, 13];
+
+        const CATEGORIES = {
+            "Animals 🐾": ["🐶", "🐱", "🐷", "🐸", "🐔", "🦆", "🦁", "🐮", "🐦", "🐺", "🐗", "🦄"],
+            "Music 🎵": ["🎹", "🥁", "🎸", "🎺", "🎻", "🎷", "🔔", "🎼", "🎤", "🎧"],
+            "Vehicles 🚀": ["🚗", "✈️", "🚢", "🚓", "🚒", "🚑", "🚜", "🚁", "🚀", "🛸", "🤖", "👾", "🚂"],
+            "Voices 🗣️": ["👶", "👻", "👽", "💩", "💀", "🤡", "👺", "👼", "🧛"],
+            "Nature 🌸": ["🌸", "❤️", "🌊", "⭐", "🔥", "🌈", "🍄", "🌵", "⚽", "🏀", "💡"]
+        };
+
+        const ALL_EMOJIS = Object.values(CATEGORIES).flat();
+
+        /**
+         * 2. GLOBAL STATE
+         */
+        const state = {
+            isPlaying: false,
+            bpm: 100, 
+            selectedEmoji: null, 
+            palette: [], 
+            notes: [], 
+            audioContextStarted: false,
+            currentStep: -1,
+            mouseSpeed: 0 // Velocity tracking
+        };
+
+        const imageCache = {};
+        const loadingImages = new Set();
+        
+        let needsRedraw = true;
+        const bgCanvas = document.createElement('canvas');
+        const bgCtx = bgCanvas.getContext('2d');
+        let bgDirty = true;
+
+        /**
+         * 3. DOM ELEMENTS (Defined early to avoid hoisting issues)
+         */
+        const canvas = document.getElementById('musicCanvas');
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+
+        const playToggle = document.getElementById('playToggle');
+        const playIcon = document.getElementById('playIcon');
+        const playLabel = document.getElementById('playLabel');
+        const randomBtn = document.getElementById('randomBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const shareBtn = document.getElementById('shareBtn');
+        const tempoInput = document.getElementById('tempo');
+        const paletteContainer = document.getElementById('emojiPalette');
+        const openPickerBtn = document.getElementById('openPickerBtn');
+        const pickerPopover = document.getElementById('pickerPopover');
+        const pickerContent = document.getElementById('pickerContent');
+        const pickerTabs = document.getElementById('pickerTabs');
+        const currentEmojiContainer = document.getElementById('currentEmojiContainer');
+        
+        // Modals
+        const modalOverlay = document.getElementById('confirmModal');
+        const modalText = document.getElementById('modalText');
+        const modalConfirmBtn = document.getElementById('modalConfirmBtn');
+        const modalCancelBtn = document.getElementById('modalCancelBtn');
+        
+        const shareModal = document.getElementById('shareModal');
+        const songCodeOutput = document.getElementById('songCodeOutput');
+        const songCodeInput = document.getElementById('songCodeInput');
+        const copySongCodeBtn = document.getElementById('copySongCodeBtn');
+        const loadSongCodeBtn = document.getElementById('loadSongCodeBtn');
+        const closeShareModalBtn = document.getElementById('closeShareModalBtn');
+
+        const customCursor = document.getElementById('customCursor');
+        const header = document.querySelector('header');
+
+        /**
+         * 4. UTILITIES
+         */
+        function markDirty() {
+            needsRedraw = true;
+        }
+
+        function getEmojiUrl(emoji) {
+            const codePoints = Array.from(emoji).map(c => c.codePointAt(0).toString(16))
+                .filter(cp => cp !== 'fe0f') // Strip variation selectors for Twemoji compatibility
+                .join('-');
+            return `https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/${codePoints}.png`;
+        }
+
+        function loadEmojiImage(emoji) {
+            if (imageCache[emoji] || loadingImages.has(emoji)) return;
+            loadingImages.add(emoji);
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            img.src = getEmojiUrl(emoji);
+            img.onload = () => {
+                imageCache[emoji] = img;
+                loadingImages.delete(emoji);
+                markDirty();
+            };
+            img.onerror = () => { loadingImages.delete(emoji); };
+        }
+        
+        function shuffle(array) {
+            let currentIndex = array.length, randomIndex;
+            while (currentIndex != 0) {
+                randomIndex = Math.floor(Math.random() * currentIndex);
+                currentIndex--;
+                [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+            }
+            return array;
+        }
+
+        /**
+         * 5. DATA ENCODING / DECODING
+         */
+        function encodeSongObject(obj) {
+            const json = JSON.stringify(obj);
+            const utf8 = encodeURIComponent(json);
+            const binary = utf8.replace(/%([0-9A-F]{2})/g, (_, p1) =>
+                String.fromCharCode(parseInt(p1, 16))
+            );
+            return btoa(binary); 
+        }
+
+        function decodeSongObject(code) {
+            const binary = atob(code);
+            const utf8 = binary.split('').map(c =>
+                '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+            ).join('');
+            const json = decodeURIComponent(utf8);
+            return JSON.parse(json);
+        }
+
+        function getSharableSong() {
+            return {
+                v: 1,
+                bpm: state.bpm,
+                palette: state.palette.slice(), 
+                notes: state.notes.map(note => ({
+                    p: state.palette.indexOf(note.emoji),
+                    x: note.gridX,
+                    y: note.gridY,
+                    e: state.palette.indexOf(note.emoji) === -1 ? note.emoji : undefined
+                }))
+            };
+        }
+
+        function generateSongCode() {
+            const song = getSharableSong();
+            return encodeSongObject(song);
+        }
+
+        function loadSongFromCode(code) {
+            let data;
+            try {
+                data = decodeSongObject(code.trim());
+            } catch (err) {
+                alert("That song code doesn’t look right. Please check and try again.");
+                return;
+            }
+
+            if (!data || typeof data !== 'object' || !Array.isArray(data.notes)) {
+                alert("This song code is from an older or unknown version.");
+                return;
+            }
+
+            // Apply to state
+            state.bpm = data.bpm || 100;
+            state.palette = Array.isArray(data.palette) && data.palette.length
+                ? data.palette
+                : state.palette; 
+
+            state.notes = data.notes.map(n => {
+                let emoji = null;
+                if (typeof n.p === 'number' && n.p >= 0 && n.p < state.palette.length) {
+                    emoji = state.palette[n.p];
+                } else if (n.e) {
+                    emoji = n.e;
+                } else {
+                    emoji = state.palette[0]; 
+                }
+                
+                // Preload image
+                loadEmojiImage(emoji);
+
+                return {
+                    emoji,
+                    gridX: n.x,
+                    gridY: n.y,
+                    createdAt: Date.now()
+                };
+            });
+
+            // Sync UI
+            tempoInput.value = state.bpm;
+            if (typeof Tone !== "undefined" && Tone.Transport) {
+                Tone.Transport.bpm.value = state.bpm;
+            }
+
+            selectEmoji(state.palette[0] || state.selectedEmoji);
+            renderPalette();
+            // Force redraw immediately
+            draw(-1);
+        }
+
+        /**
+         * 6. AUDIO ENGINE
+         */
+        const instruments = {};
+        const foley = {}; // UI Sounds
+        let renderLoopStarted = false;
+        let masterBus = null;
+
+        function getMasterBus() {
+            if (masterBus) return masterBus;
+            const limiter = new Tone.Limiter(-2).toDestination();
+            const reverb = new Tone.Reverb({ decay: 1.2, wet: 0.2 }).connect(limiter);
+            masterBus = new Tone.Compressor({
+                ratio: 3,
+                threshold: -18,
+                attack: 0.003,
+                release: 0.1
+            }).connect(reverb);
+            return masterBus;
+        }
+
+        function getInstrument(type) {
+            if (instruments[type]) return instruments[type];
+            
+            const bus = getMasterBus();
+            // Global maxPolyphony limit for performance
+            const polyOptions = { maxPolyphony: 4 };
+
+            switch (type) {
+                case 'dog':
+                    instruments.dog = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.01, decay: 0.15, sustain: 0.0, release: 0.1 }, filter: { Q: 2, type: "lowpass", rolloff: -12 }, filterEnvelope: { attack: 0.02, decay: 0.1, sustain: 0, baseFrequency: 300, octaves: 2 } }).connect(bus);
+                    instruments.dog.volume.value = -4;
+                    break;
+                case 'cat':
+                    instruments.cat = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "triangle" }, envelope: { attack: 0.02, decay: 0.2, sustain: 0.1, release: 0.3 }, filter: { Q: 4, type: "lowpass" }, filterEnvelope: { attack: 0.05, decay: 0.2, sustain: 0.5, baseFrequency: 800, octaves: 1.5 } }).connect(bus);
+                    instruments.cat.volume.value = -6;
+                    break;
+                case 'pig':
+                    instruments.pig = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "square" }, envelope: { attack: 0.01, decay: 0.1, sustain: 0, release: 0.1 }, filter: { Q: 2, type: "lowpass" }, filterEnvelope: { attack: 0.01, decay: 0.2, sustain: 0, baseFrequency: 100, octaves: 1 } }).connect(bus);
+                    instruments.pig.volume.value = -5;
+                    break;
+                case 'baby':
+                    instruments.baby = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "pulse", width: 0.4 }, envelope: { attack: 0.05, decay: 0.2, sustain: 0.4, release: 0.2 }, filter: { Q: 5, type: "bandpass" }, filterEnvelope: { attack: 0.1, decay: 0.2, sustain: 0.2, baseFrequency: 400, octaves: 2 } }).connect(bus);
+                    instruments.baby.volume.value = -8;
+                    break;
+                case 'plane':
+                    const planeTrem = new Tone.Tremolo(9, 0.75).start().connect(bus);
+                    instruments.plane = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "fatsawtooth", count: 2, spread: 20 }, envelope: { attack: 0.1, decay: 0.2, sustain: 0.8, release: 0.1 }, detune: -1200 }).connect(planeTrem);
+                    instruments.plane.volume.value = -12;
+                    break;
+                case 'boat':
+                    const boatTrem = new Tone.Tremolo(4, 0.5).start().connect(bus);
+                    instruments.boat = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "square" }, envelope: { attack: 0.1, decay: 0.2, sustain: 1, release: 0.2 } }).connect(boatTrem);
+                    instruments.boat.volume.value = -10;
+                    break;
+                case 'flower':
+                    instruments.flower = new Tone.PolySynth(Tone.FMSynth, { harmonicity: 3.01, modulationIndex: 2, oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 0.5, sustain: 0, release: 0.3 }, modulation: { type: "sine" }, modulationEnvelope: { attack: 0.01, decay: 0.5, sustain: 0, release: 0.3 } }).connect(bus);
+                    instruments.flower.volume.value = -5;
+                    break;
+                case 'mario':
+                    instruments.mario = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "triangle" }, envelope: { attack: 0.01, decay: 0.3, sustain: 0.1, release: 0.1 } }).connect(bus);
+                    instruments.mario.volume.value = -3;
+                    break;
+                case 'gameboy':
+                    const crusher = new Tone.BitCrusher(4);
+                    const gbFilter = new Tone.Filter(3000, "lowpass").connect(bus);
+                    crusher.connect(gbFilter);
+                    instruments.gameboy = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "square" }, envelope: { attack: 0.01, decay: 0.1, sustain: 0.1, release: 0.1 } }).connect(crusher);
+                    instruments.gameboy.volume.value = -8;
+                    break;
+                case 'car':
+                    const hornFilter = new Tone.Filter(2000, "lowpass").connect(bus);
+                    instruments.car = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.02, decay: 0.2, sustain: 0.5, release: 0.2 }, }).connect(hornFilter);
+                    instruments.car.volume.value = -10;
+                    break;
+                case 'drum':
+                    instruments.drum = new Tone.PolySynth(Tone.MembraneSynth, { ...polyOptions, pitchDecay: 0.05, octaves: 4, oscillator: { type: "sine" }, envelope: { attack: 0.001, decay: 0.2, sustain: 0.01, release: 0.2 } }).connect(bus);
+                    instruments.drum.volume.value = -2;
+                    break;
+                case 'ghost':
+                    const ghostVib = new Tone.Vibrato(6, 0.3).connect(bus);
+                    instruments.ghost = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "sine" }, envelope: { attack: 0.1, decay: 0.5, sustain: 1, release: 0.3 }, filter: { Q: 0, type: "lowpass", rolloff: -12 }, }).connect(ghostVib);
+                    instruments.ghost.volume.value = -8;
+                    break;
+                case 'frog':
+                    instruments.frog = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "triangle" }, envelope: { attack: 0.02, decay: 0.3, sustain: 0.1, release: 0.2 }, filter: { Q: 4, type: "bandpass", rolloff: -12 }, filterEnvelope: { attack: 0.05, decay: 0.3, sustain: 0.2, baseFrequency: 300, octaves: 1 } }).connect(bus);
+                    instruments.frog.volume.value = -6;
+                    break;
+                case 'brass':
+                    const brassFilter = new Tone.Filter(2500, "lowpass").connect(bus);
+                    instruments.brass = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.05, decay: 0.1, sustain: 0.7, release: 0.2 } }).connect(new Tone.Filter(2500, "lowpass").connect(masterBus)); instruments.brass.volume.value = -8;
+                    break;
+                case 'strings':
+                    const stringVib = new Tone.Vibrato(4, 0.2).connect(bus);
+                    instruments.strings = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "pwm", modulationFrequency: 5 }, envelope: { attack: 0.05, decay: 0.2, sustain: 0.0, release: 0.3 } }).connect(stringVib);
+                    instruments.strings.volume.value = -10;
+                    break;
+                case 'cluck':
+                    instruments.cluck = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "pulse", width: 0.2 }, envelope: { attack: 0.01, decay: 0.1, sustain: 0, release: 0.1 }, filter: { Q: 5, type: "bandpass" }, filterEnvelope: { attack: 0.01, decay: 0.1, sustain: 0, baseFrequency: 600, octaves: 1 } }).connect(bus);
+                    instruments.cluck.volume.value = -5;
+                    break;
+                case 'quack':
+                    instruments.quack = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.05, decay: 0.2, sustain: 0.2, release: 0.2 }, filter: { Q: 8, type: "bandpass" }, filterEnvelope: { attack: 0.05, decay: 0.2, sustain: 0.2, baseFrequency: 500, octaves: 0.5 } }).connect(bus);
+                    instruments.quack.volume.value = -6;
+                    break;
+                case 'moo':
+                    instruments.moo = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.1, decay: 0.4, sustain: 0.4, release: 0.3 }, filter: { Q: 1, type: "lowpass" }, filterEnvelope: { attack: 0.1, decay: 0.4, sustain: 0.2, baseFrequency: 150, octaves: 0.5 } }).connect(bus);
+                    instruments.moo.volume.value = -5;
+                    break;
+                case 'chirp':
+                    instruments.chirp = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 0.1, sustain: 0, release: 0.1 } }).connect(bus);
+                    instruments.chirp.volume.value = -5;
+                    break;
+                case 'lion':
+                    const roarDist = new Tone.Distortion(0.4).connect(bus);
+                    instruments.lion = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.1, decay: 0.3, sustain: 0.8, release: 0.3 }, filter: { Q: 1, type: "lowpass" }, filterEnvelope: { attack: 0.1, decay: 0.3, sustain: 0.5, baseFrequency: 100, octaves: 2 } }).connect(roarDist);
+                    instruments.lion.volume.value = -6;
+                    break;
+                case 'alien':
+                    instruments.alien = new Tone.PolySynth(Tone.FMSynth, { harmonicity: 1.5, modulationIndex: 10, oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 0.3, sustain: 0.1, release: 0.3 }, modulation: { type: "square" }, modulationEnvelope: { attack: 0.1, decay: 0.1, sustain: 0, release: 0.1 } }).connect(bus);
+                    instruments.alien.volume.value = -6;
+                    break;
+                case 'wood':
+                    instruments.wood = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "sine" }, envelope: { attack: 0.001, decay: 0.1, sustain: 0, release: 0.1 } }).connect(bus);
+                    instruments.wood.volume.value = -2;
+                    break;
+                case 'honk':
+                    instruments.honk = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.5, release: 0.2 } }).connect(bus);
+                    instruments.honk.volume.value = -5;
+                    break;
+                case 'star':
+                    instruments.star = new Tone.PolySynth(Tone.FMSynth, { ...polyOptions, harmonicity: 8, modulationIndex: 2, oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 1, sustain: 0, release: 1 }, modulation: { type: "sine" }, modulationEnvelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.2 } }).connect(bus);
+                    instruments.star.volume.value = -8;
+                    break;
+                case 'pluck':
+                    instruments.pluck = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "triangle" }, envelope: { attack: 0.005, decay: 0.4, sustain: 0, release: 0.4 } }).connect(bus);
+                    instruments.pluck.volume.value = -3;
+                    break;
+                case 'sax':
+                    instruments.sax = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "square" }, envelope: { attack: 0.05, decay: 0.2, sustain: 0.8, release: 0.2 } }).connect(bus);
+                    instruments.sax.volume.value = -6;
+                    break;
+                case 'siren':
+                    const sirenVib = new Tone.Vibrato(5, 0.5).connect(bus);
+                    instruments.siren = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.1, decay: 0.2, sustain: 0.8, release: 0.3 } }).connect(sirenVib);
+                    instruments.siren.volume.value = -10;
+                    break;
+                case 'chopper':
+                    const chopperTrem = new Tone.Tremolo(15, 1).start().connect(bus);
+                    // Use Synth with noise-like modulation or short envelope instead of NoiseSynth for PolySynth
+                    instruments.chopper = new Tone.PolySynth(Tone.Synth, { 
+                        ...polyOptions,
+                        oscillator: { type: "pulse", width: 0.8 }, 
+                        envelope: { attack: 0.01, decay: 0.2, sustain: 0.0, release: 0.1 } 
+                    }).connect(chopperTrem);
+                    instruments.chopper.volume.value = -12;
+                    break;
+                case 'bell':
+                    instruments.bell = new Tone.PolySynth(Tone.FMSynth, { ...polyOptions, harmonicity: 4.1, modulationIndex: 3, oscillator: { type: "sine" }, envelope: { attack: 0.001, decay: 1, sustain: 0, release: 1 }, modulation: { type: "sine" }, modulationEnvelope: { attack: 0.001, decay: 0.5, sustain: 0, release: 0.5 } }).connect(bus);
+                    instruments.bell.volume.value = -5;
+                    break;
+                case 'water':
+                    instruments.water = new Tone.PolySynth(Tone.MembraneSynth, { ...polyOptions, pitchDecay: 0.1, octaves: 2, oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 0.4, sustain: 0, release: 0.4 } }).connect(bus);
+                    instruments.water.volume.value = -8;
+                    break;
+                default:
+                    // Lazy load default if not exists
+                    if (!instruments.default) {
+                        instruments.default = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "triangle" }, envelope: { attack: 0.01, decay: 0.3, sustain: 0.1, release: 0.1 } }).connect(bus);
+                        instruments.default.volume.value = -3;
+                    }
+                    return instruments.default;
+            }
+            return instruments[type];
+        }
+
+        async function initAudio() {
+            if (state.audioContextStarted) return;
+            if (typeof Tone === "undefined") {
+                console.warn("Tone.js not available.");
+                return;
+            }
+            try { await Tone.start(); } catch (e) { console.error("Audio init failed", e); return; }
+            state.audioContextStarted = true;
+
+            // Foley/UI Sounds (create once)
+            foley.thunk = new Tone.MembraneSynth({ pitchDecay: 0.01, octaves: 2, envelope: { attack: 0.001, decay: 0.1, sustain: 0 } }).toDestination();
+            foley.thunk.volume.value = -10;
+            foley.foop = new Tone.MembraneSynth({ pitchDecay: 0.05, octaves: 1, envelope: { attack: 0.01, decay: 0.2, sustain: 0 } }).toDestination();
+            foley.foop.volume.value = -8;
+
+            setupTransport();
+        }
+
+        let transportStep = 0;
+
+        function setupTransport() {
+            Tone.Transport.cancel();
+            transportStep = 0;
+            Tone.Transport.scheduleRepeat((time) => {
+                state.currentStep = transportStep % GRID_COLS;
+                transportStep++;
+                
+                // Redraw on beat
+                markDirty();
+                
+                const notesToPlay = state.notes.filter(n => n.gridX === state.currentStep);
+                notesToPlay.forEach(note => playNote(note, time));
+            }, "16n");
+        }
+
+        function triggerSound(type, pitch, duration, time, velocity = 1) {
+            const vel = Math.min(1, Math.max(0.5, velocity));
+            if (typeof Tone === "undefined") return;
+            const inst = getInstrument(type);
+            inst.triggerAttackRelease(pitch, duration, time, vel);
+        }
+
+        function playNote(noteObj, time) {
+            const pitch = SCALE[noteObj.gridY];
+            const type = getSoundType(noteObj.emoji);
+            let duration = "8n"; 
+            if (['flower', 'ghost', 'strings', 'boat', 'plane', 'moo', 'star', 'bell'].includes(type)) duration = "4n"; 
+            else if (['cat', 'mario', 'brass', 'car', 'baby', 'quack', 'honk', 'sax', 'siren', 'alien'].includes(type)) duration = "8n"; 
+            else duration = "16n"; 
+            triggerSound(type, pitch, duration, time);
+        }
+        
+        function playPreview(emoji) {
+            if (typeof Tone === "undefined" || !Tone.context || Tone.context.state !== 'running') return;
+            const type = getSoundType(emoji);
+            const pitch = "C4"; 
+            let duration = "8n";
+            if (['flower', 'ghost', 'strings', 'boat', 'plane', 'moo', 'star', 'bell'].includes(type)) duration = "4n"; 
+            else if (['dog', 'pig', 'frog', 'drum', 'gameboy', 'cluck', 'chirp', 'wood', 'chopper'].includes(type)) duration = "16n";
+            
+            const vel = Math.min(1, 0.6 + (state.mouseSpeed * 0.02)); 
+            triggerSound(type, pitch, duration, Tone.now(), vel);
+        }
+
+        function getSoundType(emoji) {
+            // Animals
+            if (emoji.match(/🐶|🐕|🐩|🐺/)) return 'dog';
+            if (emoji.match(/🦁|🐻|🐯/)) return 'lion';
+            if (emoji.match(/🐱|🐈|🦄/)) return 'cat';
+            if (emoji.match(/🐔|🐓|🐣/)) return 'cluck';
+            if (emoji.match(/🦆|🦢/)) return 'quack';
+            if (emoji.match(/🐦|🦅|🦉|🦜/)) return 'chirp';
+            if (emoji.match(/🐷|🐖|🐗/)) return 'pig';
+            if (emoji.match(/🐮|🐂|🐃/)) return 'moo';
+            if (emoji.match(/🐸|🐢|🐊/)) return 'frog';
+            
+            // Characters
+            if (emoji.match(/👶|🧒|🗣️/)) return 'baby';
+            if (emoji.match(/👻|🧛/)) return 'ghost';
+            if (emoji.match(/👽|👾|🤖/)) return 'alien';
+            if (emoji.match(/💀|☠️/)) return 'wood';
+            if (emoji.match(/🤡|👺/)) return 'honk';
+            if (emoji.match(/💩/)) return 'pig'; 
+
+            // Vehicles
+            if (emoji.match(/✈️|🛩️/)) return 'plane';
+            if (emoji.match(/🚁/)) return 'chopper';
+            if (emoji.match(/🚀|🛸/)) return 'chopper'; 
+            if (emoji.match(/🚢|🛳️|⛵/)) return 'boat';
+            if (emoji.match(/🚓|🚒|🚑/)) return 'siren';
+            if (emoji.match(/🚗|🚕|🚌|🏎️|🚜|🚂/)) return 'car';
+
+            // Instruments
+            if (emoji.match(/🎺|📯/)) return 'brass';
+            if (emoji.match(/🎷/)) return 'sax';
+            if (emoji.match(/🎻/)) return 'strings';
+            if (emoji.match(/🎸/)) return 'pluck';
+            if (emoji.match(/🎹|🎼|🎵|🎶/)) return 'mario';
+            if (emoji.match(/🥁|💥|💣|🔨|👏/)) return 'drum';
+            if (emoji.match(/🔔/)) return 'bell';
+            if (emoji.match(/🎮|🕹️|📟/)) return 'gameboy';
+            
+            // Nature/Misc
+            if (emoji.match(/⭐|🌟|✨|🌈|💡/)) return 'star';
+            if (emoji.match(/🌸|🌺|🌻|🌼|🌷/)) return 'flower';
+            if (emoji.match(/🌊|💧|🌧️/)) return 'water';
+            if (emoji.match(/🔥/)) return 'chopper';
+
+            return 'default';
+        }
+
+        /**
+         * 7. VISUAL RENDERER
+         */
+        let stepX, stepY, staffPaddingLeft = 120; 
+
+        function resizeCanvas() {
+            const container = document.getElementById('canvasContainer');
+            const rect = container.getBoundingClientRect();
+
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+
+            bgCanvas.width = rect.width;
+            bgCanvas.height = rect.height;
+
+            stepX = (canvas.width - staffPaddingLeft) / GRID_COLS;
+            const marginY = 40;
+            stepY = (canvas.height - (marginY * 2)) / (GRID_ROWS - 1);
+
+            bgDirty = true;
+            markDirty();
+        }
+
+        function drawBackground() {
+            if (!bgDirty) return;
+            bgDirty = false;
+
+            const marginY = 40;
+            bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+
+            // Grid
+            bgCtx.strokeStyle = '#e0f7fa';
+            bgCtx.lineWidth = 1;
+            for (let i = 0; i <= GRID_COLS; i++) {
+                const x = staffPaddingLeft + i * stepX;
+                bgCtx.beginPath();
+                bgCtx.moveTo(x, 0);
+                bgCtx.lineTo(x, bgCanvas.height);
+                bgCtx.stroke();
+            }
+
+            // Staff
+            bgCtx.lineCap = "round";
+            for (let i = 0; i < GRID_ROWS; i++) {
+                if (i % 2 !== 0) {
+                    const y = marginY + i * stepY;
+                    const isMain = MAIN_STAFF_LINES.includes(i);
+                    bgCtx.strokeStyle = isMain ? COLORS.staffLine : '#eceff1';
+                    bgCtx.lineWidth = isMain ? 4 : 2;
+                    bgCtx.beginPath();
+                    bgCtx.moveTo(20, y);
+                    bgCtx.lineTo(bgCanvas.width - 20, y);
+                    bgCtx.stroke();
+                }
+            }
+
+            // Clef
+            bgCtx.fillStyle = COLORS.clef;
+            bgCtx.font = `${stepY * 14}px serif`;
+            bgCtx.textAlign = "center";
+            bgCtx.textBaseline = "alphabetic";
+            const g4Y = marginY + 7 * stepY;
+            bgCtx.fillText("𝄞", staffPaddingLeft / 2.5, g4Y + (stepY * 4.5));
+        }
+
+        function startRenderLoop() {
+            if (renderLoopStarted) return;
+            renderLoopStarted = true;
+
+            function loop() {
+                if (needsRedraw) {
+                    needsRedraw = false; // Reset BEFORE drawing
+                    draw(state.currentStep);
+                }
+                requestAnimationFrame(loop);
+            }
+            loop();
+        }
+
+        function draw(playheadIndex) {
+            // Guard against 0-size canvas which causes InvalidStateError in drawImage
+            if (canvas.width === 0 || canvas.height === 0 || bgCanvas.width === 0 || bgCanvas.height === 0) return;
+
+            drawBackground();
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(bgCanvas, 0, 0);
+
+            const marginY = 40;
+
+            // Playhead
+            if (state.isPlaying && playheadIndex >= 0) {
+                const x = staffPaddingLeft + playheadIndex * stepX;
+                ctx.fillStyle = 'rgba(255, 64, 129, 0.1)'; 
+                ctx.fillRect(x, 0, stepX, canvas.height);
+                ctx.strokeStyle = COLORS.playhead;
+                ctx.lineWidth = 4;
+                ctx.beginPath(); ctx.moveTo(x + stepX/2, 0); ctx.lineTo(x + stepX/2, canvas.height); ctx.stroke();
+            }
+
+            // Notes
+            const now = Date.now();
+            let animateNextFrame = false;
+
+            state.notes.forEach(note => {
+                const x = staffPaddingLeft + note.gridX * stepX;
+                const y = marginY + note.gridY * stepY;
+                const isPlaying = playheadIndex === note.gridX && state.isPlaying;
+
+                const size = stepY * 1.9; 
+                const cx = x + stepX / 2;
+                const cy = y;
+
+                const img = imageCache[note.emoji];
+                
+                ctx.save();
+                ctx.translate(cx, cy);
+
+                // Imperfection: Random Rotation
+                if (note.rotation === undefined) note.rotation = (Math.random() - 0.5) * 0.3;
+                ctx.rotate(note.rotation);
+
+                if (isPlaying) {
+                    // Bounce
+                    const bounceSpeed = 0.015;
+                    const bounce = Math.abs(Math.sin(now * bounceSpeed)) * 15;
+                    ctx.translate(0, -bounce);
+                    ctx.scale(1.2, 1.2);
+                    ctx.rotate(Math.sin(now * 0.02) * 0.2); 
+                    ctx.shadowColor = "rgba(255, 64, 129, 0.6)"; ctx.shadowBlur = 20;
+                    animateNextFrame = true;
+                } else if (note.isPressed) {
+                     // Pressed state: Squished
+                     ctx.scale(0.8, 0.8);
+                     ctx.shadowColor = "rgba(55, 71, 79, 0.5)"; 
+                     ctx.shadowBlur = 2; 
+                     ctx.shadowOffsetY = 1;
+                } else if (note.createdAt && (now - note.createdAt < 400)) {
+                    // Elastic Stamp Animation
+                    const age = now - note.createdAt;
+                    const t = age / 400; 
+                    // Overshoot easeOutElastic-ish
+                    let scale = 1;
+                    if (t < 0.5) { // Expand
+                       scale = 0.5 + (t * 2) * 0.7; // 0.5 -> 1.2
+                    } else { // Settle
+                       scale = 1.2 - ((t-0.5) * 2) * 0.2; // 1.2 -> 1.0
+                    }
+                    ctx.scale(scale, scale);
+                    ctx.shadowColor = "rgba(55, 71, 79, 0.3)"; ctx.shadowBlur = 4; ctx.shadowOffsetY = 2;
+                    animateNextFrame = true;
+                } else {
+                    // Draw Fake Shadow for static notes (performance optimization)
+                    // We draw the image again, offset, with low opacity.
+                    // This avoids setting expensive shadowBlur properties.
+                }
+
+                if (img) {
+                     // Manual Shadow for static notes (faster than ctx.shadow)
+                    if (!isPlaying && !note.isPressed && (!note.createdAt || now - note.createdAt >= 400)) {
+                         ctx.globalAlpha = 0.2;
+                         ctx.drawImage(img, -size/2 + 2, -size/2 + 4, size, size); // Offset shadow
+                         ctx.globalAlpha = 1.0;
+                    }
+                    ctx.drawImage(img, -size/2, -size/2, size, size);
+                } else {
+                    ctx.fillStyle = '#37474f';
+                    ctx.font = `${size}px "Segoe UI Emoji", serif`; 
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(note.emoji, 0, 0);
+                    loadEmojiImage(note.emoji);
+                }
+                ctx.restore();
+            });
+
+            if (animateNextFrame) {
+                needsRedraw = true; // Keep loop going if animating
+            }
+        }
+
+        /**
+         * 8. INTERACTION & EVENTS
+         */
+        
+        // Buttons with Icons
+        const btnConfigs = [
+            { id: 'randomIcon', emoji: '🎲' },
+            { id: 'clearIcon', emoji: '🗑️' },
+            { id: 'shareIcon', emoji: '✉️' },
+            { id: 'playIcon', emoji: '▶️' } // Initial state
+        ];
+
+        btnConfigs.forEach(conf => {
+            const img = document.getElementById(conf.id);
+            if(img) img.src = getEmojiUrl(conf.emoji);
+        });
+        
+        // Populate Tempo Icons
+        const tempoIconSlow = document.getElementById('tempoIconSlow');
+        const tempoIconFast = document.getElementById('tempoIconFast');
+        const slowImg = document.createElement('img'); slowImg.src = getEmojiUrl('🐢'); tempoIconSlow.appendChild(slowImg);
+        const fastImg = document.createElement('img'); fastImg.src = getEmojiUrl('🐇'); tempoIconFast.appendChild(fastImg);
+
+        let pendingAction = null;
+        let lastMouseX = 0, lastMouseY = 0, lastMouseTime = 0;
+
+        // Custom Cursor & Velocity Tracking
+        let cursorX = window.innerWidth / 2;
+        let cursorY = window.innerHeight / 2;
+
+        document.addEventListener('mousemove', (e) => {
+            cursorX = e.clientX;
+            cursorY = e.clientY;
+            
+            // Velocity
+            const now = Date.now();
+            const dt = now - lastMouseTime;
+            if (dt > 20) {
+                const dist = Math.hypot(e.clientX - lastMouseX, e.clientY - lastMouseY);
+                state.mouseSpeed = dist;
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+                lastMouseTime = now;
+            }
+        });
+
+        function animateCursor() {
+            if(customCursor) {
+                customCursor.style.transform = `translate(${cursorX - 32}px, ${cursorY - 32}px)`; // 64px / 2
+            }
+            requestAnimationFrame(animateCursor);
+        }
+        animateCursor();
+
+        // Use pointer events to handle hold-to-press behavior robustly (compatible with mouse/touch/pen)
+        // This ensures the cursor visually "presses" and "releases" regardless of where the click occurs.
+        const togglePress = (force) => customCursor.classList.toggle('pressing', force);
+        document.addEventListener('pointerdown', () => togglePress(true));
+        
+        // Handle RELEASE logic for stamps
+        document.addEventListener('pointerup', () => {
+            togglePress(false);
+            // Release all pressed notes
+            const now = Date.now();
+            let changed = false;
+            state.notes.forEach(n => {
+                if (n.isPressed) {
+                    n.isPressed = false;
+                    n.createdAt = now; // Trigger animation start
+                    changed = true;
+                }
+            });
+            if (changed) markDirty();
+        });
+        document.addEventListener('pointercancel', () => togglePress(false));
+
+
+        header.addEventListener('mouseenter', () => customCursor.style.opacity = '0');
+        header.addEventListener('mouseleave', () => customCursor.style.opacity = '1');
+
+        // Modal
+        function showModal(text, onConfirm) {
+            modalText.textContent = text;
+            pendingAction = onConfirm;
+            modalOverlay.classList.remove('hidden');
+        }
+        function hideModal() { modalOverlay.classList.add('hidden'); pendingAction = null; }
+        modalConfirmBtn.onclick = () => { if (pendingAction) pendingAction(); hideModal(); }
+        modalCancelBtn.onclick = hideModal;
+
+        // --- SHARE MODAL LOGIC ---
+        function openShareModal() {
+            const code = generateSongCode();
+            songCodeOutput.value = code;
+            songCodeInput.value = '';
+            shareModal.classList.remove('hidden');
+        }
+        function closeShareModal() { shareModal.classList.add('hidden'); }
+        
+        shareBtn.addEventListener('click', openShareModal);
+        closeShareModalBtn.addEventListener('click', closeShareModal);
+        
+        copySongCodeBtn.addEventListener('click', async () => {
+            const code = songCodeOutput.value.trim();
+            if (!code) return;
+            try {
+                await navigator.clipboard.writeText(code);
+                copySongCodeBtn.textContent = "Copied!";
+                setTimeout(() => copySongCodeBtn.textContent = "Copy Song Code", 1200);
+            } catch (err) {
+                songCodeOutput.select();
+                alert("Please manually copy the code.");
+            }
+        });
+        
+        loadSongCodeBtn.addEventListener('click', () => {
+            const code = songCodeInput.value.trim();
+            if (!code) return;
+            loadSongFromCode(code);
+            closeShareModal();
+        });
+
+        // Smart Random
+        randomBtn.onclick = async () => {
+            await initAudio();
+            showModal("Create a new random song?", () => {
+                // Refresh Palette
+                initPalette();
+                
+                state.notes = [];
+                const numNotes = 12 + Math.floor(Math.random() * 8);
+                const preferredCols = [0, 4, 8, 12];
+                for(let i=0; i<numNotes; i++) {
+                    let gx;
+                    if (Math.random() < 0.6) {
+                        gx = preferredCols[Math.floor(Math.random() * preferredCols.length)];
+                    } else {
+                        gx = Math.floor(Math.random() * GRID_COLS);
+                    }
+                    const gy = Math.floor(Math.random() * GRID_ROWS);
+                    const emoji = state.palette[Math.floor(Math.random() * state.palette.length)];
+                    if (!state.notes.find(n => n.gridX === gx && n.gridY === gy)) {
+                        state.notes.push({ emoji, gridX: gx, gridY: gy, createdAt: Date.now() });
+                    }
+                }
+                markDirty();
+            });
+        };
+
+        // Canvas Click -> Note Logic
+        const downEvent = 'onpointerdown' in window ? 'pointerdown' : 'mousedown';
+        canvas.addEventListener(downEvent, async (e) => {
+            e.preventDefault();
+            await initAudio(); 
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.clientX || e.touches?.[0]?.clientX;
+            const clientY = e.clientY || e.touches?.[0]?.clientY;
+            const clickX = clientX - rect.left;
+            const clickY = clientY - rect.top;
+
+            if (clickX < staffPaddingLeft) return; 
+            const gridX = Math.floor((clickX - staffPaddingLeft) / stepX);
+            const rawY = (clickY - 40) / stepY;
+            const gridY = Math.round(rawY);
+
+            if (gridX < 0 || gridX >= GRID_COLS || gridY < 0 || gridY >= GRID_ROWS) return;
+
+            const existingIndex = state.notes.findIndex(n => n.gridX === gridX && n.gridY === gridY);
+
+            if (existingIndex > -1) {
+                // Delete
+                if (typeof Tone !== "undefined") foley.foop.triggerAttackRelease("C2", "8n");
+                state.notes.splice(existingIndex, 1);
+            } else {
+                // Add
+                if (typeof Tone !== "undefined") foley.thunk.triggerAttackRelease("C1", "16n");
+                state.notes.push({
+                    emoji: state.selectedEmoji,
+                    gridX,
+                    gridY,
+                    isPressed: true, // Pressed initially
+                    createdAt: 0 // No animation yet
+                });
+                if (state.audioContextStarted && typeof Tone !== "undefined") {
+                    playNote({ emoji: state.selectedEmoji, gridX, gridY }, Tone.now());
+                }
+            }
+            markDirty();
+        });
+
+        // --- STANDARD WIRING ---
+        clearBtn.onclick = () => showModal("Delete all notes?", () => { state.notes = []; markDirty(); });
+        playToggle.onclick = async () => {
+            await initAudio();
+            if (state.isPlaying) {
+                state.isPlaying = false;
+                Tone.Transport.stop();
+                
+                playIcon.src = getEmojiUrl('▶️');
+                playLabel.textContent = 'Play';
+                playToggle.classList.remove('playing');
+                state.currentStep = -1;
+                markDirty(); 
+            } else {
+                state.isPlaying = true;
+                Tone.Transport.start();
+
+                playIcon.src = getEmojiUrl('⏹️');
+                playLabel.textContent = 'Stop';
+                playToggle.classList.add('playing');
+                transportStep = 0;
+            }
+        };
+        openPickerBtn.onclick = async (e) => {
+            e.stopPropagation();
+            await initAudio();
+            pickerPopover.classList.toggle('visible');
+            if(pickerTabs.firstChild) pickerTabs.firstChild.focus();
+        };
+        
+        // Add Plus icon to picker button
+        const plusImg = document.createElement('img');
+        plusImg.src = getEmojiUrl('➕');
+        openPickerBtn.innerHTML = '';
+        openPickerBtn.appendChild(plusImg);
+        
+        document.body.addEventListener('click', (e) => {
+            if (!pickerPopover.contains(e.target) && !openPickerBtn.contains(e.target)) pickerPopover.classList.remove('visible');
+            if (e.target.classList.contains('modal-overlay')) {
+                shareModal.classList.add('hidden');
+                modalOverlay.classList.add('hidden');
+            }
+        });
+        document.addEventListener('keydown', (e) => { 
+            if (e.key === 'Escape') { 
+                pickerPopover.classList.remove('visible'); 
+                hideModal(); 
+                closeShareModal();
+            } 
+        });
+        tempoInput.oninput = (e) => {
+            state.bpm = Number(e.target.value);
+            if (typeof Tone !== "undefined" && Tone.Transport) {
+                if (Tone.Transport.state !== "stopped") {
+                    Tone.Transport.bpm.rampTo(state.bpm, 0.05);
+                } else {
+                    Tone.Transport.bpm.value = state.bpm;
+                }
+            }
+        };
+
+        // --- PICKER GENERATION ---
+        function buildPicker() {
+            pickerTabs.innerHTML = '';
+            pickerContent.innerHTML = '';
+            let firstCat = true;
+
+            for (const [category, emojis] of Object.entries(CATEGORIES)) {
+                const icon = category.match(/[\p{Emoji}\u200d]+/u)?.[0] || category[0];
+                const catId = category.replace(/[^a-zA-Z]/g, '');
+
+                const tab = document.createElement('div');
+                tab.className = 'picker-tab';
+                if (firstCat) tab.classList.add('active');
+                
+                const tabImg = document.createElement('img');
+                tabImg.src = getEmojiUrl(icon);
+                tab.appendChild(tabImg);
+
+                tab.title = category;
+                tab.tabIndex = 0; 
+                
+                tab.onclick = () => {
+                    document.querySelectorAll('.picker-tab').forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    document.querySelectorAll('.picker-section').forEach(s => s.classList.add('hidden'));
+                    document.getElementById('sec-' + catId).classList.remove('hidden');
+                };
+                pickerTabs.appendChild(tab);
+
+                const section = document.createElement('div');
+                section.className = 'picker-section';
+                if (!firstCat) section.classList.add('hidden');
+                section.id = 'sec-' + catId;
+                
+                const title = document.createElement('div');
+                title.className = 'picker-section-title';
+                title.textContent = category;
+                section.appendChild(title);
+
+                const grid = document.createElement('div');
+                grid.className = 'picker-grid';
+
+                emojis.forEach(char => {
+                    const item = document.createElement('div');
+                    item.className = 'picker-item';
+                    item.tabIndex = 0; 
+                    
+                    const img = document.createElement('img');
+                    img.loading = "lazy";
+                    img.src = getEmojiUrl(char);
+                    img.onerror = () => { img.style.display = 'none'; item.textContent = char; };
+                    
+                    item.appendChild(img);
+                    item.onmouseenter = () => playPreview(char);
+                    item.onclick = () => {
+                        addToPalette(char);
+                        pickerPopover.classList.remove('visible');
+                    };
+                    grid.appendChild(item);
+                });
+
+                section.appendChild(grid);
+                pickerContent.appendChild(section);
+                firstCat = false;
+            }
+        }
+
+        // --- PALETTE MANAGEMENT ---
+        function initPalette() {
+            const shuffled = shuffle([...ALL_EMOJIS]);
+            state.palette = shuffled.slice(0, 6);
+            selectEmoji(state.palette[0]);
+            renderPalette();
+        }
+
+        function addToPalette(char) {
+            const idx = state.palette.indexOf(char);
+            if (idx > -1) {
+                state.palette.splice(idx, 1);
+                state.palette.push(char);
+            } else {
+                if (state.palette.length >= 10) {
+                    state.palette.shift(); 
+                }
+                state.palette.push(char);
+            }
+            selectEmoji(char);
+            renderPalette();
+        }
+
+        function renderPalette() {
+            const buttons = paletteContainer.querySelectorAll('.emoji-btn:not(#openPickerBtn)');
+            buttons.forEach(b => b.remove());
+
+            state.palette.forEach(char => {
+                const btn = document.createElement('div');
+                btn.className = 'emoji-btn';
+                if (char === state.selectedEmoji) btn.classList.add('active');
+                btn.tabIndex = 0;
+
+                const img = document.createElement('img');
+                img.loading = "lazy";
+                img.src = getEmojiUrl(char);
+                img.onerror = () => { img.style.display = 'none'; btn.textContent = char; };
+                
+                btn.appendChild(img);
+
+                btn.onclick = () => {
+                    playPreview(char);
+                    selectEmoji(char);
+                    document.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                };
+
+                paletteContainer.insertBefore(btn, openPickerBtn);
+            });
+            state.palette.forEach(char => loadEmojiImage(char));
+        }
+
+        function selectEmoji(char) {
+            state.selectedEmoji = char;
+            loadEmojiImage(char);
+            updateCurrentEmojiDisplay(char);
+            
+            // Update Cursor Image
+            customCursor.innerHTML = '';
+            const cursorImg = document.createElement('img');
+            cursorImg.src = getEmojiUrl(char);
+            customCursor.appendChild(cursorImg);
+        }
+
+        function updateCurrentEmojiDisplay(char) {
+            currentEmojiContainer.innerHTML = '';
+            const img = document.createElement('img');
+            img.src = getEmojiUrl(char);
+            img.className = 'current-emoji-img';
+            img.onerror = () => { currentEmojiContainer.textContent = char; };
+            currentEmojiContainer.appendChild(img);
+        }
+
+        // --- INIT ---
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+        if (typeof Tone !== "undefined" && Tone.Transport) {
+             Tone.Transport.bpm.value = state.bpm;
+        }
+        buildPicker();
+        initPalette(); 
+        startRenderLoop();
+
+    </script>
+</body>
+</html>
