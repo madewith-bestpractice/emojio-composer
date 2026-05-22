@@ -1291,6 +1291,54 @@
                     instruments.water = new Tone.PolySynth(Tone.MembraneSynth, { ...polyOptions, pitchDecay: 0.1, octaves: 2, oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 0.4, sustain: 0, release: 0.4 } }).connect(bus);
                     instruments.water.volume.value = -8;
                     break;
+                case 'unicorn': {
+                    // Sparkly FM bell — high modulation index, sine carrier, bright shimmer
+                    const unicornChorus = new Tone.Chorus(2, 1.5, 0.6).start().connect(bus);
+                    instruments.unicorn = new Tone.PolySynth(Tone.FMSynth, { ...polyOptions, harmonicity: 5.5, modulationIndex: 8, oscillator: { type: "sine" }, envelope: { attack: 0.005, decay: 0.8, sustain: 0.1, release: 0.8 }, modulation: { type: "triangle" }, modulationEnvelope: { attack: 0.005, decay: 0.4, sustain: 0.1, release: 0.5 } }).connect(unicornChorus);
+                    instruments.unicorn.volume.value = -7;
+                    break;
+                }
+                case 'mic': {
+                    // Vocal "ah" — AM with light wobble
+                    const micTrem = new Tone.Tremolo(5.5, 0.3).start().connect(bus);
+                    instruments.mic = new Tone.PolySynth(Tone.AMSynth, { ...polyOptions, harmonicity: 2.5, oscillator: { type: "sine" }, envelope: { attack: 0.05, decay: 0.2, sustain: 0.7, release: 0.3 }, modulation: { type: "sawtooth" }, modulationEnvelope: { attack: 0.1, decay: 0.2, sustain: 0.5, release: 0.3 } }).connect(micTrem);
+                    instruments.mic.volume.value = -8;
+                    break;
+                }
+                case 'headphones': {
+                    // Lo-fi dim pad — bitcrushed + dark lowpass
+                    const hpCrush = new Tone.BitCrusher(6);
+                    const hpFilter = new Tone.Filter(1400, "lowpass").connect(bus);
+                    hpCrush.connect(hpFilter);
+                    instruments.headphones = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "triangle" }, envelope: { attack: 0.08, decay: 0.3, sustain: 0.6, release: 0.4 } }).connect(hpCrush);
+                    instruments.headphones.volume.value = -9;
+                    break;
+                }
+                case 'angel': {
+                    // Choir-like — long release, slight detune, extra reverb tail
+                    const angelReverb = new Tone.Reverb({ decay: 3, wet: 0.45 }).connect(bus);
+                    instruments.angel = new Tone.PolySynth(Tone.FMSynth, { ...polyOptions, harmonicity: 2, modulationIndex: 1.5, oscillator: { type: "sine" }, envelope: { attack: 0.3, decay: 0.4, sustain: 0.8, release: 1.2 }, modulation: { type: "sine" }, modulationEnvelope: { attack: 0.4, decay: 0.4, sustain: 0.6, release: 1 } }).connect(angelReverb);
+                    instruments.angel.volume.value = -10;
+                    break;
+                }
+                case 'heart': {
+                    // Warm pulse pad — slow attack, gentle
+                    instruments.heart = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "pwm", modulationFrequency: 0.7 }, envelope: { attack: 0.15, decay: 0.3, sustain: 0.6, release: 0.4 } }).connect(bus);
+                    instruments.heart.volume.value = -7;
+                    break;
+                }
+                case 'mushroom': {
+                    // Power-up — quick triangle with pitch glide-up feel via short envelope
+                    instruments.mushroom = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "triangle" }, envelope: { attack: 0.005, decay: 0.18, sustain: 0.0, release: 0.15 }, portamento: 0.04 }).connect(bus);
+                    instruments.mushroom.volume.value = -4;
+                    break;
+                }
+                case 'ball': {
+                    // Bouncy thunk — drum variant tuned higher for sports balls
+                    instruments.ball = new Tone.PolySynth(Tone.MembraneSynth, { ...polyOptions, pitchDecay: 0.04, octaves: 5, oscillator: { type: "sine" }, envelope: { attack: 0.001, decay: 0.18, sustain: 0.0, release: 0.18 } }).connect(bus);
+                    instruments.ball.volume.value = -3;
+                    break;
+                }
                 default:
                     // Lazy load default if not exists
                     if (!instruments.default) {
@@ -1344,28 +1392,125 @@
             inst.triggerAttackRelease(pitch, duration, time, vel);
         }
 
-        function playNote(noteObj, time) {
-            const pitch = SCALE[noteObj.gridY];
-            const type = getSoundType(noteObj.emoji);
-            let duration = "8n"; 
-            if (['flower', 'ghost', 'strings', 'boat', 'plane', 'moo', 'star', 'bell'].includes(type)) duration = "4n"; 
-            else if (['cat', 'mario', 'brass', 'car', 'baby', 'quack', 'honk', 'sax', 'siren', 'alien'].includes(type)) duration = "8n"; 
-            else duration = "16n"; 
-            triggerSound(type, pitch, duration, time);
-        }
-        
-        function playPreview(emoji) {
-            if (typeof Tone === "undefined" || !Tone.context || Tone.context.state !== 'running') return;
-            const type = getSoundType(emoji);
-            const pitch = "C4"; 
-            let duration = "8n";
-            if (['flower', 'ghost', 'strings', 'boat', 'plane', 'moo', 'star', 'bell'].includes(type)) duration = "4n"; 
-            else if (['dog', 'pig', 'frog', 'drum', 'gameboy', 'cluck', 'chirp', 'wood', 'chopper'].includes(type)) duration = "16n";
-            
-            const vel = Math.min(1, 0.6 + (state.mouseSpeed * 0.02)); 
-            triggerSound(type, pitch, duration, Tone.now(), vel);
+        // Voice profile per emoji. {synth, semi?, dur?, previewDur?}
+        // - synth: instrument key (must exist in getInstrument)
+        // - semi:  semitone offset applied to the played pitch (e.g. -12 for "one octave down")
+        // - dur / previewDur: optional override of the auto-picked duration
+        // Any emoji not listed falls through to getSoundType() so old saved songs still work.
+        const VOICES = {
+            // --- Animals ---
+            '🐶': { synth: 'dog' },
+            '🐱': { synth: 'cat' },
+            '🐷': { synth: 'pig' },
+            '🐸': { synth: 'frog' },
+            '🐔': { synth: 'cluck' },
+            '🦆': { synth: 'quack' },
+            '🦁': { synth: 'lion' },
+            '🐮': { synth: 'moo' },
+            '🐦': { synth: 'chirp' },
+            '🐺': { synth: 'dog',   semi: -12 },   // wolf: octave-down howl
+            '🐗': { synth: 'pig',   semi: -7 },    // boar: deeper grunt
+            '🦄': { synth: 'unicorn' },
+
+            // --- Music ---
+            '🎹': { synth: 'mario' },
+            '🥁': { synth: 'drum' },
+            '🎸': { synth: 'pluck' },
+            '🎺': { synth: 'brass' },
+            '🎻': { synth: 'strings' },
+            '🎷': { synth: 'sax' },
+            '🔔': { synth: 'bell' },
+            '🎼': { synth: 'mario', semi: 12 },    // music note: octave up
+            '🎤': { synth: 'mic' },
+            '🎧': { synth: 'headphones' },
+
+            // --- Vehicles ---
+            '🚗': { synth: 'car' },
+            '✈️': { synth: 'plane' },
+            '🚢': { synth: 'boat' },
+            '🚓': { synth: 'siren' },
+            '🚒': { synth: 'siren', semi: -2 },    // firetruck: lower wail
+            '🚑': { synth: 'siren', semi: 3 },     // ambulance: higher wail
+            '🚜': { synth: 'car',   semi: -12 },   // tractor: low chug
+            '🚁': { synth: 'chopper' },
+            '🚀': { synth: 'chopper', semi: 5 },   // rocket: brighter
+            '🛸': { synth: 'alien',   semi: 7 },   // UFO: bright alien
+            '🤖': { synth: 'alien' },
+            '👾': { synth: 'alien',   semi: -7 },  // invader: lower bleep
+            '🚂': { synth: 'car',     semi: -19 }, // train: very low chug
+
+            // --- Voices / Characters ---
+            '👶': { synth: 'baby' },
+            '👻': { synth: 'ghost' },
+            '👽': { synth: 'alien' },
+            '💩': { synth: 'pig' },
+            '💀': { synth: 'wood' },
+            '🤡': { synth: 'honk' },
+            '👺': { synth: 'honk',  semi: -5 },    // tengu: gnarlier honk
+            '👼': { synth: 'angel' },
+            '🧛': { synth: 'ghost', semi: -12 },   // vampire: low moan
+
+            // --- Nature / Misc ---
+            '🌸': { synth: 'flower' },
+            '❤️': { synth: 'heart' },
+            '🌊': { synth: 'water' },
+            '⭐': { synth: 'star' },
+            '🔥': { synth: 'chopper' },
+            '🌈': { synth: 'star',  semi: 7 },     // rainbow: brighter shimmer
+            '🍄': { synth: 'mushroom' },
+            '🌵': { synth: 'pluck', semi: -12 },   // cactus: low dry pluck
+            '⚽': { synth: 'ball',  semi: -5 },    // soccer: lower bounce
+            '🏀': { synth: 'ball' },               // basketball: mid bounce
+            '💡': { synth: 'bell',  semi: 12 },    // bulb: high ping
+        };
+
+        function getVoiceProfile(emoji) {
+            return VOICES[emoji] || { synth: getSoundType(emoji) };
         }
 
+        // Default sequence / preview durations per synth, used unless VOICES overrides.
+        function getSequenceDuration(synth) {
+            if (['flower', 'ghost', 'strings', 'boat', 'plane', 'moo', 'star', 'bell',
+                 'angel', 'heart', 'headphones'].includes(synth)) return '4n';
+            if (['cat', 'mario', 'brass', 'car', 'baby', 'quack', 'honk', 'sax',
+                 'siren', 'alien', 'unicorn', 'mic'].includes(synth)) return '8n';
+            return '16n';
+        }
+        function getPreviewDuration(synth) {
+            if (['flower', 'ghost', 'strings', 'boat', 'plane', 'moo', 'star', 'bell',
+                 'angel', 'heart', 'headphones', 'mic'].includes(synth)) return '4n';
+            if (['dog', 'pig', 'frog', 'drum', 'gameboy', 'cluck', 'chirp', 'wood',
+                 'chopper', 'mushroom', 'ball'].includes(synth)) return '16n';
+            return '8n';
+        }
+
+        // Transpose a note ("C4") by N semitones. Returns Hz (number) which Tone accepts.
+        function transposePitch(pitch, semitones) {
+            if (!semitones) return pitch;
+            if (typeof Tone === "undefined" || !Tone.Frequency) return pitch;
+            try {
+                return Tone.Frequency(pitch).transpose(semitones).toFrequency();
+            } catch (e) { return pitch; }
+        }
+
+        function playNote(noteObj, time) {
+            const profile = getVoiceProfile(noteObj.emoji);
+            const basePitch = SCALE[noteObj.gridY];
+            const pitch = transposePitch(basePitch, profile.semi || 0);
+            const duration = profile.dur || getSequenceDuration(profile.synth);
+            triggerSound(profile.synth, pitch, duration, time);
+        }
+
+        function playPreview(emoji) {
+            if (typeof Tone === "undefined" || !Tone.context || Tone.context.state !== 'running') return;
+            const profile = getVoiceProfile(emoji);
+            const pitch = transposePitch("C4", profile.semi || 0);
+            const duration = profile.previewDur || getPreviewDuration(profile.synth);
+            const vel = Math.min(1, 0.6 + (state.mouseSpeed * 0.02));
+            triggerSound(profile.synth, pitch, duration, Tone.now(), vel);
+        }
+
+        // Legacy fallback for emojis not in VOICES (older saved songs etc.)
         function getSoundType(emoji) {
             // Animals
             if (emoji.match(/🐶|🐕|🐩|🐺/)) return 'dog';
