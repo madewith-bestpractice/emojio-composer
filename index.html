@@ -65,22 +65,27 @@
             cursor: none; 
         }
 
-        /* Force hide cursor on interactive elements by default */
-        button, input, canvas, .emoji-btn, .picker-item, .picker-tab, a, textarea {
+        /* Canvas keeps the custom emoji stamp — hide OS cursor there */
+        canvas {
             cursor: none !important;
         }
 
-        /* Header Exception: Show standard "Cute Hand" (Pointer) */
-        header, header * {
+        /* Interactive UI: show the cute hand (pointer) */
+        button, .emoji-btn, .picker-item, .picker-tab, a,
+        header, header *,
+        .picker-popover, .picker-popover *,
+        .modal-overlay button {
             cursor: pointer !important;
         }
 
-        /* Show pointer in Modals too */
-        .modal-overlay, .modal-overlay * {
-            cursor: default !important;
+        /* Text inputs: standard I-beam */
+        input, textarea {
+            cursor: text !important;
         }
-        .modal-overlay button {
-            cursor: pointer !important;
+
+        /* Modal backdrop / box: standard arrow */
+        .modal-overlay, .modal-box, .modal-title {
+            cursor: default !important;
         }
 
         /* Custom Cursor Container - STAMP TOOL LOOK */
@@ -2063,8 +2068,13 @@
         document.addEventListener('pointercancel', () => togglePress(false));
 
 
-        header.addEventListener('mouseenter', () => customCursor.style.opacity = '0');
-        header.addEventListener('mouseleave', () => customCursor.style.opacity = '1');
+        // Hide the emoji stamp cursor over UI chrome (buttons, dialogs, picker, header)
+        // so the underlying OS pointer ("cute hand") shows through instead.
+        const UI_SELECTOR = 'button, input, textarea, a, .emoji-btn, .picker-item, .picker-tab, .picker-popover, .modal-overlay, header';
+        document.addEventListener('pointerover', (e) => {
+            const overUI = e.target && e.target.closest && e.target.closest(UI_SELECTOR);
+            customCursor.style.opacity = overUI ? '0' : '1';
+        });
 
         // Hide the custom cursor when the pointer leaves the page or window loses focus.
         document.addEventListener('mouseleave', () => customCursor.style.opacity = '0');
