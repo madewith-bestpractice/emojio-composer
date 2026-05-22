@@ -637,6 +637,62 @@
 
         .hidden { display: none !important; }
 
+        /* Danger button (e.g. modal close) */
+        button.danger {
+            background-color: #e57373;
+            color: #fff;
+        }
+        button.danger:hover { background-color: #ef5350; }
+
+        /* Visually hidden but read by screen readers */
+        .sr-only {
+            position: absolute;
+            width: 1px; height: 1px;
+            padding: 0; margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        /* Toast — used in place of alert() so the toy aesthetic holds on errors */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(120%);
+            background: #fff;
+            color: var(--text-color);
+            border: var(--border-width) solid var(--text-color);
+            box-shadow: 6px 6px 0px rgba(0,0,0,0.2);
+            border-radius: 14px;
+            padding: 14px 20px;
+            font-size: 0.7rem;
+            line-height: 1.5;
+            max-width: 80vw;
+            z-index: 500;
+            transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.25s;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .toast.visible {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+        .toast.error { background: #ffebee; border-color: #c62828; }
+        .toast.success { background: #e8f5e9; border-color: #2e7d32; }
+
+        /* Respect user motion / cursor preferences: show OS cursor again */
+        @media (prefers-reduced-motion: reduce) {
+            body, button, input, canvas, .emoji-btn, .picker-item, .picker-tab, a, textarea,
+            .canvas-wrapper {
+                cursor: auto !important;
+            }
+            #customCursor { display: none !important; }
+            /* Disable elastic stamp / bounce animations as best we can */
+            .modal-box { animation: none !important; }
+        }
+
         @media (max-width: 800px) {
             header { flex-direction: column; align-items: stretch; gap: 15px; padding: 15px; }
             h1 { text-align: center; margin-right: 0; font-size: 0.8rem; white-space: normal; }
@@ -676,9 +732,11 @@
             
             <div class="tempo-control">
                 <!-- Programmatically filled with emoji icons -->
-                <div id="tempoIconSlow" class="tempo-icon"></div>
-                <input type="range" id="tempo" min="60" max="180" value="100">
-                <div id="tempoIconFast" class="tempo-icon"></div>
+                <div id="tempoIconSlow" class="tempo-icon" aria-hidden="true"></div>
+                <label for="tempo" class="sr-only">Tempo in beats per minute</label>
+                <input type="range" id="tempo" min="60" max="180" value="100"
+                       aria-label="Tempo" aria-valuemin="60" aria-valuemax="180" aria-valuenow="100">
+                <div id="tempoIconFast" class="tempo-icon" aria-hidden="true"></div>
             </div>
         </div>
     </header>
@@ -742,8 +800,14 @@
     </div>
 
     <div class="canvas-wrapper" id="canvasContainer">
-        <canvas id="musicCanvas"></canvas>
+        <canvas id="musicCanvas" aria-label="Music canvas. Click or tap to place emoji notes on the staff."></canvas>
     </div>
+
+    <!-- Screen-reader announcements for note add/remove etc. -->
+    <div id="srLive" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- Toast container (used in place of alert()) -->
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
     <script>
         /**
@@ -834,12 +898,99 @@
 
         const customCursor = document.getElementById('customCursor');
         const header = document.querySelector('header');
+        const srLive = document.getElementById('srLive');
+        const toastEl = document.getElementById('toast');
 
         /**
          * 4. UTILITIES
          */
         function markDirty() {
             needsRedraw = true;
+            wakeRenderLoop();
+        }
+
+        // Screen-reader announcer
+        function announce(text) {
+            if (!srLive) return;
+            srLive.textContent = '';
+            // Defer so SR picks up the change
+            setTimeout(() => { srLive.textContent = text; }, 50);
+        }
+
+        // Toy-styled toast (replacement for alert())
+        let toastTimer = null;
+        function showToast(text, kind = '') {
+            if (!toastEl) return;
+            toastEl.textContent = text;
+            toastEl.className = 'toast visible' + (kind ? ' ' + kind : '');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+                toastEl.classList.remove('visible');
+            }, 2800);
+        }
+
+        // localStorage persistence — saves song so refresh doesn't lose it
+        const STORAGE_KEY = 'emojio-composer-v1';
+        let persistTimer = null;
+        function persist() {
+            // Debounced so rapid mutations don't thrash storage
+            clearTimeout(persistTimer);
+            persistTimer = setTimeout(() => {
+                try {
+                    const data = {
+                        bpm: state.bpm,
+                        palette: state.palette,
+                        selectedEmoji: state.selectedEmoji,
+                        notes: state.notes.map(n => ({
+                            emoji: n.emoji, gridX: n.gridX, gridY: n.gridY
+                        }))
+                    };
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+                } catch (e) { /* private mode / full disk — ignore */ }
+            }, 250);
+        }
+        function loadPersisted() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (!raw) return null;
+                const data = JSON.parse(raw);
+                if (!data || !Array.isArray(data.notes)) return null;
+                return data;
+            } catch (e) { return null; }
+        }
+
+        // Simple undo stack (Cmd/Ctrl+Z)
+        const UNDO_LIMIT = 50;
+        const undoStack = [];
+        function snapshotForUndo() {
+            undoStack.push({
+                bpm: state.bpm,
+                palette: state.palette.slice(),
+                selectedEmoji: state.selectedEmoji,
+                notes: state.notes.map(n => ({
+                    emoji: n.emoji, gridX: n.gridX, gridY: n.gridY, rotation: n.rotation
+                }))
+            });
+            if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+        }
+        function undo() {
+            if (!undoStack.length) {
+                showToast("Nothing to undo");
+                return;
+            }
+            const prev = undoStack.pop();
+            state.bpm = prev.bpm;
+            state.palette = prev.palette;
+            state.notes = prev.notes.map(n => ({ ...n, createdAt: Date.now() }));
+            tempoInput.value = state.bpm;
+            if (typeof Tone !== "undefined" && Tone.Transport) {
+                Tone.Transport.bpm.value = state.bpm;
+            }
+            selectEmoji(prev.selectedEmoji || state.palette[0]);
+            renderPalette();
+            persist();
+            markDirty();
+            announce("Undone");
         }
 
         function getEmojiUrl(emoji) {
@@ -918,20 +1069,22 @@
             try {
                 data = decodeSongObject(code.trim());
             } catch (err) {
-                alert("That song code doesn’t look right. Please check and try again.");
-                return;
+                showToast("That song code doesn't look right. Try again.", "error");
+                return false;
             }
 
             if (!data || typeof data !== 'object' || !Array.isArray(data.notes)) {
-                alert("This song code is from an older or unknown version.");
-                return;
+                showToast("This song code is from an unknown version.", "error");
+                return false;
             }
+
+            snapshotForUndo();
 
             // Apply to state
             state.bpm = data.bpm || 100;
             state.palette = Array.isArray(data.palette) && data.palette.length
                 ? data.palette
-                : state.palette; 
+                : state.palette;
 
             state.notes = data.notes.map(n => {
                 let emoji = null;
@@ -940,9 +1093,9 @@
                 } else if (n.e) {
                     emoji = n.e;
                 } else {
-                    emoji = state.palette[0]; 
+                    emoji = state.palette[0];
                 }
-                
+
                 // Preload image
                 loadEmojiImage(emoji);
 
@@ -960,10 +1113,15 @@
                 Tone.Transport.bpm.value = state.bpm;
             }
 
-            selectEmoji(state.palette[0] || state.selectedEmoji);
+            // Preserve current selection if it still exists in the new palette
+            const keepSelection = state.selectedEmoji && state.palette.includes(state.selectedEmoji);
+            selectEmoji(keepSelection ? state.selectedEmoji : (state.palette[0] || state.selectedEmoji));
             renderPalette();
+            persist();
+            announce(`Loaded song with ${state.notes.length} notes`);
             // Force redraw immediately
-            draw(-1);
+            markDirty();
+            return true;
         }
 
         /**
@@ -971,7 +1129,7 @@
          */
         const instruments = {};
         const foley = {}; // UI Sounds
-        let renderLoopStarted = false;
+        let renderLoopRunning = false;
         let masterBus = null;
 
         function getMasterBus() {
@@ -1054,10 +1212,12 @@
                     instruments.frog = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "triangle" }, envelope: { attack: 0.02, decay: 0.3, sustain: 0.1, release: 0.2 }, filter: { Q: 4, type: "bandpass", rolloff: -12 }, filterEnvelope: { attack: 0.05, decay: 0.3, sustain: 0.2, baseFrequency: 300, octaves: 1 } }).connect(bus);
                     instruments.frog.volume.value = -6;
                     break;
-                case 'brass':
+                case 'brass': {
                     const brassFilter = new Tone.Filter(2500, "lowpass").connect(bus);
-                    instruments.brass = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.05, decay: 0.1, sustain: 0.7, release: 0.2 } }).connect(new Tone.Filter(2500, "lowpass").connect(masterBus)); instruments.brass.volume.value = -8;
+                    instruments.brass = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.05, decay: 0.1, sustain: 0.7, release: 0.2 } }).connect(brassFilter);
+                    instruments.brass.volume.value = -8;
                     break;
+                }
                 case 'strings':
                     const stringVib = new Tone.Vibrato(4, 0.2).connect(bus);
                     instruments.strings = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "pwm", modulationFrequency: 5 }, envelope: { attack: 0.05, decay: 0.2, sustain: 0.0, release: 0.3 } }).connect(stringVib);
@@ -1318,19 +1478,33 @@
             bgCtx.fillText("𝄞", staffPaddingLeft / 2.5, g4Y + (stepY * 4.5));
         }
 
-        function startRenderLoop() {
-            if (renderLoopStarted) return;
-            renderLoopStarted = true;
+        // Render loop sleeps when idle and is woken via markDirty()/wakeRenderLoop().
+        // Saves battery on mobile vs. an always-on rAF.
+        //
+        // Wake sources:
+        //   - User input that changes notes/palette -> markDirty()
+        //   - Tone.Transport tick -> markDirty() (so the playhead moves)
+        //   - draw() sets needsRedraw=true while a stamp/bounce animation is in progress,
+        //     which keeps the loop alive frame-to-frame.
+        function wakeRenderLoop() {
+            if (renderLoopRunning) return;
+            renderLoopRunning = true;
 
             function loop() {
                 if (needsRedraw) {
-                    needsRedraw = false; // Reset BEFORE drawing
+                    needsRedraw = false;
                     draw(state.currentStep);
                 }
-                requestAnimationFrame(loop);
+                if (needsRedraw) {
+                    requestAnimationFrame(loop);
+                } else {
+                    renderLoopRunning = false;
+                }
             }
-            loop();
+            requestAnimationFrame(loop);
         }
+        // Compat alias kept in case anything else calls startRenderLoop
+        const startRenderLoop = wakeRenderLoop;
 
         function draw(playheadIndex) {
             // Guard against 0-size canvas which causes InvalidStateError in drawImage
@@ -1464,21 +1638,25 @@
         let cursorX = window.innerWidth / 2;
         let cursorY = window.innerHeight / 2;
 
-        document.addEventListener('mousemove', (e) => {
+        // Pointer events cover mouse + touch + pen. Listener is passive so the OS
+        // can keep scrolling smooth even though we sample on every move.
+        document.addEventListener('pointermove', (e) => {
             cursorX = e.clientX;
             cursorY = e.clientY;
-            
-            // Velocity
-            const now = Date.now();
-            const dt = now - lastMouseTime;
-            if (dt > 20) {
+
+            // Velocity, time-normalized (px/ms scaled to a feel-good range)
+            const now = e.timeStamp || performance.now();
+            const dt = Math.max(1, now - lastMouseTime);
+            if (dt > 16) {
                 const dist = Math.hypot(e.clientX - lastMouseX, e.clientY - lastMouseY);
-                state.mouseSpeed = dist;
+                // ~0 at idle, ~1.5 at fast flick — scaled so playPreview's `0.6 + speed*0.02`
+                // remains in a sensible range without overshooting.
+                state.mouseSpeed = Math.min(20, (dist / dt) * 10);
                 lastMouseX = e.clientX;
                 lastMouseY = e.clientY;
                 lastMouseTime = now;
             }
-        });
+        }, { passive: true });
 
         function animateCursor() {
             if(customCursor) {
@@ -1514,6 +1692,12 @@
         header.addEventListener('mouseenter', () => customCursor.style.opacity = '0');
         header.addEventListener('mouseleave', () => customCursor.style.opacity = '1');
 
+        // Hide the custom cursor when the pointer leaves the page or window loses focus.
+        document.addEventListener('mouseleave', () => customCursor.style.opacity = '0');
+        document.addEventListener('mouseenter', () => customCursor.style.opacity = '1');
+        window.addEventListener('blur', () => customCursor.style.opacity = '0');
+        window.addEventListener('focus', () => customCursor.style.opacity = '1');
+
         // Modal
         function showModal(text, onConfirm) {
             modalText.textContent = text;
@@ -1529,6 +1713,14 @@
             const code = generateSongCode();
             songCodeOutput.value = code;
             songCodeInput.value = '';
+
+            // Reflect the song in the URL hash so the page URL itself is shareable.
+            try {
+                const url = new URL(location.href);
+                url.hash = 's=' + code;
+                history.replaceState(null, '', url.toString());
+            } catch (_) {}
+
             shareModal.classList.remove('hidden');
         }
         function closeShareModal() { shareModal.classList.add('hidden'); }
@@ -1543,9 +1735,10 @@
                 await navigator.clipboard.writeText(code);
                 copySongCodeBtn.textContent = "Copied!";
                 setTimeout(() => copySongCodeBtn.textContent = "Copy Song Code", 1200);
+                showToast("Song code copied!", "success");
             } catch (err) {
                 songCodeOutput.select();
-                alert("Please manually copy the code.");
+                showToast("Couldn't copy automatically — press Cmd/Ctrl+C", "error");
             }
         });
         
@@ -1560,9 +1753,10 @@
         randomBtn.onclick = async () => {
             await initAudio();
             showModal("Create a new random song?", () => {
+                snapshotForUndo();
                 // Refresh Palette
                 initPalette();
-                
+
                 state.notes = [];
                 const numNotes = 12 + Math.floor(Math.random() * 8);
                 const preferredCols = [0, 4, 8, 12];
@@ -1579,53 +1773,108 @@
                         state.notes.push({ emoji, gridX: gx, gridY: gy, createdAt: Date.now() });
                     }
                 }
+                persist();
+                announce(`Random song with ${state.notes.length} notes`);
                 markDirty();
             });
         };
 
-        // Canvas Click -> Note Logic
-        const downEvent = 'onpointerdown' in window ? 'pointerdown' : 'mousedown';
-        canvas.addEventListener(downEvent, async (e) => {
-            e.preventDefault();
-            await initAudio(); 
+        // Canvas pointer logic — supports click-to-toggle AND drag-to-paint.
+        // Drag-to-paint only ADDS notes (never deletes) to avoid the "I deleted my song
+        // by sliding" failure mode.
+        let isDragging = false;
+        let lastPaintedKey = null;
+
+        function hitTestGrid(clientX, clientY) {
             const rect = canvas.getBoundingClientRect();
-            const clientX = e.clientX || e.touches?.[0]?.clientX;
-            const clientY = e.clientY || e.touches?.[0]?.clientY;
-            const clickX = clientX - rect.left;
-            const clickY = clientY - rect.top;
-
-            if (clickX < staffPaddingLeft) return; 
-            const gridX = Math.floor((clickX - staffPaddingLeft) / stepX);
-            const rawY = (clickY - 40) / stepY;
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
+            if (x < staffPaddingLeft) return null;
+            const gridX = Math.floor((x - staffPaddingLeft) / stepX);
+            const rawY = (y - 40) / stepY;
             const gridY = Math.round(rawY);
+            if (gridX < 0 || gridX >= GRID_COLS || gridY < 0 || gridY >= GRID_ROWS) return null;
+            return { gridX, gridY };
+        }
 
-            if (gridX < 0 || gridX >= GRID_COLS || gridY < 0 || gridY >= GRID_ROWS) return;
+        function placeNote(gridX, gridY) {
+            // Add only — used by drag painting
+            const key = `${gridX},${gridY}`;
+            if (key === lastPaintedKey) return false;
+            lastPaintedKey = key;
+            if (state.notes.find(n => n.gridX === gridX && n.gridY === gridY)) return false;
+            if (typeof Tone !== "undefined" && foley.thunk) foley.thunk.triggerAttackRelease("C1", "16n");
+            state.notes.push({
+                emoji: state.selectedEmoji,
+                gridX, gridY,
+                isPressed: true,
+                createdAt: 0
+            });
+            if (state.audioContextStarted && typeof Tone !== "undefined") {
+                playNote({ emoji: state.selectedEmoji, gridX, gridY }, Tone.now());
+            }
+            return true;
+        }
 
-            const existingIndex = state.notes.findIndex(n => n.gridX === gridX && n.gridY === gridY);
+        canvas.addEventListener('pointerdown', async (e) => {
+            e.preventDefault();
+            await initAudio();
+
+            const hit = hitTestGrid(e.clientX, e.clientY);
+            if (!hit) return;
+
+            // Snapshot for undo before any mutation in this gesture
+            snapshotForUndo();
+
+            const existingIndex = state.notes.findIndex(n => n.gridX === hit.gridX && n.gridY === hit.gridY);
 
             if (existingIndex > -1) {
-                // Delete
-                if (typeof Tone !== "undefined") foley.foop.triggerAttackRelease("C2", "8n");
+                // Toggle delete on click
+                if (typeof Tone !== "undefined" && foley.foop) foley.foop.triggerAttackRelease("C2", "8n");
                 state.notes.splice(existingIndex, 1);
+                announce("Note removed");
+                lastPaintedKey = null;
             } else {
-                // Add
-                if (typeof Tone !== "undefined") foley.thunk.triggerAttackRelease("C1", "16n");
-                state.notes.push({
-                    emoji: state.selectedEmoji,
-                    gridX,
-                    gridY,
-                    isPressed: true, // Pressed initially
-                    createdAt: 0 // No animation yet
-                });
-                if (state.audioContextStarted && typeof Tone !== "undefined") {
-                    playNote({ emoji: state.selectedEmoji, gridX, gridY }, Tone.now());
-                }
+                lastPaintedKey = null; // reset so placeNote will place
+                placeNote(hit.gridX, hit.gridY);
+                announce(`Note placed at column ${hit.gridX + 1}`);
             }
+
+            isDragging = true;
+            // Capture the pointer so we keep getting move events even if the cursor leaves
+            try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+            persist();
             markDirty();
         });
 
+        canvas.addEventListener('pointermove', (e) => {
+            if (!isDragging) return;
+            const hit = hitTestGrid(e.clientX, e.clientY);
+            if (!hit) return;
+            if (placeNote(hit.gridX, hit.gridY)) {
+                persist();
+                markDirty();
+            }
+        });
+
+        const endDrag = (e) => {
+            if (!isDragging) return;
+            isDragging = false;
+            lastPaintedKey = null;
+            try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
+        };
+        canvas.addEventListener('pointerup', endDrag);
+        canvas.addEventListener('pointercancel', endDrag);
+        canvas.addEventListener('pointerleave', endDrag);
+
         // --- STANDARD WIRING ---
-        clearBtn.onclick = () => showModal("Delete all notes?", () => { state.notes = []; markDirty(); });
+        clearBtn.onclick = () => showModal("Delete all notes?", () => {
+            snapshotForUndo();
+            state.notes = [];
+            persist();
+            announce("All notes cleared");
+            markDirty();
+        });
         playToggle.onclick = async () => {
             await initAudio();
             if (state.isPlaying) {
@@ -1645,6 +1894,7 @@
                 playLabel.textContent = 'Stop';
                 playToggle.classList.add('playing');
                 transportStep = 0;
+                markDirty();
             }
         };
         openPickerBtn.onclick = async (e) => {
@@ -1667,15 +1917,56 @@
                 modalOverlay.classList.add('hidden');
             }
         });
-        document.addEventListener('keydown', (e) => { 
-            if (e.key === 'Escape') { 
-                pickerPopover.classList.remove('visible'); 
-                hideModal(); 
+        // Keyboard shortcuts. Skip when typing in a text field (textarea/input).
+        function isTyping(el) {
+            if (!el) return false;
+            const tag = el.tagName;
+            if (tag === 'TEXTAREA') return true;
+            if (tag === 'INPUT' && el.type !== 'range') return true;
+            if (el.isContentEditable) return true;
+            return false;
+        }
+        // Don't hijack Space/Enter when focus is on something that natively uses them.
+        function isInteractiveTarget(el) {
+            if (!el) return false;
+            const tag = el.tagName;
+            return tag === 'BUTTON' || tag === 'A' || tag === 'INPUT' || tag === 'SELECT';
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                pickerPopover.classList.remove('visible');
+                hideModal();
                 closeShareModal();
-            } 
+                return;
+            }
+
+            if (isTyping(e.target)) return;
+
+            // Cmd/Ctrl+Z — undo (always available outside text fields)
+            if ((e.metaKey || e.ctrlKey) && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
+                e.preventDefault();
+                undo();
+                return;
+            }
+
+            // Space — toggle play. Skip if focus is on a button so Space activates the button.
+            if ((e.key === ' ' || e.code === 'Space') && !isInteractiveTarget(e.target)) {
+                e.preventDefault();
+                playToggle.click();
+                return;
+            }
+
+            // Delete — clear (with confirm). Skip if focus is on an interactive control.
+            if (e.key === 'Delete' && !isInteractiveTarget(e.target)) {
+                e.preventDefault();
+                clearBtn.click();
+                return;
+            }
         });
         tempoInput.oninput = (e) => {
             state.bpm = Number(e.target.value);
+            tempoInput.setAttribute('aria-valuenow', String(state.bpm));
             if (typeof Tone !== "undefined" && Tone.Transport) {
                 if (Tone.Transport.state !== "stopped") {
                     Tone.Transport.bpm.rampTo(state.bpm, 0.05);
@@ -1683,6 +1974,7 @@
                     Tone.Transport.bpm.value = state.bpm;
                 }
             }
+            persist();
         };
 
         // --- PICKER GENERATION ---
@@ -1695,20 +1987,27 @@
                 const icon = category.match(/[\p{Emoji}\u200d]+/u)?.[0] || category[0];
                 const catId = category.replace(/[^a-zA-Z]/g, '');
 
-                const tab = document.createElement('div');
+                const tab = document.createElement('button');
+                tab.type = 'button';
                 tab.className = 'picker-tab';
                 if (firstCat) tab.classList.add('active');
-                
+                tab.setAttribute('aria-label', category);
+                tab.setAttribute('aria-pressed', firstCat ? 'true' : 'false');
+
                 const tabImg = document.createElement('img');
+                tabImg.alt = "";
                 tabImg.src = getEmojiUrl(icon);
                 tab.appendChild(tabImg);
 
                 tab.title = category;
-                tab.tabIndex = 0; 
-                
+
                 tab.onclick = () => {
-                    document.querySelectorAll('.picker-tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.picker-tab').forEach(t => {
+                        t.classList.remove('active');
+                        t.setAttribute('aria-pressed', 'false');
+                    });
                     tab.classList.add('active');
+                    tab.setAttribute('aria-pressed', 'true');
                     document.querySelectorAll('.picker-section').forEach(s => s.classList.add('hidden'));
                     document.getElementById('sec-' + catId).classList.remove('hidden');
                 };
@@ -1728,17 +2027,20 @@
                 grid.className = 'picker-grid';
 
                 emojis.forEach(char => {
-                    const item = document.createElement('div');
+                    const item = document.createElement('button');
+                    item.type = 'button';
                     item.className = 'picker-item';
-                    item.tabIndex = 0; 
-                    
+                    item.setAttribute('aria-label', `Add ${char} to palette`);
+
                     const img = document.createElement('img');
                     img.loading = "lazy";
+                    img.alt = "";
                     img.src = getEmojiUrl(char);
                     img.onerror = () => { img.style.display = 'none'; item.textContent = char; };
-                    
+
                     item.appendChild(img);
                     item.onmouseenter = () => playPreview(char);
+                    item.onfocus = () => playPreview(char);
                     item.onclick = () => {
                         addToPalette(char);
                         pickerPopover.classList.remove('visible');
@@ -1780,28 +2082,36 @@
             buttons.forEach(b => b.remove());
 
             state.palette.forEach(char => {
-                const btn = document.createElement('div');
+                const btn = document.createElement('button');
+                btn.type = 'button';
                 btn.className = 'emoji-btn';
                 if (char === state.selectedEmoji) btn.classList.add('active');
-                btn.tabIndex = 0;
+                btn.setAttribute('aria-label', `Select ${char}`);
+                btn.setAttribute('aria-pressed', char === state.selectedEmoji ? 'true' : 'false');
 
                 const img = document.createElement('img');
                 img.loading = "lazy";
+                img.alt = "";
                 img.src = getEmojiUrl(char);
                 img.onerror = () => { img.style.display = 'none'; btn.textContent = char; };
-                
+
                 btn.appendChild(img);
 
                 btn.onclick = () => {
                     playPreview(char);
                     selectEmoji(char);
-                    document.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.emoji-btn').forEach(b => {
+                        b.classList.remove('active');
+                        if (b.hasAttribute('aria-pressed')) b.setAttribute('aria-pressed', 'false');
+                    });
                     btn.classList.add('active');
+                    btn.setAttribute('aria-pressed', 'true');
                 };
 
                 paletteContainer.insertBefore(btn, openPickerBtn);
             });
             state.palette.forEach(char => loadEmojiImage(char));
+            persist();
         }
 
         function selectEmoji(char) {
@@ -1832,7 +2142,64 @@
              Tone.Transport.bpm.value = state.bpm;
         }
         buildPicker();
-        initPalette(); 
+        initPalette();
+
+        // Restore from URL hash > localStorage. URL hash wins because it's an explicit
+        // share intent; localStorage is just "where you left off".
+        function tryRestoreSong() {
+            // 1. URL hash share — e.g. #s=BASE64
+            const hash = location.hash || '';
+            const m = hash.match(/^#?s=(.+)$/);
+            if (m) {
+                if (loadSongFromCode(decodeURIComponent(m[1]))) {
+                    showToast("Loaded shared song!", "success");
+                    return true;
+                }
+            }
+
+            // 2. Persisted state
+            const persisted = loadPersisted();
+            if (persisted) {
+                state.bpm = persisted.bpm || 100;
+                tempoInput.value = state.bpm;
+                tempoInput.setAttribute('aria-valuenow', String(state.bpm));
+                if (typeof Tone !== "undefined" && Tone.Transport) {
+                    Tone.Transport.bpm.value = state.bpm;
+                }
+                if (Array.isArray(persisted.palette) && persisted.palette.length) {
+                    state.palette = persisted.palette;
+                    renderPalette();
+                }
+                if (persisted.selectedEmoji && state.palette.includes(persisted.selectedEmoji)) {
+                    selectEmoji(persisted.selectedEmoji);
+                }
+                state.notes = (persisted.notes || []).map(n => {
+                    loadEmojiImage(n.emoji);
+                    return { emoji: n.emoji, gridX: n.gridX, gridY: n.gridY, createdAt: Date.now() };
+                });
+                markDirty();
+                return true;
+            }
+            return false;
+        }
+        tryRestoreSong();
+
+        // Detect Tone.js CDN failure — defer means it loads after this script, so
+        // wait for load+a beat and warn if still missing.
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                if (typeof Tone === "undefined") {
+                    showToast("Audio engine couldn't load — check your connection.", "error");
+                }
+            }, 1500);
+        });
+
+        // Listen for hash changes (e.g. user pastes a link into the bar)
+        window.addEventListener('hashchange', () => {
+            const m = (location.hash || '').match(/^#?s=(.+)$/);
+            if (m) loadSongFromCode(decodeURIComponent(m[1]));
+        });
+
         startRenderLoop();
 
     </script>
