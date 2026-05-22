@@ -1153,18 +1153,32 @@
             const polyOptions = { maxPolyphony: 4 };
 
             switch (type) {
-                case 'dog':
-                    instruments.dog = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.01, decay: 0.15, sustain: 0.0, release: 0.1 }, filter: { Q: 2, type: "lowpass", rolloff: -12 }, filterEnvelope: { attack: 0.02, decay: 0.1, sustain: 0, baseFrequency: 300, octaves: 2 } }).connect(bus);
+                case 'dog': {
+                    // Bark — sharp attack, fast filter pop for the "woof" formant
+                    instruments.dog = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.003, decay: 0.09, sustain: 0.0, release: 0.06 }, filter: { Q: 6, type: "lowpass", rolloff: -24 }, filterEnvelope: { attack: 0.005, decay: 0.07, sustain: 0, release: 0.05, baseFrequency: 220, octaves: 3.5 } }).connect(bus);
                     instruments.dog.volume.value = -4;
                     break;
-                case 'cat':
-                    instruments.cat = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "triangle" }, envelope: { attack: 0.02, decay: 0.2, sustain: 0.1, release: 0.3 }, filter: { Q: 4, type: "lowpass" }, filterEnvelope: { attack: 0.05, decay: 0.2, sustain: 0.5, baseFrequency: 800, octaves: 1.5 } }).connect(bus);
+                }
+                case 'howl': {
+                    // Wolf howl — long sustained sawtooth with slow vibrato + gentle filter rise/fall
+                    const howlVib = new Tone.Vibrato(3.5, 0.18).connect(bus);
+                    instruments.howl = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.18, decay: 0.25, sustain: 0.7, release: 0.55 }, filter: { Q: 5, type: "bandpass" }, filterEnvelope: { attack: 0.25, decay: 0.4, sustain: 0.5, release: 0.5, baseFrequency: 400, octaves: 1.3 } }).connect(howlVib);
+                    instruments.howl.volume.value = -7;
+                    break;
+                }
+                case 'cat': {
+                    // Meow — vocal bandpass with a quick vibrato wobble for the "me-ow" feel
+                    const catVib = new Tone.Vibrato(6, 0.08).connect(bus);
+                    instruments.cat = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "triangle" }, envelope: { attack: 0.04, decay: 0.22, sustain: 0.35, release: 0.4 }, filter: { Q: 5, type: "bandpass" }, filterEnvelope: { attack: 0.06, decay: 0.25, sustain: 0.55, release: 0.3, baseFrequency: 700, octaves: 1.6 } }).connect(catVib);
                     instruments.cat.volume.value = -6;
                     break;
-                case 'pig':
-                    instruments.pig = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "square" }, envelope: { attack: 0.01, decay: 0.1, sustain: 0, release: 0.1 }, filter: { Q: 2, type: "lowpass" }, filterEnvelope: { attack: 0.01, decay: 0.2, sustain: 0, baseFrequency: 100, octaves: 1 } }).connect(bus);
+                }
+                case 'pig': {
+                    // Oink / snort — nasal mid-low burst with bandpass and resonance
+                    instruments.pig = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.005, decay: 0.13, sustain: 0.0, release: 0.09 }, filter: { Q: 4.5, type: "bandpass" }, filterEnvelope: { attack: 0.01, decay: 0.11, sustain: 0, release: 0.08, baseFrequency: 180, octaves: 1.6 } }).connect(bus);
                     instruments.pig.volume.value = -5;
                     break;
+                }
                 case 'baby':
                     instruments.baby = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "pulse", width: 0.4 }, envelope: { attack: 0.05, decay: 0.2, sustain: 0.4, release: 0.2 }, filter: { Q: 5, type: "bandpass" }, filterEnvelope: { attack: 0.1, decay: 0.2, sustain: 0.2, baseFrequency: 400, octaves: 2 } }).connect(bus);
                     instruments.baby.volume.value = -8;
@@ -1208,10 +1222,12 @@
                     instruments.ghost = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "sine" }, envelope: { attack: 0.1, decay: 0.5, sustain: 1, release: 0.3 }, filter: { Q: 0, type: "lowpass", rolloff: -12 }, }).connect(ghostVib);
                     instruments.ghost.volume.value = -8;
                     break;
-                case 'frog':
-                    instruments.frog = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "triangle" }, envelope: { attack: 0.02, decay: 0.3, sustain: 0.1, release: 0.2 }, filter: { Q: 4, type: "bandpass", rolloff: -12 }, filterEnvelope: { attack: 0.05, decay: 0.3, sustain: 0.2, baseFrequency: 300, octaves: 1 } }).connect(bus);
-                    instruments.frog.volume.value = -6;
+                case 'frog': {
+                    // Ribbit — throaty pulse with sharp bandpass at low-mid for the "rrr" body
+                    instruments.frog = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "pulse", width: 0.65 }, envelope: { attack: 0.005, decay: 0.18, sustain: 0.0, release: 0.1 }, filter: { Q: 8, type: "bandpass", rolloff: -12 }, filterEnvelope: { attack: 0.02, decay: 0.18, sustain: 0, release: 0.1, baseFrequency: 220, octaves: 1.1 } }).connect(bus);
+                    instruments.frog.volume.value = -5;
                     break;
+                }
                 case 'brass': {
                     const brassFilter = new Tone.Filter(2500, "lowpass").connect(bus);
                     instruments.brass = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.05, decay: 0.1, sustain: 0.7, release: 0.2 } }).connect(brassFilter);
@@ -1223,27 +1239,38 @@
                     instruments.strings = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "pwm", modulationFrequency: 5 }, envelope: { attack: 0.05, decay: 0.2, sustain: 0.0, release: 0.3 } }).connect(stringVib);
                     instruments.strings.volume.value = -10;
                     break;
-                case 'cluck':
-                    instruments.cluck = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "pulse", width: 0.2 }, envelope: { attack: 0.01, decay: 0.1, sustain: 0, release: 0.1 }, filter: { Q: 5, type: "bandpass" }, filterEnvelope: { attack: 0.01, decay: 0.1, sustain: 0, baseFrequency: 600, octaves: 1 } }).connect(bus);
+                case 'cluck': {
+                    // Chicken "bok" — very short narrow-pulse pop with mid-high bandpass
+                    instruments.cluck = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "pulse", width: 0.15 }, envelope: { attack: 0.002, decay: 0.07, sustain: 0, release: 0.04 }, filter: { Q: 8, type: "bandpass" }, filterEnvelope: { attack: 0.005, decay: 0.07, sustain: 0, release: 0.04, baseFrequency: 750, octaves: 1.4 } }).connect(bus);
                     instruments.cluck.volume.value = -5;
                     break;
-                case 'quack':
-                    instruments.quack = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.05, decay: 0.2, sustain: 0.2, release: 0.2 }, filter: { Q: 8, type: "bandpass" }, filterEnvelope: { attack: 0.05, decay: 0.2, sustain: 0.2, baseFrequency: 500, octaves: 0.5 } }).connect(bus);
+                }
+                case 'quack': {
+                    // Duck — nasal blat with resonant downward sweep
+                    instruments.quack = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.015, decay: 0.18, sustain: 0.25, release: 0.15 }, filter: { Q: 10, type: "bandpass" }, filterEnvelope: { attack: 0.02, decay: 0.2, sustain: 0.3, release: 0.15, baseFrequency: 650, octaves: -0.6 } }).connect(bus);
                     instruments.quack.volume.value = -6;
                     break;
-                case 'moo':
-                    instruments.moo = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.1, decay: 0.4, sustain: 0.4, release: 0.3 }, filter: { Q: 1, type: "lowpass" }, filterEnvelope: { attack: 0.1, decay: 0.4, sustain: 0.2, baseFrequency: 150, octaves: 0.5 } }).connect(bus);
+                }
+                case 'moo': {
+                    // Cow — long, throaty, slight upward formant then sustained body
+                    instruments.moo = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.08, decay: 0.5, sustain: 0.55, release: 0.4 }, filter: { Q: 3.5, type: "lowpass" }, filterEnvelope: { attack: 0.15, decay: 0.4, sustain: 0.35, release: 0.4, baseFrequency: 130, octaves: 1.2 } }).connect(bus);
                     instruments.moo.volume.value = -5;
                     break;
-                case 'chirp':
-                    instruments.chirp = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 0.1, sustain: 0, release: 0.1 } }).connect(bus);
+                }
+                case 'chirp': {
+                    // Bird tweet — short bright FM blip with quick mod decay (chirp shape)
+                    instruments.chirp = new Tone.PolySynth(Tone.FMSynth, { ...polyOptions, harmonicity: 3, modulationIndex: 9, oscillator: { type: "sine" }, envelope: { attack: 0.003, decay: 0.08, sustain: 0, release: 0.05 }, modulation: { type: "triangle" }, modulationEnvelope: { attack: 0.003, decay: 0.06, sustain: 0, release: 0.05 } }).connect(bus);
                     instruments.chirp.volume.value = -5;
                     break;
-                case 'lion':
-                    const roarDist = new Tone.Distortion(0.4).connect(bus);
-                    instruments.lion = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.1, decay: 0.3, sustain: 0.8, release: 0.3 }, filter: { Q: 1, type: "lowpass" }, filterEnvelope: { attack: 0.1, decay: 0.3, sustain: 0.5, baseFrequency: 100, octaves: 2 } }).connect(roarDist);
-                    instruments.lion.volume.value = -6;
+                }
+                case 'lion': {
+                    // Roar — distorted sawtooth + slow tremolo for growl + low base
+                    const lionDist = new Tone.Distortion(0.55).connect(bus);
+                    const lionGrowl = new Tone.Tremolo(7, 0.4).start().connect(lionDist);
+                    instruments.lion = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.06, decay: 0.3, sustain: 0.8, release: 0.4 }, filter: { Q: 2, type: "lowpass" }, filterEnvelope: { attack: 0.08, decay: 0.3, sustain: 0.55, release: 0.4, baseFrequency: 80, octaves: 2.6 } }).connect(lionGrowl);
+                    instruments.lion.volume.value = -5;
                     break;
+                }
                 case 'alien':
                     instruments.alien = new Tone.PolySynth(Tone.FMSynth, { harmonicity: 1.5, modulationIndex: 10, oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 0.3, sustain: 0.1, release: 0.3 }, modulation: { type: "square" }, modulationEnvelope: { attack: 0.1, decay: 0.1, sustain: 0, release: 0.1 } }).connect(bus);
                     instruments.alien.volume.value = -6;
@@ -1408,7 +1435,7 @@
             '🦁': { synth: 'lion' },
             '🐮': { synth: 'moo' },
             '🐦': { synth: 'chirp' },
-            '🐺': { synth: 'dog',   semi: -12 },   // wolf: octave-down howl
+            '🐺': { synth: 'howl' },               // wolf: sustained howl with vibrato
             '🐗': { synth: 'pig',   semi: -7 },    // boar: deeper grunt
             '🦄': { synth: 'unicorn' },
 
@@ -1471,14 +1498,14 @@
         // Default sequence / preview durations per synth, used unless VOICES overrides.
         function getSequenceDuration(synth) {
             if (['flower', 'ghost', 'strings', 'boat', 'plane', 'moo', 'star', 'bell',
-                 'angel', 'heart', 'headphones'].includes(synth)) return '4n';
+                 'angel', 'heart', 'headphones', 'howl', 'lion'].includes(synth)) return '4n';
             if (['cat', 'mario', 'brass', 'car', 'baby', 'quack', 'honk', 'sax',
                  'siren', 'alien', 'unicorn', 'mic'].includes(synth)) return '8n';
             return '16n';
         }
         function getPreviewDuration(synth) {
             if (['flower', 'ghost', 'strings', 'boat', 'plane', 'moo', 'star', 'bell',
-                 'angel', 'heart', 'headphones', 'mic'].includes(synth)) return '4n';
+                 'angel', 'heart', 'headphones', 'mic', 'howl', 'lion'].includes(synth)) return '4n';
             if (['dog', 'pig', 'frog', 'drum', 'gameboy', 'cluck', 'chirp', 'wood',
                  'chopper', 'mushroom', 'ball'].includes(synth)) return '16n';
             return '8n';
