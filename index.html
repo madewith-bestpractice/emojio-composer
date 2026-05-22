@@ -1197,10 +1197,12 @@
                     instruments.flower = new Tone.PolySynth(Tone.FMSynth, { harmonicity: 3.01, modulationIndex: 2, oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 0.5, sustain: 0, release: 0.3 }, modulation: { type: "sine" }, modulationEnvelope: { attack: 0.01, decay: 0.5, sustain: 0, release: 0.3 } }).connect(bus);
                     instruments.flower.volume.value = -5;
                     break;
-                case 'mario':
-                    instruments.mario = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "triangle" }, envelope: { attack: 0.01, decay: 0.3, sustain: 0.1, release: 0.1 } }).connect(bus);
+                case 'mario': {
+                    // Piano-ish — sharp transient, long decay, almost no sustain (like a real piano)
+                    instruments.mario = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "triangle" }, envelope: { attack: 0.002, decay: 0.8, sustain: 0.05, release: 0.4 } }).connect(bus);
                     instruments.mario.volume.value = -3;
                     break;
+                }
                 case 'gameboy':
                     const crusher = new Tone.BitCrusher(4);
                     const gbFilter = new Tone.Filter(3000, "lowpass").connect(bus);
@@ -1287,14 +1289,21 @@
                     instruments.star = new Tone.PolySynth(Tone.FMSynth, { ...polyOptions, harmonicity: 8, modulationIndex: 2, oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 1, sustain: 0, release: 1 }, modulation: { type: "sine" }, modulationEnvelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.2 } }).connect(bus);
                     instruments.star.volume.value = -8;
                     break;
-                case 'pluck':
-                    instruments.pluck = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "triangle" }, envelope: { attack: 0.005, decay: 0.4, sustain: 0, release: 0.4 } }).connect(bus);
+                case 'pluck': {
+                    // Guitar — sharp transient (very fast attack), longer decay/release for string ring
+                    instruments.pluck = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "triangle" }, envelope: { attack: 0.001, decay: 0.55, sustain: 0.0, release: 0.5 } }).connect(bus);
                     instruments.pluck.volume.value = -3;
                     break;
-                case 'sax':
-                    instruments.sax = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "square" }, envelope: { attack: 0.05, decay: 0.2, sustain: 0.8, release: 0.2 } }).connect(bus);
-                    instruments.sax.volume.value = -6;
+                }
+                case 'sax': {
+                    // Sax — reedy: bandpass filter + slight vibrato to suggest breath/reed buzz
+                    const saxVib = new Tone.Vibrato(5, 0.1).connect(bus);
+                    const saxFilter = new Tone.Filter(1600, "bandpass").connect(saxVib);
+                    saxFilter.Q.value = 1.4;
+                    instruments.sax = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.04, decay: 0.2, sustain: 0.75, release: 0.2 } }).connect(saxFilter);
+                    instruments.sax.volume.value = -7;
                     break;
+                }
                 case 'siren':
                     const sirenVib = new Tone.Vibrato(5, 0.5).connect(bus);
                     instruments.siren = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.1, decay: 0.2, sustain: 0.8, release: 0.3 } }).connect(sirenVib);
@@ -1364,6 +1373,55 @@
                     // Bouncy thunk — drum variant tuned higher for sports balls
                     instruments.ball = new Tone.PolySynth(Tone.MembraneSynth, { ...polyOptions, pitchDecay: 0.04, octaves: 5, oscillator: { type: "sine" }, envelope: { attack: 0.001, decay: 0.18, sustain: 0.0, release: 0.18 } }).connect(bus);
                     instruments.ball.volume.value = -3;
+                    break;
+                }
+                case 'fire': {
+                    // Crackling roar — very inharmonic FM + distortion = noise-like crackle
+                    const fireDist = new Tone.Distortion(0.55).connect(bus);
+                    instruments.fire = new Tone.PolySynth(Tone.FMSynth, { ...polyOptions, harmonicity: 17, modulationIndex: 32, oscillator: { type: "sawtooth" }, envelope: { attack: 0.01, decay: 0.4, sustain: 0.5, release: 0.3 }, modulation: { type: "square" }, modulationEnvelope: { attack: 0.005, decay: 0.25, sustain: 0.6, release: 0.15 } }).connect(fireDist);
+                    instruments.fire.volume.value = -10;
+                    break;
+                }
+                case 'rocket': {
+                    // Whoosh — rising bandpass sweep + slight tremolo for rumble
+                    const rocketTrem = new Tone.Tremolo(18, 0.4).start().connect(bus);
+                    instruments.rocket = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "fatsawtooth", count: 3, spread: 30 }, envelope: { attack: 0.03, decay: 0.4, sustain: 0.6, release: 0.3 }, filter: { Q: 3, type: "bandpass" }, filterEnvelope: { attack: 0.45, decay: 0.3, sustain: 0.7, release: 0.3, baseFrequency: 200, octaves: 4 } }).connect(rocketTrem);
+                    instruments.rocket.volume.value = -11;
+                    break;
+                }
+                case 'train': {
+                    // Steam whistle — sustained sawtooth with slight detune (double-reed) + slow tremolo for chug
+                    const trainTrem = new Tone.Tremolo(6, 0.35).start().connect(bus);
+                    instruments.train = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "fatsawtooth", count: 2, spread: 12 }, envelope: { attack: 0.06, decay: 0.2, sustain: 0.8, release: 0.3 } }).connect(trainTrem);
+                    instruments.train.volume.value = -10;
+                    break;
+                }
+                case 'tractor': {
+                    // Chug-chug — square with fast hard tremolo for "putt-putt-putt"
+                    const tractorChug = new Tone.Tremolo(11, 0.85).start().connect(bus);
+                    instruments.tractor = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "square" }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.65, release: 0.2 }, filter: { Q: 2, type: "lowpass" }, filterEnvelope: { attack: 0.02, decay: 0.2, sustain: 0.55, release: 0.2, baseFrequency: 90, octaves: 2 } }).connect(tractorChug);
+                    instruments.tractor.volume.value = -8;
+                    break;
+                }
+                case 'robot': {
+                    // Robot voice — 8-bit bitcrushed square with formant filter
+                    const robotCrush = new Tone.BitCrusher(3);
+                    const robotFilter = new Tone.Filter(1800, "bandpass").connect(bus);
+                    robotCrush.connect(robotFilter);
+                    instruments.robot = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "square" }, envelope: { attack: 0.005, decay: 0.15, sustain: 0.4, release: 0.1 } }).connect(robotCrush);
+                    instruments.robot.volume.value = -7;
+                    break;
+                }
+                case 'splat': {
+                    // Raspberry / splat — square with downward filter drop = "pbbbt" → "thunk"
+                    instruments.splat = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "square" }, envelope: { attack: 0.005, decay: 0.18, sustain: 0.0, release: 0.1 }, filter: { Q: 6, type: "lowpass" }, filterEnvelope: { attack: 0.005, decay: 0.18, sustain: 0, release: 0.1, baseFrequency: 800, octaves: -3 } }).connect(bus);
+                    instruments.splat.volume.value = -5;
+                    break;
+                }
+                case 'bones': {
+                    // Rattling bones — inharmonic metal with quick decay
+                    instruments.bones = new Tone.PolySynth(Tone.MetalSynth, { ...polyOptions, envelope: { attack: 0.001, decay: 0.3, sustain: 0.0, release: 0.15 }, harmonicity: 6.5, modulationIndex: 24, resonance: 3500, octaves: 0.6 }).connect(bus);
+                    instruments.bones.volume.value = -16;
                     break;
                 }
                 default:
@@ -1458,20 +1516,20 @@
             '🚓': { synth: 'siren' },
             '🚒': { synth: 'siren', semi: -2 },    // firetruck: lower wail
             '🚑': { synth: 'siren', semi: 3 },     // ambulance: higher wail
-            '🚜': { synth: 'car',   semi: -12 },   // tractor: low chug
+            '🚜': { synth: 'tractor' },            // tractor: chug-chug
             '🚁': { synth: 'chopper' },
-            '🚀': { synth: 'chopper', semi: 5 },   // rocket: brighter
+            '🚀': { synth: 'rocket' },             // rocket: whoosh with rising sweep
             '🛸': { synth: 'alien',   semi: 7 },   // UFO: bright alien
-            '🤖': { synth: 'alien' },
+            '🤖': { synth: 'robot' },              // robot: bit-crushed voice
             '👾': { synth: 'alien',   semi: -7 },  // invader: lower bleep
-            '🚂': { synth: 'car',     semi: -19 }, // train: very low chug
+            '🚂': { synth: 'train' },              // train: steam whistle + chug
 
             // --- Voices / Characters ---
             '👶': { synth: 'baby' },
             '👻': { synth: 'ghost' },
             '👽': { synth: 'alien' },
-            '💩': { synth: 'pig' },
-            '💀': { synth: 'wood' },
+            '💩': { synth: 'splat' },              // poo: raspberry/splat
+            '💀': { synth: 'bones' },              // skull: rattling bones (MetalSynth)
             '🤡': { synth: 'honk' },
             '👺': { synth: 'honk',  semi: -5 },    // tengu: gnarlier honk
             '👼': { synth: 'angel' },
@@ -1482,7 +1540,7 @@
             '❤️': { synth: 'heart' },
             '🌊': { synth: 'water' },
             '⭐': { synth: 'star' },
-            '🔥': { synth: 'chopper' },
+            '🔥': { synth: 'fire' },               // fire: crackling roar
             '🌈': { synth: 'star',  semi: 7 },     // rainbow: brighter shimmer
             '🍄': { synth: 'mushroom' },
             '🌵': { synth: 'pluck', semi: -12 },   // cactus: low dry pluck
@@ -1498,16 +1556,18 @@
         // Default sequence / preview durations per synth, used unless VOICES overrides.
         function getSequenceDuration(synth) {
             if (['flower', 'ghost', 'strings', 'boat', 'plane', 'moo', 'star', 'bell',
-                 'angel', 'heart', 'headphones', 'howl', 'lion'].includes(synth)) return '4n';
+                 'angel', 'heart', 'headphones', 'howl', 'lion',
+                 'fire', 'rocket', 'train', 'tractor'].includes(synth)) return '4n';
             if (['cat', 'mario', 'brass', 'car', 'baby', 'quack', 'honk', 'sax',
-                 'siren', 'alien', 'unicorn', 'mic'].includes(synth)) return '8n';
+                 'siren', 'alien', 'unicorn', 'mic', 'robot'].includes(synth)) return '8n';
             return '16n';
         }
         function getPreviewDuration(synth) {
             if (['flower', 'ghost', 'strings', 'boat', 'plane', 'moo', 'star', 'bell',
-                 'angel', 'heart', 'headphones', 'mic', 'howl', 'lion'].includes(synth)) return '4n';
+                 'angel', 'heart', 'headphones', 'mic', 'howl', 'lion',
+                 'fire', 'rocket', 'train', 'tractor'].includes(synth)) return '4n';
             if (['dog', 'pig', 'frog', 'drum', 'gameboy', 'cluck', 'chirp', 'wood',
-                 'chopper', 'mushroom', 'ball'].includes(synth)) return '16n';
+                 'chopper', 'mushroom', 'ball', 'splat', 'bones'].includes(synth)) return '16n';
             return '8n';
         }
 
