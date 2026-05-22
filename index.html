@@ -2,12 +2,33 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Emojio Paint Composer</title>
+    <meta name="description" content="A playful emoji-stamp music composer. Paint sounds on a staff and share songs with a single link.">
+    <meta name="theme-color" content="#81d4fa">
+    <meta property="og:title" content="Emojio Paint Composer">
+    <meta property="og:description" content="A playful emoji-stamp music composer. Paint sounds on a staff and share songs with a single link.">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f3a8.png">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Emojio Paint Composer">
+    <meta name="twitter:description" content="Paint sounds on a staff and share songs with a single link.">
+
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>%F0%9F%8E%A8</text></svg>">
     <link rel="apple-touch-icon" href="https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f3a8.png">
-    <!-- Tone.js for Audio Synthesis -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+    <!-- Resource hints for the CDN's we depend on -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <!-- Tone.js for Audio Synthesis (deferred so it doesn't block first paint) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"
+            integrity="sha384-c6Uo4N9c3SOEigMVzP6IshUG1wQ5uMp3xeoQFiHWAQ86joWdgyajkvopySyKy/Z6"
+            crossorigin="anonymous"
+            referrerpolicy="no-referrer"
+            defer></script>
     <!-- Pixel Font -->
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 
@@ -367,7 +388,6 @@
             width: 36px;
             height: 36px;
             pointer-events: none;
-            loading: lazy;
         }
 
         .emoji-btn:hover { 
@@ -526,7 +546,6 @@
         .picker-item img {
             width: 30px;
             height: 30px;
-            loading: lazy;
         }
 
         /* Confirmation Modal */
