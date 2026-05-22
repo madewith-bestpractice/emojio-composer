@@ -831,11 +831,15 @@
         const MAIN_STAFF_LINES = [1, 3, 5, 7, 9, 11, 13];
 
         const CATEGORIES = {
-            "Animals 🐾": ["🐶", "🐱", "🐷", "🐸", "🐔", "🦆", "🦁", "🐮", "🐦", "🐺", "🐗", "🦄"],
-            "Music 🎵": ["🎹", "🥁", "🎸", "🎺", "🎻", "🎷", "🔔", "🎼", "🎤", "🎧"],
-            "Vehicles 🚀": ["🚗", "✈️", "🚢", "🚓", "🚒", "🚑", "🚜", "🚁", "🚀", "🛸", "🤖", "👾", "🚂"],
-            "Voices 🗣️": ["👶", "👻", "👽", "💩", "💀", "🤡", "👺", "👼", "🧛"],
-            "Nature 🌸": ["🌸", "❤️", "🌊", "⭐", "🔥", "🌈", "🍄", "🌵", "⚽", "🏀", "💡"]
+            "Faces 😀": ["😀", "😂", "😍", "😎", "😢", "😱", "😴", "😡", "🤔", "😘", "🤯", "😈", "🤗", "🥺", "🥳", "😇"],
+            "Animals 🐾": ["🐶", "🐱", "🐷", "🐸", "🐔", "🦆", "🦁", "🐮", "🐦", "🐺", "🐗", "🦄", "🐰", "🐭", "🐻", "🐨", "🐯", "🐵", "🐢", "🐍", "🐝", "🐠", "🐬", "🐳", "🦋", "🦊", "🐴", "🐘", "🦉", "🐧", "🦅", "🦈"],
+            "Music 🎵": ["🎹", "🥁", "🎸", "🎺", "🎻", "🎷", "🔔", "🎼", "🎤", "🎧", "🎵", "🎶", "📻"],
+            "Vehicles 🚗": ["🚗", "✈️", "🚢", "🚓", "🚒", "🚑", "🚜", "🚁", "🚀", "🛸", "🤖", "👾", "🚂", "🚕", "🚌", "🏎️", "🏍️", "🚲", "⛵", "🚤"],
+            "Characters 🧙": ["👶", "👻", "👽", "💩", "💀", "🤡", "👺", "👼", "🧛", "🧚", "🧜", "🧞", "🧟", "🦸", "🥷", "🎅", "👹"],
+            "Food 🍕": ["🍕", "🍔", "🍎", "🍌", "🍓", "🍦", "🍩", "🍰", "🍪", "🍿", "🍉", "🍇", "☕", "🍣"],
+            "Sports 🏀": ["⚽", "🏀", "🏈", "⚾", "🎾", "🏐", "⛳", "🏓", "🎳", "🏆", "🎯", "🎲"],
+            "Nature 🌸": ["🌸", "❤️", "🌊", "⭐", "🔥", "🌈", "🍄", "🌵", "💡", "🌳", "☀️", "🌙", "⛄", "❄️", "⚡", "☁️"],
+            "Objects 💎": ["💎", "🎁", "🎈", "📱", "🔑", "⏰", "⚙️"]
         };
 
         const ALL_EMOJIS = Object.values(CATEGORIES).flat();
@@ -1424,6 +1428,41 @@
                     instruments.bones.volume.value = -16;
                     break;
                 }
+                case 'laugh': {
+                    // Staccato laughter — tight FM blip; rapid repeats give "ha ha ha"
+                    instruments.laugh = new Tone.PolySynth(Tone.FMSynth, { ...polyOptions, harmonicity: 2.5, modulationIndex: 6, oscillator: { type: "sine" }, envelope: { attack: 0.003, decay: 0.07, sustain: 0, release: 0.05 }, modulation: { type: "triangle" }, modulationEnvelope: { attack: 0.003, decay: 0.05, sustain: 0, release: 0.04 } }).connect(bus);
+                    instruments.laugh.volume.value = -4;
+                    break;
+                }
+                case 'cry': {
+                    // Sobbing — triangle with downward filter sweep + vibrato wobble
+                    const cryVib = new Tone.Vibrato(4.5, 0.2).connect(bus);
+                    instruments.cry = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "triangle" }, envelope: { attack: 0.08, decay: 0.4, sustain: 0.5, release: 0.4 }, filter: { Q: 5, type: "lowpass" }, filterEnvelope: { attack: 0.1, decay: 0.4, sustain: 0.3, release: 0.4, baseFrequency: 900, octaves: -1.5 } }).connect(cryVib);
+                    instruments.cry.volume.value = -7;
+                    break;
+                }
+                case 'hiss': {
+                    // Snake hiss / sizzle — very inharmonic FM = pseudo-noise + bandpass
+                    const hissFilter = new Tone.Filter(4000, "bandpass").connect(bus);
+                    hissFilter.Q.value = 3.5;
+                    instruments.hiss = new Tone.PolySynth(Tone.FMSynth, { ...polyOptions, harmonicity: 13, modulationIndex: 24, oscillator: { type: "square" }, envelope: { attack: 0.02, decay: 0.3, sustain: 0.4, release: 0.2 }, modulation: { type: "square" }, modulationEnvelope: { attack: 0.01, decay: 0.2, sustain: 0.5, release: 0.2 } }).connect(hissFilter);
+                    instruments.hiss.volume.value = -16;
+                    break;
+                }
+                case 'buzz': {
+                    // Bee buzz — high vibrato sawtooth, detuned up for insect feel
+                    const buzzVib = new Tone.Vibrato(28, 0.45).connect(bus);
+                    instruments.buzz = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.01, decay: 0.18, sustain: 0.7, release: 0.15 }, detune: 1200 }).connect(buzzVib);
+                    instruments.buzz.volume.value = -16;
+                    break;
+                }
+                case 'zap': {
+                    // Lightning zap — distorted FM blast with very fast decay
+                    const zapDist = new Tone.Distortion(0.75).connect(bus);
+                    instruments.zap = new Tone.PolySynth(Tone.FMSynth, { ...polyOptions, harmonicity: 1.5, modulationIndex: 28, oscillator: { type: "sawtooth" }, envelope: { attack: 0.001, decay: 0.14, sustain: 0, release: 0.08 }, modulation: { type: "square" }, modulationEnvelope: { attack: 0.001, decay: 0.1, sustain: 0, release: 0.05 } }).connect(zapDist);
+                    instruments.zap.volume.value = -8;
+                    break;
+                }
                 default:
                     // Lazy load default if not exists
                     if (!instruments.default) {
@@ -1483,6 +1522,24 @@
         // - dur / previewDur: optional override of the auto-picked duration
         // Any emoji not listed falls through to getSoundType() so old saved songs still work.
         const VOICES = {
+            // --- Faces ---
+            '😀': { synth: 'mic',    semi: 4 },    // grinning "ha"
+            '😂': { synth: 'laugh' },              // staccato laugh
+            '😍': { synth: 'heart' },              // love
+            '😎': { synth: 'pluck',  semi: -7 },   // cool smooth pluck
+            '😢': { synth: 'cry' },                // sobbing
+            '😱': { synth: 'siren',  semi: 12 },   // scream
+            '😴': { synth: 'ghost',  semi: -12 },  // snore drone
+            '😡': { synth: 'lion' },               // angry growl
+            '🤔': { synth: 'bell' },               // thinking ping
+            '😘': { synth: 'cluck',  semi: 7 },    // kiss pop
+            '🤯': { synth: 'drum',   semi: 7 },    // mind-blown thump
+            '😈': { synth: 'lion',   semi: -5 },   // devil
+            '🤗': { synth: 'heart',  semi: 5 },    // warm hug
+            '🥺': { synth: 'cat',    semi: 5 },    // pleading
+            '🥳': { synth: 'brass',  semi: 5 },    // party fanfare
+            '😇': { synth: 'angel' },              // halo
+
             // --- Animals ---
             '🐶': { synth: 'dog' },
             '🐱': { synth: 'cat' },
@@ -1494,8 +1551,28 @@
             '🐮': { synth: 'moo' },
             '🐦': { synth: 'chirp' },
             '🐺': { synth: 'howl' },               // wolf: sustained howl with vibrato
-            '🐗': { synth: 'pig',   semi: -7 },    // boar: deeper grunt
+            '🐗': { synth: 'pig',    semi: -7 },   // boar: deeper grunt
             '🦄': { synth: 'unicorn' },
+            '🐰': { synth: 'cluck',  semi: -5 },   // rabbit hop
+            '🐭': { synth: 'cluck',  semi: 12 },   // mouse squeak
+            '🐻': { synth: 'lion',   semi: -5 },   // bear growl
+            '🐨': { synth: 'moo',    semi: 7 },    // koala
+            '🐯': { synth: 'lion',   semi: 3 },    // tiger
+            '🐵': { synth: 'cluck',  semi: 10 },   // monkey chitter
+            '🐢': { synth: 'frog',   semi: -5 },   // turtle slow croak
+            '🐍': { synth: 'hiss' },               // snake
+            '🐝': { synth: 'buzz' },               // bee
+            '🐠': { synth: 'water',  semi: 7 },    // fish bubble
+            '🐬': { synth: 'chirp',  semi: 12 },   // dolphin click
+            '🐳': { synth: 'ghost',  semi: -7 },   // whale moan
+            '🦋': { synth: 'flower', semi: 7 },    // butterfly
+            '🦊': { synth: 'dog',    semi: 5 },    // fox yip
+            '🐴': { synth: 'moo',    semi: 5 },    // horse whinny
+            '🐘': { synth: 'brass',  semi: -12 },  // elephant trumpet
+            '🦉': { synth: 'ghost',  semi: -5 },   // owl hoot
+            '🐧': { synth: 'quack',  semi: 5 },    // penguin
+            '🦅': { synth: 'chirp',  semi: 5 },    // eagle cry
+            '🦈': { synth: 'ghost',  semi: -10 },  // shark menace
 
             // --- Music ---
             '🎹': { synth: 'mario' },
@@ -1505,48 +1582,110 @@
             '🎻': { synth: 'strings' },
             '🎷': { synth: 'sax' },
             '🔔': { synth: 'bell' },
-            '🎼': { synth: 'mario', semi: 12 },    // music note: octave up
+            '🎼': { synth: 'mario',  semi: 12 },   // music staff: octave up
             '🎤': { synth: 'mic' },
             '🎧': { synth: 'headphones' },
+            '🎵': { synth: 'mario' },              // single note
+            '🎶': { synth: 'mario',  semi: 7 },    // multi notes
+            '📻': { synth: 'headphones' },         // radio
 
             // --- Vehicles ---
             '🚗': { synth: 'car' },
             '✈️': { synth: 'plane' },
             '🚢': { synth: 'boat' },
             '🚓': { synth: 'siren' },
-            '🚒': { synth: 'siren', semi: -2 },    // firetruck: lower wail
-            '🚑': { synth: 'siren', semi: 3 },     // ambulance: higher wail
-            '🚜': { synth: 'tractor' },            // tractor: chug-chug
+            '🚒': { synth: 'siren',  semi: -2 },   // firetruck
+            '🚑': { synth: 'siren',  semi: 3 },    // ambulance
+            '🚜': { synth: 'tractor' },
             '🚁': { synth: 'chopper' },
-            '🚀': { synth: 'rocket' },             // rocket: whoosh with rising sweep
-            '🛸': { synth: 'alien',   semi: 7 },   // UFO: bright alien
-            '🤖': { synth: 'robot' },              // robot: bit-crushed voice
-            '👾': { synth: 'alien',   semi: -7 },  // invader: lower bleep
-            '🚂': { synth: 'train' },              // train: steam whistle + chug
+            '🚀': { synth: 'rocket' },
+            '🛸': { synth: 'alien',  semi: 7 },    // UFO
+            '🤖': { synth: 'robot' },
+            '👾': { synth: 'alien',  semi: -7 },   // invader
+            '🚂': { synth: 'train' },
+            '🚕': { synth: 'car',    semi: 5 },    // taxi
+            '🚌': { synth: 'car',    semi: -5 },   // bus
+            '🏎️': { synth: 'plane',  semi: 5 },    // race car
+            '🏍️': { synth: 'car',    semi: -7 },   // motorcycle
+            '🚲': { synth: 'bell',   semi: 5 },    // bicycle bell
+            '⛵': { synth: 'boat',   semi: 5 },    // sailboat
+            '🚤': { synth: 'boat',   semi: 12 },   // speedboat
 
-            // --- Voices / Characters ---
+            // --- Characters ---
             '👶': { synth: 'baby' },
             '👻': { synth: 'ghost' },
             '👽': { synth: 'alien' },
-            '💩': { synth: 'splat' },              // poo: raspberry/splat
-            '💀': { synth: 'bones' },              // skull: rattling bones (MetalSynth)
+            '💩': { synth: 'splat' },
+            '💀': { synth: 'bones' },
             '🤡': { synth: 'honk' },
-            '👺': { synth: 'honk',  semi: -5 },    // tengu: gnarlier honk
+            '👺': { synth: 'honk',   semi: -5 },   // tengu
             '👼': { synth: 'angel' },
-            '🧛': { synth: 'ghost', semi: -12 },   // vampire: low moan
+            '🧛': { synth: 'ghost',  semi: -12 },  // vampire
+            '🧚': { synth: 'unicorn', semi: 5 },   // fairy
+            '🧜': { synth: 'flower', semi: 5 },    // mermaid
+            '🧞': { synth: 'ghost',  semi: 12 },   // genie
+            '🧟': { synth: 'ghost',  semi: -3 },   // zombie
+            '🦸': { synth: 'brass',  semi: 5 },    // superhero fanfare
+            '🥷': { synth: 'wood' },               // ninja silent strike
+            '🎅': { synth: 'bell',   semi: 5 },    // santa bell
+            '👹': { synth: 'lion',   semi: -7 },   // ogre
 
-            // --- Nature / Misc ---
+            // --- Food ---
+            '🍕': { synth: 'wood' },               // pizza clatter
+            '🍔': { synth: 'drum' },               // burger thunk
+            '🍎': { synth: 'ball',   semi: 5 },    // apple crisp
+            '🍌': { synth: 'splat' },              // banana squish
+            '🍓': { synth: 'bell',   semi: 12 },   // strawberry
+            '🍦': { synth: 'star' },               // ice cream
+            '🍩': { synth: 'ball' },               // donut
+            '🍰': { synth: 'angel' },              // cake
+            '🍪': { synth: 'wood',   semi: 5 },    // cookie crunch
+            '🍿': { synth: 'cluck' },              // popcorn pop
+            '🍉': { synth: 'ball',   semi: -5 },   // watermelon
+            '🍇': { synth: 'ball',   semi: 12 },   // grapes
+            '☕': { synth: 'water',  semi: 7 },    // coffee drip
+            '🍣': { synth: 'wood',   semi: 10 },   // sushi delicate
+
+            // --- Sports ---
+            '⚽': { synth: 'ball',   semi: -5 },   // soccer
+            '🏀': { synth: 'ball' },               // basketball
+            '🏈': { synth: 'ball',   semi: -3 },   // football
+            '⚾': { synth: 'wood' },               // baseball crack
+            '🎾': { synth: 'wood',   semi: 7 },    // tennis pop
+            '🏐': { synth: 'ball',   semi: 2 },    // volleyball
+            '⛳': { synth: 'wood',   semi: 12 },   // golf whack
+            '🏓': { synth: 'wood',   semi: 14 },   // ping pong tk
+            '🎳': { synth: 'drum',   semi: -7 },   // bowling rumble
+            '🏆': { synth: 'bell' },               // trophy
+            '🎯': { synth: 'wood',   semi: 5 },    // dart
+            '🎲': { synth: 'bones' },              // dice rattle
+
+            // --- Nature ---
             '🌸': { synth: 'flower' },
             '❤️': { synth: 'heart' },
             '🌊': { synth: 'water' },
             '⭐': { synth: 'star' },
-            '🔥': { synth: 'fire' },               // fire: crackling roar
-            '🌈': { synth: 'star',  semi: 7 },     // rainbow: brighter shimmer
+            '🔥': { synth: 'fire' },
+            '🌈': { synth: 'star',   semi: 7 },    // rainbow
             '🍄': { synth: 'mushroom' },
-            '🌵': { synth: 'pluck', semi: -12 },   // cactus: low dry pluck
-            '⚽': { synth: 'ball',  semi: -5 },    // soccer: lower bounce
-            '🏀': { synth: 'ball' },               // basketball: mid bounce
-            '💡': { synth: 'bell',  semi: 12 },    // bulb: high ping
+            '🌵': { synth: 'pluck',  semi: -12 },  // cactus
+            '💡': { synth: 'bell',   semi: 12 },   // bulb
+            '🌳': { synth: 'flower', semi: -5 },   // tree
+            '☀️': { synth: 'bell',   semi: 24 },   // sun
+            '🌙': { synth: 'angel',  semi: -5 },   // moon
+            '⛄': { synth: 'ball',   semi: -12 },  // snowman thud
+            '❄️': { synth: 'bell',   semi: 27 },   // snowflake tinkle
+            '⚡': { synth: 'zap' },                // lightning
+            '☁️': { synth: 'headphones' },         // cloud
+
+            // --- Objects ---
+            '💎': { synth: 'bell',   semi: 24 },   // diamond sparkle
+            '🎁': { synth: 'bell',   semi: 7 },    // gift
+            '🎈': { synth: 'splat',  semi: 12 },   // balloon pop
+            '📱': { synth: 'bell',   semi: 19 },   // phone ring
+            '🔑': { synth: 'bones',  semi: 7 },    // key jingle
+            '⏰': { synth: 'wood' },               // clock tick
+            '⚙️': { synth: 'robot' },              // gear mechanical
         };
 
         function getVoiceProfile(emoji) {
@@ -1557,7 +1696,8 @@
         function getSequenceDuration(synth) {
             if (['flower', 'ghost', 'strings', 'boat', 'plane', 'moo', 'star', 'bell',
                  'angel', 'heart', 'headphones', 'howl', 'lion',
-                 'fire', 'rocket', 'train', 'tractor'].includes(synth)) return '4n';
+                 'fire', 'rocket', 'train', 'tractor',
+                 'cry', 'hiss', 'buzz'].includes(synth)) return '4n';
             if (['cat', 'mario', 'brass', 'car', 'baby', 'quack', 'honk', 'sax',
                  'siren', 'alien', 'unicorn', 'mic', 'robot'].includes(synth)) return '8n';
             return '16n';
@@ -1565,9 +1705,11 @@
         function getPreviewDuration(synth) {
             if (['flower', 'ghost', 'strings', 'boat', 'plane', 'moo', 'star', 'bell',
                  'angel', 'heart', 'headphones', 'mic', 'howl', 'lion',
-                 'fire', 'rocket', 'train', 'tractor'].includes(synth)) return '4n';
+                 'fire', 'rocket', 'train', 'tractor',
+                 'cry', 'hiss', 'buzz'].includes(synth)) return '4n';
             if (['dog', 'pig', 'frog', 'drum', 'gameboy', 'cluck', 'chirp', 'wood',
-                 'chopper', 'mushroom', 'ball', 'splat', 'bones'].includes(synth)) return '16n';
+                 'chopper', 'mushroom', 'ball', 'splat', 'bones',
+                 'laugh', 'zap'].includes(synth)) return '16n';
             return '8n';
         }
 
