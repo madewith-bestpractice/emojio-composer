@@ -1,0 +1,1193 @@
+{
+  "version": 1,
+  "sampleRate": 44100,
+  "channels": 1,
+  "zoneSpacingSemitones": 3,
+  "globalFx": {
+    "reverb": {
+      "decay": 1.2,
+      "wet": 0.2
+    },
+    "limiter": -2
+  },
+  "scale": [
+    "G5",
+    "F5",
+    "E5",
+    "D5",
+    "C5",
+    "B4",
+    "A4",
+    "G4",
+    "F4",
+    "E4",
+    "D4",
+    "C4",
+    "B3",
+    "A3",
+    "G3"
+  ],
+  "voices": {
+    "drum": {
+      "type": "oneshot",
+      "volumeDb": -2,
+      "zones": [
+        {
+          "midi": 48,
+          "note": "C3",
+          "file": "drum_048.wav",
+          "durSec": 0.456
+        },
+        {
+          "midi": 51,
+          "note": "D#3",
+          "file": "drum_051.wav",
+          "durSec": 0.454
+        },
+        {
+          "midi": 54,
+          "note": "F#3",
+          "file": "drum_054.wav",
+          "durSec": 0.455
+        },
+        {
+          "midi": 57,
+          "note": "A3",
+          "file": "drum_057.wav",
+          "durSec": 0.455
+        },
+        {
+          "midi": 60,
+          "note": "C4",
+          "file": "drum_060.wav",
+          "durSec": 0.455
+        },
+        {
+          "midi": 63,
+          "note": "D#4",
+          "file": "drum_063.wav",
+          "durSec": 0.456
+        },
+        {
+          "midi": 66,
+          "note": "F#4",
+          "file": "drum_066.wav",
+          "durSec": 0.456
+        },
+        {
+          "midi": 69,
+          "note": "A4",
+          "file": "drum_069.wav",
+          "durSec": 0.456
+        },
+        {
+          "midi": 72,
+          "note": "C5",
+          "file": "drum_072.wav",
+          "durSec": 0.456
+        },
+        {
+          "midi": 75,
+          "note": "D#5",
+          "file": "drum_075.wav",
+          "durSec": 0.456
+        },
+        {
+          "midi": 78,
+          "note": "F#5",
+          "file": "drum_078.wav",
+          "durSec": 0.456
+        },
+        {
+          "midi": 81,
+          "note": "A5",
+          "file": "drum_081.wav",
+          "durSec": 0.456
+        },
+        {
+          "midi": 84,
+          "note": "C6",
+          "file": "drum_084.wav",
+          "durSec": 0.456
+        }
+      ]
+    },
+    "bell": {
+      "type": "oneshot",
+      "volumeDb": -5,
+      "zones": [
+        {
+          "midi": 48,
+          "note": "C3",
+          "file": "bell_048.wav",
+          "durSec": 1.033
+        },
+        {
+          "midi": 51,
+          "note": "D#3",
+          "file": "bell_051.wav",
+          "durSec": 1.035
+        },
+        {
+          "midi": 54,
+          "note": "F#3",
+          "file": "bell_054.wav",
+          "durSec": 1.036
+        },
+        {
+          "midi": 57,
+          "note": "A3",
+          "file": "bell_057.wav",
+          "durSec": 1.035
+        },
+        {
+          "midi": 60,
+          "note": "C4",
+          "file": "bell_060.wav",
+          "durSec": 1.036
+        },
+        {
+          "midi": 63,
+          "note": "D#4",
+          "file": "bell_063.wav",
+          "durSec": 1.036
+        },
+        {
+          "midi": 66,
+          "note": "F#4",
+          "file": "bell_066.wav",
+          "durSec": 1.035
+        },
+        {
+          "midi": 69,
+          "note": "A4",
+          "file": "bell_069.wav",
+          "durSec": 1.035
+        },
+        {
+          "midi": 72,
+          "note": "C5",
+          "file": "bell_072.wav",
+          "durSec": 1.035
+        },
+        {
+          "midi": 75,
+          "note": "D#5",
+          "file": "bell_075.wav",
+          "durSec": 1.035
+        },
+        {
+          "midi": 78,
+          "note": "F#5",
+          "file": "bell_078.wav",
+          "durSec": 1.036
+        },
+        {
+          "midi": 81,
+          "note": "A5",
+          "file": "bell_081.wav",
+          "durSec": 1.036
+        },
+        {
+          "midi": 84,
+          "note": "C6",
+          "file": "bell_084.wav",
+          "durSec": 1.036
+        }
+      ]
+    },
+    "angel": {
+      "type": "sustain",
+      "volumeDb": -10,
+      "zones": [
+        {
+          "midi": 48,
+          "note": "C3",
+          "file": "angel_048.wav",
+          "durSec": 3.195
+        },
+        {
+          "midi": 51,
+          "note": "D#3",
+          "file": "angel_051.wav",
+          "durSec": 3.4
+        },
+        {
+          "midi": 54,
+          "note": "F#3",
+          "file": "angel_054.wav",
+          "durSec": 3.267
+        },
+        {
+          "midi": 57,
+          "note": "A3",
+          "file": "angel_057.wav",
+          "durSec": 3.187
+        },
+        {
+          "midi": 60,
+          "note": "C4",
+          "file": "angel_060.wav",
+          "durSec": 3.196
+        },
+        {
+          "midi": 63,
+          "note": "D#4",
+          "file": "angel_063.wav",
+          "durSec": 3.37
+        },
+        {
+          "midi": 66,
+          "note": "F#4",
+          "file": "angel_066.wav",
+          "durSec": 3.319
+        },
+        {
+          "midi": 69,
+          "note": "A4",
+          "file": "angel_069.wav",
+          "durSec": 3.4
+        },
+        {
+          "midi": 72,
+          "note": "C5",
+          "file": "angel_072.wav",
+          "durSec": 3.05
+        },
+        {
+          "midi": 75,
+          "note": "D#5",
+          "file": "angel_075.wav",
+          "durSec": 3.4
+        },
+        {
+          "midi": 78,
+          "note": "F#5",
+          "file": "angel_078.wav",
+          "durSec": 3.326
+        },
+        {
+          "midi": 81,
+          "note": "A5",
+          "file": "angel_081.wav",
+          "durSec": 3.213
+        },
+        {
+          "midi": 84,
+          "note": "C6",
+          "file": "angel_084.wav",
+          "durSec": 3.316
+        }
+      ],
+      "loop": {
+        "startFrac": 0.45,
+        "endFrac": 0.8
+      }
+    },
+    "dog": {
+      "type": "oneshot",
+      "volumeDb": -4,
+      "zones": [
+        {
+          "midi": 48,
+          "note": "C3",
+          "file": "dog_048.wav",
+          "durSec": 0.149
+        },
+        {
+          "midi": 51,
+          "note": "D#3",
+          "file": "dog_051.wav",
+          "durSec": 0.149
+        },
+        {
+          "midi": 54,
+          "note": "F#3",
+          "file": "dog_054.wav",
+          "durSec": 0.149
+        },
+        {
+          "midi": 57,
+          "note": "A3",
+          "file": "dog_057.wav",
+          "durSec": 0.149
+        },
+        {
+          "midi": 60,
+          "note": "C4",
+          "file": "dog_060.wav",
+          "durSec": 0.149
+        },
+        {
+          "midi": 63,
+          "note": "D#4",
+          "file": "dog_063.wav",
+          "durSec": 0.148
+        },
+        {
+          "midi": 66,
+          "note": "F#4",
+          "file": "dog_066.wav",
+          "durSec": 0.147
+        },
+        {
+          "midi": 69,
+          "note": "A4",
+          "file": "dog_069.wav",
+          "durSec": 0.144
+        },
+        {
+          "midi": 72,
+          "note": "C5",
+          "file": "dog_072.wav",
+          "durSec": 0.14
+        },
+        {
+          "midi": 75,
+          "note": "D#5",
+          "file": "dog_075.wav",
+          "durSec": 0.127
+        },
+        {
+          "midi": 78,
+          "note": "F#5",
+          "file": "dog_078.wav",
+          "durSec": 0.115
+        },
+        {
+          "midi": 81,
+          "note": "A5",
+          "file": "dog_081.wav",
+          "durSec": 0.104
+        },
+        {
+          "midi": 84,
+          "note": "C6",
+          "file": "dog_084.wav",
+          "durSec": 0.094
+        }
+      ]
+    },
+    "fire": {
+      "type": "oneshot",
+      "volumeDb": -10,
+      "zones": [
+        {
+          "midi": 48,
+          "note": "C3",
+          "file": "fire_048.wav",
+          "durSec": 0.496
+        },
+        {
+          "midi": 51,
+          "note": "D#3",
+          "file": "fire_051.wav",
+          "durSec": 0.497
+        },
+        {
+          "midi": 54,
+          "note": "F#3",
+          "file": "fire_054.wav",
+          "durSec": 0.497
+        },
+        {
+          "midi": 57,
+          "note": "A3",
+          "file": "fire_057.wav",
+          "durSec": 0.499
+        },
+        {
+          "midi": 60,
+          "note": "C4",
+          "file": "fire_060.wav",
+          "durSec": 0.498
+        },
+        {
+          "midi": 63,
+          "note": "D#4",
+          "file": "fire_063.wav",
+          "durSec": 0.498
+        },
+        {
+          "midi": 66,
+          "note": "F#4",
+          "file": "fire_066.wav",
+          "durSec": 0.498
+        },
+        {
+          "midi": 69,
+          "note": "A4",
+          "file": "fire_069.wav",
+          "durSec": 0.498
+        },
+        {
+          "midi": 72,
+          "note": "C5",
+          "file": "fire_072.wav",
+          "durSec": 0.497
+        },
+        {
+          "midi": 75,
+          "note": "D#5",
+          "file": "fire_075.wav",
+          "durSec": 0.497
+        },
+        {
+          "midi": 78,
+          "note": "F#5",
+          "file": "fire_078.wav",
+          "durSec": 0.499
+        },
+        {
+          "midi": 81,
+          "note": "A5",
+          "file": "fire_081.wav",
+          "durSec": 0.498
+        },
+        {
+          "midi": 84,
+          "note": "C6",
+          "file": "fire_084.wav",
+          "durSec": 0.498
+        }
+      ]
+    }
+  },
+  "emojiVoices": {
+    "😀": {
+      "synth": "mic",
+      "semi": 4,
+      "dur": "8n"
+    },
+    "😂": {
+      "synth": "laugh",
+      "semi": 0,
+      "dur": "16n"
+    },
+    "😍": {
+      "synth": "heart",
+      "semi": 0,
+      "dur": "4n"
+    },
+    "😎": {
+      "synth": "pluck",
+      "semi": -7,
+      "dur": "16n"
+    },
+    "😢": {
+      "synth": "cry",
+      "semi": 0,
+      "dur": "4n"
+    },
+    "😱": {
+      "synth": "siren",
+      "semi": 12,
+      "dur": "8n"
+    },
+    "😴": {
+      "synth": "ghost",
+      "semi": -12,
+      "dur": "4n"
+    },
+    "😡": {
+      "synth": "lion",
+      "semi": 0,
+      "dur": "4n"
+    },
+    "🤔": {
+      "synth": "bell",
+      "semi": 0,
+      "dur": "4n"
+    },
+    "😘": {
+      "synth": "cluck",
+      "semi": 7,
+      "dur": "16n"
+    },
+    "🤯": {
+      "synth": "drum",
+      "semi": 7,
+      "dur": "16n"
+    },
+    "😈": {
+      "synth": "lion",
+      "semi": -5,
+      "dur": "4n"
+    },
+    "🤗": {
+      "synth": "heart",
+      "semi": 5,
+      "dur": "4n"
+    },
+    "🥺": {
+      "synth": "cat",
+      "semi": 5,
+      "dur": "8n"
+    },
+    "🥳": {
+      "synth": "brass",
+      "semi": 5,
+      "dur": "8n"
+    },
+    "😇": {
+      "synth": "angel",
+      "semi": 0,
+      "dur": "4n"
+    },
+    "🐶": {
+      "synth": "dog",
+      "semi": 0,
+      "dur": "16n"
+    },
+    "🐱": {
+      "synth": "cat",
+      "semi": 0,
+      "dur": "8n"
+    },
+    "🐷": {
+      "synth": "pig",
+      "semi": 0,
+      "dur": "16n"
+    },
+    "🐸": {
+      "synth": "frog",
+      "semi": 0,
+      "dur": "16n"
+    },
+    "🐔": {
+      "synth": "cluck",
+      "semi": 0,
+      "dur": "16n"
+    },
+    "🦆": {
+      "synth": "quack",
+      "semi": 0,
+      "dur": "8n"
+    },
+    "🦁": {
+      "synth": "lion",
+      "semi": 0,
+      "dur": "4n"
+    },
+    "🐮": {
+      "synth": "moo",
+      "semi": 0,
+      "dur": "4n"
+    },
+    "🐦": {
+      "synth": "chirp",
+      "semi": 0,
+      "dur": "16n"
+    },
+    "🐺": {
+      "synth": "howl",
+      "semi": 0,
+      "dur": "4n"
+    },
+    "🐗": {
+      "synth": "pig",
+      "semi": -7,
+      "dur": "16n"
+    },
+    "🦄": {
+      "synth": "unicorn",
+      "semi": 0,
+      "dur": "8n"
+    },
+    "🐰": {
+      "synth": "cluck",
+      "semi": -5,
+      "dur": "16n"
+    },
+    "🐭": {
+      "synth": "cluck",
+      "semi": 12,
+      "dur": "16n"
+    },
+    "🐻": {
+      "synth": "lion",
+      "semi": -5,
+      "dur": "4n"
+    },
+    "🐨": {
+      "synth": "moo",
+      "semi": 7,
+      "dur": "4n"
+    },
+    "🐯": {
+      "synth": "lion",
+      "semi": 3,
+      "dur": "4n"
+    },
+    "🐵": {
+      "synth": "cluck",
+      "semi": 10,
+      "dur": "16n"
+    },
+    "🐢": {
+      "synth": "frog",
+      "semi": -5,
+      "dur": "16n"
+    },
+    "🐍": {
+      "synth": "hiss",
+      "semi": 0,
+      "dur": "4n"
+    },
+    "🐝": {
+      "synth": "buzz",
+      "semi": 0,
+      "dur": "4n"
+    },
+    "🐠": {
+      "synth": "water",
+      "semi": 7,
+      "dur": "16n"
+    },
+    "🐬": {
+      "synth": "chirp",
+      "semi": 12,
+      "dur": "16n"
+    },
+    "🐳": {
+      "synth": "ghost",
+      "semi": -7,
+      "dur": "4n"
+    },
+    "🦋": {
+      "synth": "flower",
+      "semi": 7,
+      "dur": "4n"
+    },
+    "🦊": {
+      "synth": "dog",
+      "semi": 5,
+      "dur": "16n"
+    },
+    "🐴": {
+      "synth": "moo",
+      "semi": 5,
+      "dur": "4n"
+    },
+    "🐘": {
+      "synth": "brass",
+      "semi": -12,
+      "dur": "8n"
+    },
+    "🦉": {
+      "synth": "ghost",
+      "semi": -5,
+      "dur": "4n"
+    },
+    "🐧": {
+      "synth": "quack",
+      "semi": 5,
+      "dur": "8n"
+    },
+    "🦅": {
+      "synth": "chirp",
+      "semi": 5,
+      "dur": "16n"
+    },
+    "🦈": {
+      "synth": "ghost",
+      "semi": -10,
+      "dur": "4n"
+    },
+    "🎹": {
+      "synth": "mario",
+      "semi": 0,
+      "dur": "8n"
+    },
+    "🥁": {
+      "synth": "drum",
+      "semi": 0,
+      "dur": "16n"
+    },
+    "🎸": {
+      "synth": "pluck",
+      "semi": 0,
+      "dur": "16n"
+    },
+    "🎺": {
+      "synth": "brass",
+      "semi": 0,
+      "dur": "8n"
+    },
+    "🎻": {
+      "synth": "strings",
+      "semi": 0,
+      "dur": "4n"
+    },
+    "🎷": {
+      "synth": "sax",
+      "semi": 0,
+      "dur": "8n"
+    },
+    "🔔": {
+      "synth": "bell",
+      "semi": 0,
+      "dur": "4n"
+    },
+    "🎼": {
+      "synth": "mario",
+      "semi": 12,
+      "dur": "8n"
+    },
+    "🎤": {
+      "synth": "mic",
+      "semi": 0,
+      "dur": "8n"
+    },
+    "🎧": {
+      "synth": "headphones",
+      "semi": 0,
+      "dur": "4n"
+    },
+    "🎵": {
+      "synth": "mario",
+      "semi": 0,
+      "dur": "8n"
+    },
+    "🎶": {
+      "synth": "mario",
+      "semi": 7,
+      "dur": "8n"
+    },
+    "📻": {
+      "synth": "headphones",
+      "semi": 0,
+      "dur": "4n"
+    },
+    "🚗": {
+      "synth": "car",
+      "semi": 0,
+      "dur": "8n"
+    },
+    "✈️": {
+      "synth": "plane",
+      "semi": 0,
+      "dur": "4n"
+    },
+    "🚢": {
+      "synth": "boat",
+      "semi": 0,
+      "dur": "4n"
+    },
+    "🚓": {
+      "synth": "siren",
+      "semi": 0,
+      "dur": "8n"
+    },
+    "🚒": {
+      "synth": "siren",
+      "semi": -2,
+      "dur": "8n"
+    },
+    "🚑": {
+      "synth": "siren",
+      "semi": 3,
+      "dur": "8n"
+    },
+    "🚜": {
+      "synth": "tractor",
+      "semi": 0,
+      "dur": "4n"
+    },
+    "🚁": {
+      "synth": "chopper",
+      "semi": 0,
+      "dur": "16n"
+    },
+    "🚀": {
+      "synth": "rocket",
+      "semi": 0,
+      "dur": "4n"
+    },
+    "🛸": {
+      "synth": "alien",
+      "semi": 7,
+      "dur": "8n"
+    },
+    "🤖": {
+      "synth": "robot",
+      "semi": 0,
+      "dur": "8n"
+    },
+    "👾": {
+      "synth": "alien",
+      "semi": -7,
+      "dur": "8n"
+    },
+    "🚂": {
+      "synth": "train",
+      "semi": 0,
+      "dur": "4n"
+    },
+    "🚕": {
+      "synth": "car",
+      "semi": 5,
+      "dur": "8n"
+    },
+    "🚌": {
+      "synth": "car",
+      "semi": -5,
+      "dur": "8n"
+    },
+    "🏎️": {
+      "synth": "plane",
+      "semi": 5,
+      "dur": "4n"
+    },
+    "🏍️": {
+      "synth": "car",
+      "semi": -7,
+      "dur": "8n"
+    },
+    "🚲": {
+      "synth": "bell",
+      "semi": 5,
+      "dur": "4n"
+    },
+    "⛵": {
+      "synth": "boat",
+      "semi": 5,
+      "dur": "4n"
+    },
+    "🚤": {
+      "synth": "boat",
+      "semi": 12,
+      "dur": "4n"
+    },
+    "👶": {
+      "synth": "baby",
+      "semi": 0,
+      "dur": "8n"
+    },
+    "👻": {
+      "synth": "ghost",
+      "semi": 0,
+      "dur": "4n"
+    },
+    "👽": {
+      "synth": "alien",
+      "semi": 0,
+      "dur": "8n"
+    },
+    "💩": {
+      "synth": "splat",
+      "semi": 0,
+      "dur": "16n"
+    },
+    "💀": {
+      "synth": "bones",
+      "semi": 0,
+      "dur": "16n"
+    },
+    "🤡": {
+      "synth": "honk",
+      "semi": 0,
+      "dur": "8n"
+    },
+    "👺": {
+      "synth": "honk",
+      "semi": -5,
+      "dur": "8n"
+    },
+    "👼": {
+      "synth": "angel",
+      "semi": 0,
+      "dur": "4n"
+    },
+    "🧛": {
+      "synth": "ghost",
+      "semi": -12,
+      "dur": "4n"
+    },
+    "🧚": {
+      "synth": "unicorn",
+      "semi": 5,
+      "dur": "8n"
+    },
+    "🧜": {
+      "synth": "flower",
+      "semi": 5,
+      "dur": "4n"
+    },
+    "🧞": {
+      "synth": "ghost",
+      "semi": 12,
+      "dur": "4n"
+    },
+    "🧟": {
+      "synth": "ghost",
+      "semi": -3,
+      "dur": "4n"
+    },
+    "🦸": {
+      "synth": "brass",
+      "semi": 5,
+      "dur": "8n"
+    },
+    "🥷": {
+      "synth": "wood",
+      "semi": 0,
+      "dur": "16n"
+    },
+    "🎅": {
+      "synth": "bell",
+      "semi": 5,
+      "dur": "4n"
+    },
+    "👹": {
+      "synth": "lion",
+      "semi": -7,
+      "dur": "4n"
+    },
+    "🍕": {
+      "synth": "wood",
+      "semi": 0,
+      "dur": "16n"
+    },
+    "🍔": {
+      "synth": "drum",
+      "semi": 0,
+      "dur": "16n"
+    },
+    "🍎": {
+      "synth": "ball",
+      "semi": 5,
+      "dur": "16n"
+    },
+    "🍌": {
+      "synth": "splat",
+      "semi": 0,
+      "dur": "16n"
+    },
+    "🍓": {
+      "synth": "bell",
+      "semi": 12,
+      "dur": "4n"
+    },
+    "🍦": {
+      "synth": "star",
+      "semi": 0,
+      "dur": "4n"
+    },
+    "🍩": {
+      "synth": "ball",
+      "semi": 0,
+      "dur": "16n"
+    },
+    "🍰": {
+      "synth": "angel",
+      "semi": 0,
+      "dur": "4n"
+    },
+    "🍪": {
+      "synth": "wood",
+      "semi": 5,
+      "dur": "16n"
+    },
+    "🍿": {
+      "synth": "cluck",
+      "semi": 0,
+      "dur": "16n"
+    },
+    "🍉": {
+      "synth": "ball",
+      "semi": -5,
+      "dur": "16n"
+    },
+    "🍇": {
+      "synth": "ball",
+      "semi": 12,
+      "dur": "16n"
+    },
+    "☕": {
+      "synth": "water",
+      "semi": 7,
+      "dur": "16n"
+    },
+    "🍣": {
+      "synth": "wood",
+      "semi": 10,
+      "dur": "16n"
+    },
+    "⚽": {
+      "synth": "ball",
+      "semi": -5,
+      "dur": "16n"
+    },
+    "🏀": {
+      "synth": "ball",
+      "semi": 0,
+      "dur": "16n"
+    },
+    "🏈": {
+      "synth": "ball",
+      "semi": -3,
+      "dur": "16n"
+    },
+    "⚾": {
+      "synth": "wood",
+      "semi": 0,
+      "dur": "16n"
+    },
+    "🎾": {
+      "synth": "wood",
+      "semi": 7,
+      "dur": "16n"
+    },
+    "🏐": {
+      "synth": "ball",
+      "semi": 2,
+      "dur": "16n"
+    },
+    "⛳": {
+      "synth": "wood",
+      "semi": 12,
+      "dur": "16n"
+    },
+    "🏓": {
+      "synth": "wood",
+      "semi": 14,
+      "dur": "16n"
+    },
+    "🎳": {
+      "synth": "drum",
+      "semi": -7,
+      "dur": "16n"
+    },
+    "🏆": {
+      "synth": "bell",
+      "semi": 0,
+      "dur": "4n"
+    },
+    "🎯": {
+      "synth": "wood",
+      "semi": 5,
+      "dur": "16n"
+    },
+    "🎲": {
+      "synth": "bones",
+      "semi": 0,
+      "dur": "16n"
+    },
+    "🌸": {
+      "synth": "flower",
+      "semi": 0,
+      "dur": "4n"
+    },
+    "❤️": {
+      "synth": "heart",
+      "semi": 0,
+      "dur": "4n"
+    },
+    "🌊": {
+      "synth": "water",
+      "semi": 0,
+      "dur": "16n"
+    },
+    "⭐": {
+      "synth": "star",
+      "semi": 0,
+      "dur": "4n"
+    },
+    "🔥": {
+      "synth": "fire",
+      "semi": 0,
+      "dur": "4n"
+    },
+    "🌈": {
+      "synth": "star",
+      "semi": 7,
+      "dur": "4n"
+    },
+    "🍄": {
+      "synth": "mushroom",
+      "semi": 0,
+      "dur": "16n"
+    },
+    "🌵": {
+      "synth": "pluck",
+      "semi": -12,
+      "dur": "16n"
+    },
+    "💡": {
+      "synth": "bell",
+      "semi": 12,
+      "dur": "4n"
+    },
+    "🌳": {
+      "synth": "flower",
+      "semi": -5,
+      "dur": "4n"
+    },
+    "☀️": {
+      "synth": "bell",
+      "semi": 24,
+      "dur": "4n"
+    },
+    "🌙": {
+      "synth": "angel",
+      "semi": -5,
+      "dur": "4n"
+    },
+    "⛄": {
+      "synth": "ball",
+      "semi": -12,
+      "dur": "16n"
+    },
+    "❄️": {
+      "synth": "bell",
+      "semi": 27,
+      "dur": "4n"
+    },
+    "⚡": {
+      "synth": "zap",
+      "semi": 0,
+      "dur": "16n"
+    },
+    "☁️": {
+      "synth": "headphones",
+      "semi": 0,
+      "dur": "4n"
+    },
+    "💎": {
+      "synth": "bell",
+      "semi": 24,
+      "dur": "4n"
+    },
+    "🎁": {
+      "synth": "bell",
+      "semi": 7,
+      "dur": "4n"
+    },
+    "🎈": {
+      "synth": "splat",
+      "semi": 12,
+      "dur": "16n"
+    },
+    "📱": {
+      "synth": "bell",
+      "semi": 19,
+      "dur": "4n"
+    },
+    "🔑": {
+      "synth": "bones",
+      "semi": 7,
+      "dur": "16n"
+    },
+    "⏰": {
+      "synth": "wood",
+      "semi": 0,
+      "dur": "16n"
+    },
+    "⚙️": {
+      "synth": "robot",
+      "semi": 0,
+      "dur": "8n"
+    }
+  }
+}
