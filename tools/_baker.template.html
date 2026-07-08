@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Emojio Voice Baker</title>
+<!-- Same Tone.js version the app ships, so baked output == what users hear -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"
+        integrity="sha384-c6Uo4N9c3SOEigMVzP6IshUG1wQ5uMp3xeoQFiHWAQ86joWdgyajkvopySyKy/Z6"
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; margin: 0; padding: 24px;
+         background:#e0f7fa; color:#37474f; line-height:1.5; }
+  h1 { font-size: 1.3rem; margin: 0 0 4px; }
+  .sub { color:#546e7a; margin:0 0 20px; font-size:.9rem; }
+  .card { background:#fff; border:2px solid #37474f; border-radius:12px; padding:16px 20px;
+          margin-bottom:18px; box-shadow:4px 4px 0 rgba(0,0,0,.12); }
+  button { font:inherit; font-weight:600; background:#ff4081; color:#fff; border:2px solid #37474f;
+           border-radius:24px; padding:8px 18px; cursor:pointer; box-shadow:2px 2px 0 #37474f; margin:2px; }
+  button:hover { filter:brightness(1.06); }
+  button:disabled { opacity:.5; cursor:default; }
+  button.ghost { background:#fff; color:#37474f; }
+  #log { font-family: ui-monospace, Menlo, monospace; font-size:.8rem; white-space:pre-wrap;
+         background:#263238; color:#b2ebf2; border-radius:8px; padding:12px; max-height:240px; overflow:auto; }
+  .row { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:6px 0; }
+  .tag { display:inline-block; background:#fff9c4; border:1px solid #37474f; border-radius:6px;
+         padding:1px 7px; font-size:.75rem; }
+  .note-btn { min-width:0; padding:6px 9px; font-size:.75rem; }
+  label { font-size:.85rem; }
+  code { background:#fff9c4; padding:1px 5px; border-radius:4px; }
+  a.dl { display:inline-block; margin-top:8px; }
+</style>
+</head>
+<body>
+  <h1>🎛️ Emojio Voice Baker</h1>
+  <p class="sub">Renders the app's Tone.js voices offline into multisample WAVs + a manifest, so they can be
+     played back natively in Flutter (<code>flutter_soloud</code>). Engine code is inlined verbatim from
+     <code>index.html</code>.</p>
+
+  <div class="card">
+    <strong>1 · Bake</strong>
+    <div class="row" style="margin-top:8px">
+      <button id="bakeSpike">Bake spike set (5 voices)</button>
+      <button id="bakeAll" class="ghost">Bake ALL voices</button>
+      <span class="tag" id="cfgTag"></span>
+    </div>
+    <div id="log">Ready.</div>
+    <a id="dl" class="dl" style="display:none"></a>
+  </div>
+
+  <div class="card">
+    <strong>2 · Audition &amp; A/B</strong>
+    <p class="sub" style="margin:6px 0">
+      Click a note to hear the <em>baked sample pitched by varispeed</em>. Tick “live” to hear the
+      <em>real Tone.js voice</em> instead — same dry signal path — so you can compare fidelity directly.
+    </p>
+    <div class="row">
+      <label><input type="checkbox" id="liveCompare"> play live Tone voice (A/B)</label>
+    </div>
+    <div id="audition"></div>
+  </div>
+
+<script>
+/* ------------------------------------------------------------------ *
+ *  Resettable engine state (baker-owned).
+ *  getMasterBus() is a DRY passthrough → we bake each voice's own
+ *  effect chain but NOT the shared master reverb/compressor/limiter;
+ *  those get reintroduced globally in flutter_soloud at runtime.
+ * ------------------------------------------------------------------ */
+let instruments = {};
+let masterBus = null;
+// A peak limiter is the ONLY master-stage effect we keep at bake time: the app's own
+// master ends in Limiter(-2), and transient voices (e.g. dog) exceed 0 dBFS when rendered
+// dry, which would hard-clip in 16-bit PCM. Ceiling -1 dBFS = catch clipping with minimal
+// coloration; the app's reverb/compressor are reintroduced on the mix bus at runtime.
+let masterBusFactory = () => new Tone.Limiter(-1).toDestination();
+function getMasterBus() { return masterBus || (masterBus = masterBusFactory()); }
+function resetEngine() { instruments = {}; masterBus = null; }
+
+/*__EMOJIO_ENGINE__*/
+
+/* ------------------------------------------------------------------ *
+ *  Baker harness
+ * ------------------------------------------------------------------ */
+const SR = 44100;
+const ZONE = { minMidi: 48, maxMidi: 84, step: 3 };   // multisample every 3 semitones (C3..C6)
+const SPIKE = ['drum', 'bell', 'angel', 'dog', 'fire'];
+
+// Per-voice render config. `sustain` voices get a longer render + loop hints for held notes.
+const VOICE_CFG = {
+  _default: { type: 'oneshot', gateSec: 0.25, renderSec: 1.5 },
+  angel:    { type: 'sustain', gateSec: 1.8, renderSec: 3.4, loop: { startFrac: 0.45, endFrac: 0.80 } },
+  ghost:    { type: 'sustain', gateSec: 1.8, renderSec: 3.2, loop: { startFrac: 0.45, endFrac: 0.80 } },
+  strings:  { type: 'sustain', gateSec: 1.6, renderSec: 3.0, loop: { startFrac: 0.40, endFrac: 0.75 } },
+  heart:    { type: 'sustain', gateSec: 1.6, renderSec: 3.0, loop: { startFrac: 0.40, endFrac: 0.75 } },
+  moo:      { type: 'sustain', gateSec: 1.4, renderSec: 2.8, loop: { startFrac: 0.40, endFrac: 0.75 } },
+  howl:     { type: 'sustain', gateSec: 1.6, renderSec: 3.0, loop: { startFrac: 0.40, endFrac: 0.75 } },
+};
+function cfgFor(synth) { return Object.assign({}, VOICE_CFG._default, VOICE_CFG[synth] || {}); }
+
+const logEl = document.getElementById('log');
+function log(msg) { logEl.textContent += '\n' + msg; logEl.scrollTop = logEl.scrollHeight; }
+function setLog(msg) { logEl.textContent = msg; }
+const wait = (ms) => new Promise(r => setTimeout(r, ms));
+
+document.getElementById('cfgTag').textContent =
+  `zones ${ZONE.minMidi}–${ZONE.maxMidi} / ${ZONE.step} semis · ${SR}Hz mono`;
+
+// Every synth the app can actually produce (VOICES map ∪ getSoundType fallbacks ∪ default).
+function allSynths() {
+  const s = new Set(Object.values(VOICES).map(v => v.synth));
+  ['dog','lion','cat','cluck','quack','chirp','pig','moo','frog','baby','ghost','alien','wood',
+   'honk','plane','chopper','boat','siren','car','brass','sax','strings','pluck','mario','drum',
+   'bell','gameboy','star','flower','water','default'].forEach(x => s.add(x));
+  return [...s].sort();
+}
+
+function zoneMidis() {
+  const out = [];
+  for (let m = ZONE.minMidi; m <= ZONE.maxMidi; m += ZONE.step) out.push(m);
+  return out;
+}
+const midiToNoteName = (m) => Tone.Frequency(m, 'midi').toNote();
+const noteNameToMidi = (n) => Math.round(Tone.Frequency(n).toMidi());
+
+// Render one voice at one pitch, offline, through its own (dry-mastered) chain.
+async function renderOne(synth, midi, cfg) {
+  const toneBuf = await Tone.Offline(async () => {
+    resetEngine();                                   // fresh nodes in THIS offline context
+    const inst = getInstrument(synth);               // verbatim app code, connects to dry master→dest
+    inst.triggerAttackRelease(midiToNoteName(midi), cfg.gateSec, 0.02);
+    await wait(320);                                 // let async Reverb IRs finish generating
+  }, cfg.renderSec, 1, SR);
+  return toneBuf.get();                              // underlying AudioBuffer
+}
+
+// Trim trailing near-silence to save space (keep a small tail).
+function trimTail(f32, thresh = 1e-4, padSec = 0.03) {
+  let end = f32.length - 1;
+  while (end > 0 && Math.abs(f32[end]) < thresh) end--;
+  end = Math.min(f32.length, end + Math.floor(padSec * SR));
+  return f32.subarray(0, Math.max(end, Math.floor(0.05 * SR)));
+}
+
+// Hard clip-safety: Tone's Limiter can overshoot on very fast transients (e.g. the dog
+// bark hit 1.08 past the -1 dBFS ceiling), so scale any residual >ceiling down uniformly.
+// Triggers rarely and by a few % at most, so inter-voice loudness balance is preserved.
+function guardPeak(f32, ceiling = 0.98) {
+  let p = 0;
+  for (let i = 0; i < f32.length; i++) { const a = Math.abs(f32[i]); if (a > p) p = a; }
+  if (p > ceiling) { const g = ceiling / p; for (let i = 0; i < f32.length; i++) f32[i] *= g; }
+  return f32;
+}
+
+// Standard 16-bit PCM mono WAV encoder.
+function encodeWav(f32) {
+  const n = f32.length, buf = new ArrayBuffer(44 + n * 2), dv = new DataView(buf);
+  const ws = (o, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(o + i, s.charCodeAt(i)); };
+  ws(0, 'RIFF'); dv.setUint32(4, 36 + n * 2, true); ws(8, 'WAVE');
+  ws(12, 'fmt '); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+  dv.setUint32(24, SR, true); dv.setUint32(28, SR * 2, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true);
+  ws(36, 'data'); dv.setUint32(40, n * 2, true);
+  let o = 44;
+  for (let i = 0; i < n; i++) { const s = Math.max(-1, Math.min(1, f32[i])); dv.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7fff, true); o += 2; }
+  return buf;
+}
+
+// Read a voice's output level (dB) by building it once in the live context.
+function probeVolumeDb(synth) {
+  try { resetEngine(); const inst = getInstrument(synth);
+        const v = (inst.volume && typeof inst.volume.value === 'number') ? inst.volume.value : 0;
+        resetEngine(); return Math.round(v * 10) / 10; }
+  catch (e) { return 0; }
+}
+
+const baked = new Map();   // `${synth}:${midi}` -> Float32Array
+let currentManifest = null;
+
+async function bake(synthList, label) {
+  document.getElementById('bakeSpike').disabled = true;
+  document.getElementById('bakeAll').disabled = true;
+  document.getElementById('dl').style.display = 'none';
+  baked.clear();
+  setLog(`Baking ${label} — ${synthList.length} voices…`);
+
+  const midis = zoneMidis();
+  const manifest = {
+    version: 1, sampleRate: SR, channels: 1,
+    zoneSpacingSemitones: ZONE.step,
+    globalFx: { reverb: { decay: 1.2, wet: 0.2 }, limiter: -2 },  // reintroduce on the mix bus at runtime
+    scale: SCALE,
+    voices: {},
+    emojiVoices: {},
+  };
+
+  const zip = new JSZip();
+  let count = 0;
+  const t0 = performance.now();
+
+  for (const synth of synthList) {
+    const cfg = cfgFor(synth);
+    const zones = [];
+    for (const midi of midis) {
+      let f32;
+      try { const ab = await renderOne(synth, midi, cfg); f32 = guardPeak(trimTail(ab.getChannelData(0).slice())); }
+      catch (e) { log(`  ! ${synth} @${midi} failed: ${e.message}`); continue; }
+      const file = `${synth}_${String(midi).padStart(3, '0')}.wav`;
+      zip.file(file, encodeWav(f32));
+      baked.set(`${synth}:${midi}`, f32);
+      zones.push({ midi, note: midiToNoteName(midi), file, durSec: +(f32.length / SR).toFixed(3) });
+      count++;
+    }
+    const v = { type: cfg.type, volumeDb: probeVolumeDb(synth), zones };
+    if (cfg.type === 'sustain' && cfg.loop) v.loop = cfg.loop;   // fractions of pre-release region — hand-tune later
+    manifest.voices[synth] = v;
+    log(`  ✓ ${synth}  (${zones.length} zones${cfg.type === 'sustain' ? ', sustain+loop' : ''})`);
+    await wait(0);
+  }
+
+  // Per-emoji mapping so the runtime knows synth + semitone offset + duration for every stamp.
+  for (const [emoji, prof] of Object.entries(VOICES)) {
+    manifest.emojiVoices[emoji] = {
+      synth: prof.synth, semi: prof.semi || 0,
+      dur: prof.dur || getSequenceDuration(prof.synth),
+    };
+  }
+
+  currentManifest = manifest;
+  zip.file('manifest.json', JSON.stringify(manifest, null, 2));
+  const blob = await zip.generateAsync({ type: 'blob' });
+  const url = URL.createObjectURL(blob);
+  const dl = document.getElementById('dl');
+  dl.href = url; dl.download = `emojio-samples-${label}.zip`;
+  dl.textContent = `⬇︎ Download emojio-samples-${label}.zip (${count} samples, ${(blob.size / 1048576).toFixed(1)} MB)`;
+  dl.style.display = 'inline-block';
+  log(`Done: ${count} samples in ${((performance.now() - t0) / 1000).toFixed(1)}s.`);
+
+  buildAudition(synthList);
+  document.getElementById('bakeSpike').disabled = false;
+  document.getElementById('bakeAll').disabled = false;
+}
+
+document.getElementById('bakeSpike').onclick = () => bake(SPIKE, 'spike');
+document.getElementById('bakeAll').onclick   = () => bake(allSynths(), 'all');
+
+/* ---------------- Audition / A/B ---------------- */
+let playCtx = null;
+const getPlayCtx = () => (playCtx || (playCtx = new (window.AudioContext || window.webkitAudioContext)()));
+
+function nearestZoneMidi(target) {
+  const midis = zoneMidis();
+  return midis.reduce((a, b) => Math.abs(b - target) < Math.abs(a - target) ? b : a, midis[0]);
+}
+
+function playBakedSample(synth, targetMidi) {
+  const zMidi = nearestZoneMidi(targetMidi);
+  const f32 = baked.get(`${synth}:${zMidi}`);
+  if (!f32) return;
+  const ctx = getPlayCtx();
+  const b = ctx.createBuffer(1, f32.length, SR);
+  b.copyToChannel(f32, 0);
+  const src = ctx.createBufferSource();
+  src.buffer = b;
+  src.playbackRate.value = Math.pow(2, (targetMidi - zMidi) / 12);   // varispeed = the v1 technique
+  src.connect(ctx.destination); src.start();
+}
+
+let liveReady = false;
+async function playLive(synth, targetMidi) {
+  if (!liveReady) { await Tone.start(); resetEngine(); liveReady = true; }
+  const inst = getInstrument(synth);       // dry master (same path as baked) → fair A/B
+  const cfg = cfgFor(synth);
+  inst.triggerAttackRelease(midiToNoteName(targetMidi), cfg.gateSec, Tone.now());
+}
+
+function buildAudition(synthList) {
+  const wrap = document.getElementById('audition');
+  wrap.innerHTML = '';
+  const scaleMidis = SCALE.map(noteNameToMidi);   // the 15 staff pitches, high→low
+  synthList.forEach(synth => {
+    const row = document.createElement('div');
+    row.className = 'row';
+    const tag = document.createElement('span');
+    tag.className = 'tag'; tag.style.minWidth = '70px'; tag.textContent = synth;
+    row.appendChild(tag);
+    // low→high feels natural left→right
+    [...scaleMidis].reverse().forEach(midi => {
+      const btn = document.createElement('button');
+      btn.className = 'ghost note-btn';
+      btn.textContent = midiToNoteName(midi);
+      btn.onclick = () => document.getElementById('liveCompare').checked
+        ? playLive(synth, midi) : playBakedSample(synth, midi);
+      row.appendChild(btn);
+    });
+    wrap.appendChild(row);
+  });
+}
+</script>
+</body>
+</html>
