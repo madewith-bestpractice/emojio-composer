@@ -1,49 +1,72 @@
-# Emojio (Flutter / iPad) — Phase-0 harness
+# Emojio (Flutter / iPad)
 
-Native port of the Emojio Paint Composer web app (`../index.html`). This is the
-**Phase-0 audio harness**: enough of the app to prove the native audio path on a
-real device — baked Tone.js samples played through `flutter_soloud` with a
-16-step sequencer — before building out the full app.
+Native iPad port of the Emojio Paint Composer web app (`../index.html`) — a
+16-step emoji sequencer where each emoji is a synth voice. Audio is the app's
+original Tone.js voices, baked to samples and played natively via
+`flutter_soloud`.
 
-## What works here
-- Loads baked voice multisamples + `manifest.json` from `assets/voices/`.
-- `flutter_soloud` plays each note by picking the nearest pitch zone and
-  varispeed-shifting to the exact pitch (`setRelativePlaySpeed`).
-- Tap the staff to place/remove emoji notes (audible preview on placement).
-- 16-step transport (Play/Stop), tempo 60–180 BPM, live playhead.
-- Diagnostics bar: engine status, sample count, buffer size, active voices, step.
+> Status: builds and passes `flutter analyze` + `flutter build macos`. Runtime
+> behavior (audio, MIDI, IAP) is confirmed on a `flutter run` — see below.
 
-Bundled sample set = the **spike** voices only (`drum, bell, angel, dog, fire`).
-Drop a full bake into `assets/voices/` to replace it (see below).
+## Features
+- **Full voice set** — all 51 Tone.js voices baked to OGG (`assets/voices/`),
+  played by nearest-zone + varispeed pitch. Every emoji makes sound.
+- **Sequencer** — 16 steps, tempo 60–180, tap-to-toggle + drag-to-paint, live
+  playhead, toy aesthetic (Press Start 2P, chunky borders/shadows).
+- **Emoji picker** — full categorized picker; palette add/select (cap 10).
+- **Local song library** — save/name/duplicate/delete songs on-device
+  (`<documents>/songs/*.json`), with mini staff previews. No account.
+- **MIDI (iPad, USB-first)** — see below.
+- **Monetization** — 3-day Keychain trial → single non-consumable "unlock
+  forever" IAP (StoreKit 2). Paywall + trial banner.
+
+## MIDI
+Opens via the `🎹 MIDI` header button, which appears only when a controller is
+connected. Uses `flutter_midi_command` (CoreMIDI).
+- Connect USB-C (auto) or Bluetooth (scan); input channel filter, octave shift,
+  velocity→loudness.
+- **Live play** the active voice; **record** notes into the grid while playing.
+- **MIDI out** on an export channel (drive external gear).
+- **Follow external MIDI clock** (24 PPQN) + Song Position — the external device
+  drives transport/tempo/position.
+- **MIDI-learn** for Play/Stop, Clear, Prev/Next voice, Octave ±, Shuttle
+  (jog scrub, selectable relative-CC mode), and **per-palette-slot pads**.
+- Mappings + settings persist (`<documents>/midi_config.json`).
 
 ## Run
-Requires **CMake** — `flutter_soloud` compiles a native C++ engine:
+Requires **CMake** (flutter_soloud builds a native C++ engine):
 ```
-brew install cmake        # one-time
+brew install cmake            # one-time
 cd app
-flutter run -d macos      # desktop, to hear it quickly
-# or on a connected iPad:
-flutter run -d <ipad-id>
+flutter run -d macos          # hear it on desktop
+flutter run -d <ipad-id>      # on iPad; plug in a USB-MIDI controller to test MIDI
 ```
 
-## Refreshing / expanding the voice set
-1. Open `../tools/bake-voices.html`, click **Bake ALL voices**, download the zip.
-2. Unzip its contents into `app/assets/voices/` (must include `manifest.json`).
-3. `flutter run` again.
+## Setup still needed for release
+- Create the non-consumable IAP `com.madewithbestpractice.emojio.unlock_forever`
+  in App Store Connect (paywall shows a note until it exists).
+- On-device verification: audio + OGG decode, MIDI with a USB controller,
+  latency at `bufferSize` 512/1024/2048 (`lib/voice_engine.dart`).
+- App icon / launch screen; Twemoji glyph parity (harness uses system emoji).
 
-## Known Phase-0 simplifications (v1 TODO)
-- **Dry playback** — the app's shared reverb/compressor aren't applied yet
-  (a global mix-bus filter in `flutter_soloud`).
-- **Emoji glyphs** use the system emoji font via `TextPainter`; v1 will bundle
-  Twemoji (SVG) to match the web app exactly.
-- **Sustain loops** use the manifest's placeholder loop fractions; held-note
-  loop points need hand-tuning.
-- Bundled assets are uncompressed WAV (fine for the spike); v1 should ship
-  compressed (OGG/AAC) and decode on load.
-- Measure real audio latency on-device at `bufferSize` 512/1024/2048.
+## Refreshing / re-baking voices
+1. Open `../tools/bake-voices.html` in a **foreground** browser tab (background
+   tabs throttle Web Audio rendering to a crawl).
+2. Click **Bake ALL voices** (~2 min) → downloads `emojio-samples-all.zip`.
+3. `../tools/bundle-full-voices.sh` — compresses to OGG and swaps into
+   `assets/voices/`.
 
 ## Layout
-- `lib/manifest.dart` — parses `manifest.json`; note-name→MIDI helper.
-- `lib/voice_engine.dart` — `flutter_soloud` wrapper (load, pitch, play, release).
-- `lib/staff_painter.dart` — `CustomPainter` port of the web canvas renderer + hit-testing.
-- `lib/main.dart` — the harness UI + transport.
+- `lib/manifest.dart` — parses the baked-voice manifest; note→MIDI helper.
+- `lib/voice_engine.dart` — flutter_soloud wrapper (load, pitch, play, release).
+- `lib/staff_painter.dart` — CustomPainter staff renderer + hit-testing.
+- `lib/song.dart`, `lib/song_library.dart` — local song storage.
+- `lib/picker.dart`, `lib/categories.dart`, `lib/theme.dart` — palette/picker + toy theme.
+- `lib/midi/` — MIDI manager + panel.
+- `lib/monetization/` — trial, purchases, paywall.
+- `lib/main.dart` — app shell + transport + wiring.
+
+## Known simplifications (tech debt)
+- Rebuilds via an always-on 60fps Ticker (fine for now; gate to playing/animating later).
+- Dry audio (the shared reverb/compressor aren't re-applied as a global mix bus yet).
+- Sustain-loop points are manifest placeholders; hand-tune for held notes.
