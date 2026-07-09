@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'package:audio_session/audio_session.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'manifest.dart';
@@ -84,6 +85,22 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
 
   Future<void> _boot() async {
     try {
+      // Music-app audio session: plays through the silent/ringer switch and at
+      // screen-lock; stop cleanly on interruptions (calls/Siri) and when
+      // headphones are unplugged. Guarded so unsupported platforms don't break boot.
+      try {
+        final session = await AudioSession.instance;
+        await session.configure(const AudioSessionConfiguration.music());
+        session.interruptionEventStream.listen((e) {
+          if (e.begin && _playing && mounted) _stopTransport();
+        });
+        session.becomingNoisyEventStream.listen((_) {
+          if (_playing && mounted) _stopTransport();
+        });
+        await session.setActive(true);
+      } catch (e) {
+        debugPrint('audio session config failed: $e');
+      }
       await _trial.ensureStarted();
       _purchases.addListener(_onMonetizationChange);
       await _purchases.init();
@@ -264,6 +281,11 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   void _togglePlay() => setState(() {
         _playing = !_playing;
         _lastStep = -1;
+        _currentStep = -1;
+      });
+
+  void _stopTransport() => setState(() {
+        _playing = false;
         _currentStep = -1;
       });
 
