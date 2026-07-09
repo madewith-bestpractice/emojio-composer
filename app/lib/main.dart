@@ -425,6 +425,7 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
     return Scaffold(
       body: SafeArea(
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch, // bars span full width
           children: [
             if (!_purchases.unlocked) TrialBanner(trial: _trial, onTap: _openPaywall),
             _header(),
