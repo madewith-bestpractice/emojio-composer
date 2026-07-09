@@ -1,4 +1,7 @@
 PODS:
+  - flutter_midi_command_darwin (1.0.0):
+    - Flutter
+    - FlutterMacOS
   - flutter_secure_storage_darwin (10.0.0):
     - Flutter
     - FlutterMacOS
@@ -10,12 +13,15 @@ PODS:
     - FlutterMacOS
 
 DEPENDENCIES:
+  - flutter_midi_command_darwin (from `Flutter/ephemeral/.symlinks/plugins/flutter_midi_command_darwin/darwin`)
   - flutter_secure_storage_darwin (from `Flutter/ephemeral/.symlinks/plugins/flutter_secure_storage_darwin/darwin`)
   - flutter_soloud (from `Flutter/ephemeral/.symlinks/plugins/flutter_soloud/macos`)
   - FlutterMacOS (from `Flutter/ephemeral`)
   - in_app_purchase_storekit (from `Flutter/ephemeral/.symlinks/plugins/in_app_purchase_storekit/darwin`)
 
 EXTERNAL SOURCES:
+  flutter_midi_command_darwin:
+    :path: Flutter/ephemeral/.symlinks/plugins/flutter_midi_command_darwin/darwin
   flutter_secure_storage_darwin:
     :path: Flutter/ephemeral/.symlinks/plugins/flutter_secure_storage_darwin/darwin
   flutter_soloud:
@@ -26,6 +32,7 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/in_app_purchase_storekit/darwin
 
 SPEC CHECKSUMS:
+  flutter_midi_command_darwin: 6afc0c0eb03f1a60a8a1704240e3bcfe68b76a51
   flutter_secure_storage_darwin: acdb3f316ed05a3e68f856e0353b133eec373a23
   flutter_soloud: 7c7fe8f2067868981037aa9928c9abba59de4383
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1

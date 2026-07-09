@@ -2,6 +2,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'manifest.dart';
+import 'midi/midi_manager.dart';
+import 'midi/midi_panel.dart';
 import 'monetization/paywall.dart';
 import 'monetization/purchases.dart';
 import 'monetization/trial.dart';
@@ -43,9 +45,11 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   final _library = SongLibrary();
   final _trial = TrialManager();
   final _purchases = PurchaseManager();
+  final _midi = MidiManager();
   final _rng = math.Random();
   final _sw = Stopwatch();
   late final Ticker _ticker;
+  int _cursorStep = 0; // MIDI shuttle scrub position (shown when stopped)
 
   bool get _hasAccess => _purchases.unlocked || _trial.active;
 
@@ -82,6 +86,10 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
       await _trial.ensureStarted();
       _purchases.addListener(_onMonetizationChange);
       await _purchases.init();
+      _midi.onNote = _onMidiNote;
+      _midi.onAction = _doMidiAction;
+      _midi.onShuttle = _shuttle;
+      await _midi.init();
       final m = await VoiceManifest.load();
       await _engine.init(m);
       final playable = m.playableEmojis();
@@ -120,10 +128,89 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   }
 
   void _playStep(int step) {
+    final scale = _manifest?.scale;
     for (final n in _notes) {
-      if (n.gridX == step) _engine.playEmoji(n.emoji, n.gridY);
+      if (n.gridX != step) continue;
+      _engine.playEmoji(n.emoji, n.gridY);
+      if (_midi.outEnabled && scale != null) {
+        final ev = _manifest!.emojiVoices[n.emoji];
+        _midi.sendNote(noteToMidi(scale[n.gridY]) + (ev?.semi ?? 0));
+      }
     }
   }
+
+  // ---- MIDI input handlers ----
+  void _onMidiNote(MidiEvent e) {
+    if (_manifest == null || !e.isNoteOn) return;
+    if (_midi.channelFilter != -1 && e.channel != _midi.channelFilter) return;
+    final ev = _manifest!.emojiVoices[_selected];
+    if (ev == null) return;
+    final note = (e.data1 + 12 * _midi.octaveShift).clamp(0, 127).toInt();
+    final vel = _midi.useVelocity ? (e.data2 / 127).clamp(0.15, 1.0).toDouble() : 1.0;
+    if (_midi.livePlay) _engine.playSynth(ev.synth, note, velocity: vel);
+    if (_midi.recordArm && _playing && _currentStep >= 0) {
+      final gy = _rowForMidi(note, ev.semi);
+      if (!_notes.any((n) => n.gridX == _currentStep && n.gridY == gy)) {
+        setState(() => _notes.add(Note(_selected, _currentStep, gy, (_rng.nextDouble() - 0.5) * 0.3, _nowMs)));
+      }
+    }
+  }
+
+  void _doMidiAction(MidiAction a) {
+    switch (a) {
+      case MidiAction.playStop:
+        _togglePlay();
+      case MidiAction.clear:
+        setState(_notes.clear);
+      case MidiAction.prevVoice:
+        _cycleVoice(-1);
+      case MidiAction.nextVoice:
+        _cycleVoice(1);
+      case MidiAction.octaveDown:
+        _midi.setOctaveShift(_midi.octaveShift - 1);
+      case MidiAction.octaveUp:
+        _midi.setOctaveShift(_midi.octaveShift + 1);
+      case MidiAction.shuttle:
+        break; // via onShuttle
+    }
+  }
+
+  void _cycleVoice(int dir) {
+    if (_palette.isEmpty) return;
+    final i = _palette.indexOf(_selected);
+    final idx = (((i < 0 ? 0 : i) + dir) % _palette.length + _palette.length) % _palette.length;
+    _select(_palette[idx]);
+  }
+
+  void _shuttle(int delta) {
+    setState(() => _cursorStep = ((_cursorStep + delta) % kCols + kCols) % kCols);
+    for (final n in _notes) {
+      if (n.gridX == _cursorStep) _engine.playEmoji(n.emoji, n.gridY);
+    }
+  }
+
+  int _rowForMidi(int note, int semi) {
+    final scale = _manifest!.scale;
+    final target = note - semi;
+    var best = 0, bestD = 1 << 30;
+    for (var i = 0; i < scale.length; i++) {
+      final dd = (noteToMidi(scale[i]) - target).abs();
+      if (dd < bestD) {
+        bestD = dd;
+        best = i;
+      }
+    }
+    return best;
+  }
+
+  void _openMidi() => showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        backgroundColor: Colors.white,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        builder: (_) => FractionallySizedBox(heightFactor: 0.88, child: MidiPanel(midi: _midi)),
+      );
 
   void _togglePlay() => setState(() {
         _playing = !_playing;
@@ -270,6 +357,7 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
     _engine.dispose();
     _purchases.removeListener(_onMonetizationChange);
     _purchases.dispose();
+    _midi.dispose();
     super.dispose();
   }
 
@@ -328,6 +416,7 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
             ToyButton(label: 'New', emoji: '✨', color: Colors.white, textColor: Toy.text, onPressed: _newSong),
             ToyButton(label: 'Save', emoji: '💾', onPressed: _saveFlow),
             ToyButton(label: 'Songs', emoji: '📂', color: Toy.purple, onPressed: _openLibrary),
+            ToyButton(label: 'MIDI', emoji: '🎹', color: Toy.purple, onPressed: _openMidi),
             ToyButton(label: 'Clear', emoji: '🗑️', color: Colors.white, textColor: Toy.text, onPressed: () => setState(_notes.clear)),
             _tempo(),
           ],
@@ -474,6 +563,7 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
                 currentStep: _currentStep,
                 playheadFrac: _playheadFrac,
                 tMs: _nowMs,
+                cursorStep: _playing ? -1 : _cursorStep,
               ),
             ),
           );

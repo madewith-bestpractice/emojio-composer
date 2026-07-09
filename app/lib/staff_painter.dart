@@ -49,6 +49,7 @@ class StaffPainter extends CustomPainter {
   final int currentStep;
   final double playheadFrac; // 0..1 across all columns
   final int tMs; // for animations
+  final int cursorStep; // MIDI shuttle scrub column when stopped; -1 = none
 
   // Rows that get a bold staff line (matches the web app's MAIN_STAFF_LINES).
   static const _mainLines = {1, 3, 5, 7, 9, 11, 13};
@@ -62,6 +63,7 @@ class StaffPainter extends CustomPainter {
     required this.currentStep,
     required this.playheadFrac,
     required this.tMs,
+    this.cursorStep = -1,
   });
 
   @override
@@ -96,6 +98,17 @@ class StaffPainter extends CustomPainter {
     // Treble clef
     _glyph('𝄞', m.stepY * 11, const Color(0xFF37474F))
         .paint(canvas, Offset(m.padLeft / 2 - m.stepY * 2.4, m.marginY + m.stepY * 2.5));
+
+    // Shuttle cursor (when stopped) — a soft amber column marker
+    if (!isPlaying && cursorStep >= 0 && cursorStep < cols) {
+      final x = m.padLeft + cursorStep * m.stepX;
+      canvas.drawRect(Rect.fromLTWH(x, 0, m.stepX, size.height),
+          Paint()..color = const Color(0x33FFD740));
+      canvas.drawLine(Offset(x + m.stepX / 2, 0), Offset(x + m.stepX / 2, size.height),
+          Paint()
+            ..color = const Color(0xFFFFD740)
+            ..strokeWidth = 3);
+    }
 
     // Playhead
     if (isPlaying) {
