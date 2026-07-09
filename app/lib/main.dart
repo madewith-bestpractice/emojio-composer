@@ -312,6 +312,23 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
     _engine.playEmoji(_selected, gy);
   }
 
+  // Generate a random song from the current palette (ported from the web app):
+  // 12-19 notes, biased toward the downbeats (cols 0/4/8/12).
+  void _randomize() {
+    if (_palette.isEmpty) return;
+    setState(() {
+      _notes.clear();
+      const preferred = [0, 4, 8, 12];
+      final count = 12 + _rng.nextInt(8);
+      for (var i = 0; i < count; i++) {
+        final gx = _rng.nextDouble() < 0.6 ? preferred[_rng.nextInt(preferred.length)] : _rng.nextInt(kCols);
+        final gy = _rng.nextInt(_rows);
+        if (_notes.any((n) => n.gridX == gx && n.gridY == gy)) continue;
+        _notes.add(Note(_palette[_rng.nextInt(_palette.length)], gx, gy, (_rng.nextDouble() - 0.5) * 0.3, _nowMs));
+      }
+    });
+  }
+
   // ---- palette ----
   void _select(String e) {
     setState(() => _selected = e);
@@ -486,6 +503,7 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
               onPressed: _togglePlay,
             ),
             ToyButton(label: 'New', emoji: '✨', color: Colors.white, textColor: Toy.text, onPressed: _newSong),
+            ToyButton(label: 'Random', emoji: '🎲', color: Colors.white, textColor: Toy.text, onPressed: _randomize),
             ToyButton(label: 'Save', emoji: '💾', onPressed: _saveFlow),
             ToyButton(label: 'Songs', emoji: '📂', color: Toy.purple, onPressed: _openLibrary),
             // Only surfaced once a MIDI controller is plugged in.
