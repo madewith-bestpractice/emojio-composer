@@ -64,10 +64,11 @@ flutter_launcher_icons:
     image_path: "assets/branding/app_icon.png"
 
 # Native launch screen: `dart run flutter_native_splash:create`
-# Brand yellow with the centered logo; the in-app tiled splash follows during boot.
+# Brand yellow with the centered app icon (same image as favicon + launcher
+# icon); the in-app tiled splash follows during boot.
 flutter_native_splash:
   color: "#fff696"
-  image: "assets/branding/logo.png"
+  image: "assets/branding/app_icon.png"
   ios: true
 
 # For information on the generic Dart part of this file, see the
