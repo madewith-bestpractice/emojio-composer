@@ -2,6 +2,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'manifest.dart';
+import 'monetization/paywall.dart';
+import 'monetization/purchases.dart';
+import 'monetization/trial.dart';
 import 'picker.dart';
 import 'song.dart';
 import 'song_library.dart';
@@ -38,9 +41,13 @@ class HarnessPage extends StatefulWidget {
 class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStateMixin {
   final _engine = VoiceEngine();
   final _library = SongLibrary();
+  final _trial = TrialManager();
+  final _purchases = PurchaseManager();
   final _rng = math.Random();
   final _sw = Stopwatch();
   late final Ticker _ticker;
+
+  bool get _hasAccess => _purchases.unlocked || _trial.active;
 
   VoiceManifest? _manifest;
   String? _bootError;
@@ -72,6 +79,9 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
 
   Future<void> _boot() async {
     try {
+      await _trial.ensureStarted();
+      _purchases.addListener(_onMonetizationChange);
+      await _purchases.init();
       final m = await VoiceManifest.load();
       await _engine.init(m);
       final playable = m.playableEmojis();
@@ -87,6 +97,10 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
       debugPrint('boot failed: $e\n$st');
       setState(() => _bootError = '$e');
     }
+  }
+
+  void _onMonetizationChange() {
+    if (mounted) setState(() {});
   }
 
   // ---- transport ----
@@ -254,8 +268,14 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   void dispose() {
     _ticker.dispose();
     _engine.dispose();
+    _purchases.removeListener(_onMonetizationChange);
+    _purchases.dispose();
     super.dispose();
   }
+
+  void _openPaywall() => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => Paywall(purchases: _purchases, dismissible: true)),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -263,10 +283,13 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
     if (_manifest == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
+    // Hard wall once the 3-day trial ends and the app isn't unlocked.
+    if (!_hasAccess) return Paywall(purchases: _purchases, dismissible: false);
     return Scaffold(
       body: SafeArea(
         child: Column(
           children: [
+            if (!_purchases.unlocked) TrialBanner(trial: _trial, onTap: _openPaywall),
             _header(),
             _paletteBar(),
             _diagnostics(),

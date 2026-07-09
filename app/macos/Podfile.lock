@@ -1,21 +1,35 @@
 PODS:
+  - flutter_secure_storage_darwin (10.0.0):
+    - Flutter
+    - FlutterMacOS
   - flutter_soloud (0.0.1):
     - FlutterMacOS
   - FlutterMacOS (1.0.0)
+  - in_app_purchase_storekit (0.0.1):
+    - Flutter
+    - FlutterMacOS
 
 DEPENDENCIES:
+  - flutter_secure_storage_darwin (from `Flutter/ephemeral/.symlinks/plugins/flutter_secure_storage_darwin/darwin`)
   - flutter_soloud (from `Flutter/ephemeral/.symlinks/plugins/flutter_soloud/macos`)
   - FlutterMacOS (from `Flutter/ephemeral`)
+  - in_app_purchase_storekit (from `Flutter/ephemeral/.symlinks/plugins/in_app_purchase_storekit/darwin`)
 
 EXTERNAL SOURCES:
+  flutter_secure_storage_darwin:
+    :path: Flutter/ephemeral/.symlinks/plugins/flutter_secure_storage_darwin/darwin
   flutter_soloud:
     :path: Flutter/ephemeral/.symlinks/plugins/flutter_soloud/macos
   FlutterMacOS:
     :path: Flutter/ephemeral
+  in_app_purchase_storekit:
+    :path: Flutter/ephemeral/.symlinks/plugins/in_app_purchase_storekit/darwin
 
 SPEC CHECKSUMS:
+  flutter_secure_storage_darwin: acdb3f316ed05a3e68f856e0353b133eec373a23
   flutter_soloud: 7c7fe8f2067868981037aa9928c9abba59de4383
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
+  in_app_purchase_storekit: 22cca7d08eebca9babdf4d07d0baccb73325d3c8
 
 PODFILE CHECKSUM: 54d867c82ac51cbd61b565781b9fada492027009
 
