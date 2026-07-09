@@ -8,7 +8,8 @@ import 'midi_manager.dart';
 /// for app controls (transport, voice cycling, shuttle) with smart defaults.
 class MidiPanel extends StatelessWidget {
   final MidiManager midi;
-  const MidiPanel({super.key, required this.midi});
+  final List<String> palette; // current top-row voices, for slot-learn
+  const MidiPanel({super.key, required this.midi, required this.palette});
 
   static String _typeLabel(MidiDeviceType t) => switch (t) {
         MidiDeviceType.serial => 'USB',
@@ -47,6 +48,8 @@ class MidiPanel extends StatelessWidget {
                 _output(),
                 const SizedBox(height: 18),
                 _controls(),
+                const SizedBox(height: 18),
+                _paletteSlots(),
                 const SizedBox(height: 18),
                 _activity(),
               ],
@@ -206,6 +209,57 @@ class MidiPanel extends StatelessWidget {
             const Padding(
               padding: EdgeInsets.only(top: 6),
               child: Text('Smart defaults are assignable CCs; Shuttle = jog wheel (CC60). Relearn any to fit your controller.',
+                  style: TextStyle(fontSize: 10, color: Colors.black38)),
+            ),
+          ],
+        ),
+      );
+
+  Widget _paletteSlots() => _section(
+        'PALETTE PADS · MIDI LEARN',
+        Column(
+          children: [
+            if (palette.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 4),
+                child: Text('Add voices to the palette first.', style: TextStyle(fontSize: 12, color: Colors.black45)),
+              ),
+            for (var i = 0; i < palette.length; i++)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Row(
+                  children: [
+                    SizedBox(width: 22, child: Text('${i + 1}', style: Toy.label(8, Colors.black45))),
+                    Text(palette[i], style: const TextStyle(fontSize: 24)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        midi.learningPaletteSlot == i ? 'press a pad/key…' : (midi.paletteBindings[i]?.label ?? '—'),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontFamily: 'monospace',
+                          color: midi.learningPaletteSlot == i ? Toy.accent : Colors.black54,
+                        ),
+                      ),
+                    ),
+                    if (midi.paletteBindings[i] != null)
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        tooltip: 'Clear',
+                        onPressed: () => midi.clearPaletteSlot(i),
+                      ),
+                    _MiniBtn(
+                      label: midi.learningPaletteSlot == i ? 'Cancel' : 'Learn',
+                      color: midi.learningPaletteSlot == i ? Toy.red : Toy.accent,
+                      onTap: () =>
+                          midi.learningPaletteSlot == i ? midi.cancelLearn() : midi.startLearnPaletteSlot(i),
+                    ),
+                  ],
+                ),
+              ),
+            const Padding(
+              padding: EdgeInsets.only(top: 6),
+              child: Text('Map drum pads / keys to the top-row voices. Learns the SLOT — whatever emoji is in it plays.',
                   style: TextStyle(fontSize: 10, color: Colors.black38)),
             ),
           ],

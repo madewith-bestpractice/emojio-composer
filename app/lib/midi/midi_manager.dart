@@ -79,8 +79,12 @@ class MidiManager extends ChangeNotifier {
   bool outEnabled = false;
   int outChannel = 0; // 0..15
 
-  // Learn
+  // Learn (one target at a time: an action, or a palette slot index)
   MidiAction? learning;
+  int? learningPaletteSlot;
+
+  // Per-palette-slot bindings (index 0..9) — map a pad/key to "select slot N".
+  final List<MidiBinding?> paletteBindings = List<MidiBinding?>.filled(10, null);
 
   // Smart defaults: assignable CCs (kept off the note range so playing doesn't
   // trigger controls) + Mackie jog wheel for shuttle. All relearnable.
@@ -99,6 +103,7 @@ class MidiManager extends ChangeNotifier {
   void Function(MidiEvent)? onNote;
   void Function(MidiAction)? onAction;
   void Function(int delta)? onShuttle;
+  void Function(int slot)? onPaletteSlot;
 
   bool isConnected(MidiDevice d) => _connectedIds.contains(d.id);
 
@@ -164,21 +169,42 @@ class MidiManager extends ChangeNotifier {
   }
 
   // ---- learn ----
+  MidiBinding _bindingFrom(MidiEvent e) =>
+      MidiBinding(e.kind == MidiKind.cc ? MidiKind.cc : MidiKind.noteOn, e.channel, e.data1);
+
   void startLearn(MidiAction a) => _set(() {
         learning = a;
+        learningPaletteSlot = null;
         status = 'Listening… trigger a control for "${a.label}"';
+      });
+
+  void startLearnPaletteSlot(int i) => _set(() {
+        learningPaletteSlot = i;
+        learning = null;
+        status = 'Listening… trigger a pad/key for palette slot ${i + 1}';
       });
 
   void cancelLearn() => _set(() {
         learning = null;
+        learningPaletteSlot = null;
         status = 'Ready';
       });
 
-  void _bind(MidiEvent e) {
+  void clearPaletteSlot(int i) => _set(() => paletteBindings[i] = null);
+
+  void _bindAction(MidiEvent e) {
     final a = learning!;
-    mappings[a] = MidiBinding(e.kind == MidiKind.cc ? MidiKind.cc : MidiKind.noteOn, e.channel, e.data1);
+    mappings[a] = _bindingFrom(e);
     learning = null;
     status = '"${a.label}" → ${mappings[a]!.label}';
+    notifyListeners();
+  }
+
+  void _bindPaletteSlot(MidiEvent e) {
+    final i = learningPaletteSlot!;
+    paletteBindings[i] = _bindingFrom(e);
+    learningPaletteSlot = null;
+    status = 'Palette slot ${i + 1} → ${paletteBindings[i]!.label}';
     notifyListeners();
   }
 
@@ -218,8 +244,12 @@ class MidiManager extends ChangeNotifier {
 
   void _dispatch(MidiEvent ev) {
     lastEvent = ev;
-    if (learning != null && ev.isPress) {
-      _bind(ev);
+    if (ev.isPress && learning != null) {
+      _bindAction(ev);
+      return;
+    }
+    if (ev.isPress && learningPaletteSlot != null) {
+      _bindPaletteSlot(ev);
       return;
     }
     // Shuttle (relative CC) first — it streams non-press values.
@@ -230,12 +260,20 @@ class MidiManager extends ChangeNotifier {
       notifyListeners();
       return;
     }
-    // Press-mapped actions.
     if (ev.isPress) {
+      // Press-mapped actions.
       for (final entry in mappings.entries) {
         if (entry.key.isRelative) continue;
         if (entry.value.matches(ev)) {
           onAction?.call(entry.key);
+          notifyListeners();
+          return;
+        }
+      }
+      // Palette-slot pads.
+      for (var i = 0; i < paletteBindings.length; i++) {
+        if (paletteBindings[i]?.matches(ev) == true) {
+          onPaletteSlot?.call(i);
           notifyListeners();
           return;
         }

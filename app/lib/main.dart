@@ -89,6 +89,7 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
       _midi.onNote = _onMidiNote;
       _midi.onAction = _doMidiAction;
       _midi.onShuttle = _shuttle;
+      _midi.onPaletteSlot = _selectSlot;
       await _midi.init();
       final m = await VoiceManifest.load();
       await _engine.init(m);
@@ -175,6 +176,10 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
     }
   }
 
+  void _selectSlot(int i) {
+    if (i >= 0 && i < _palette.length) _select(_palette[i]);
+  }
+
   void _cycleVoice(int dir) {
     if (_palette.isEmpty) return;
     final i = _palette.indexOf(_selected);
@@ -209,7 +214,7 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
         showDragHandle: true,
         backgroundColor: Colors.white,
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-        builder: (_) => FractionallySizedBox(heightFactor: 0.88, child: MidiPanel(midi: _midi)),
+        builder: (_) => FractionallySizedBox(heightFactor: 0.88, child: MidiPanel(midi: _midi, palette: _palette)),
       );
 
   void _togglePlay() => setState(() {
@@ -416,7 +421,9 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
             ToyButton(label: 'New', emoji: '✨', color: Colors.white, textColor: Toy.text, onPressed: _newSong),
             ToyButton(label: 'Save', emoji: '💾', onPressed: _saveFlow),
             ToyButton(label: 'Songs', emoji: '📂', color: Toy.purple, onPressed: _openLibrary),
-            ToyButton(label: 'MIDI', emoji: '🎹', color: Toy.purple, onPressed: _openMidi),
+            // Only surfaced once a MIDI controller is plugged in.
+            if (_midi.devices.isNotEmpty)
+              ToyButton(label: 'MIDI', emoji: '🎹', color: Toy.purple, onPressed: _openMidi),
             ToyButton(label: 'Clear', emoji: '🗑️', color: Colors.white, textColor: Toy.text, onPressed: () => setState(_notes.clear)),
             _tempo(),
           ],
