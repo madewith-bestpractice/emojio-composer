@@ -278,6 +278,9 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
     }
   }
 
+  static const _pcNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  String _pcName(int midi) => _pcNames[midi % 12];
+
   int _rowForMidi(int note, int semi) {
     final target = note - semi;
     var best = 0, bestD = 1 << 30;
@@ -695,6 +698,10 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
                 playheadFrac: _playheadFrac,
                 tMs: _nowMs,
                 cursorStep: _playing ? -1 : _cursorStep,
+                rowLabels: _engine.scaleMode == ScaleMode.free
+                    ? null
+                    : List.generate(_rows, (i) => _pcName(_engine.midiForRow(i))),
+                showClef: _engine.scaleMode == ScaleMode.free,
               ),
             ),
           ),

@@ -51,6 +51,8 @@ class StaffPainter extends CustomPainter {
   final double playheadFrac; // 0..1 across all columns
   final int tMs; // for animations
   final int cursorStep; // MIDI shuttle scrub column when stopped; -1 = none
+  final List<String>? rowLabels; // per-row pitch names (scale mode); null = free
+  final bool showClef;
 
   // Rows that get a bold staff line (matches the web app's MAIN_STAFF_LINES).
   static const _mainLines = {1, 3, 5, 7, 9, 11, 13};
@@ -65,6 +67,8 @@ class StaffPainter extends CustomPainter {
     required this.playheadFrac,
     required this.tMs,
     this.cursorStep = -1,
+    this.rowLabels,
+    this.showClef = true,
   });
 
   @override
@@ -96,9 +100,19 @@ class StaffPainter extends CustomPainter {
       }
     }
 
-    // Treble clef
-    _glyph('𝄞', m.stepY * 11, const Color(0xFF37474F))
-        .paint(canvas, Offset(m.padLeft / 2 - m.stepY * 2.4, m.marginY + m.stepY * 2.5));
+    // Treble clef (Free mode) or per-row pitch labels (scale mode).
+    if (showClef) {
+      _glyph('𝄞', m.stepY * 11, const Color(0xFF37474F))
+          .paint(canvas, Offset(m.padLeft / 2 - m.stepY * 2.4, m.marginY + m.stepY * 2.5));
+    }
+    final labels = rowLabels;
+    if (labels != null) {
+      final fs = (m.stepY * 0.6).clamp(10.0, 22.0).toDouble();
+      for (var i = 0; i < rows && i < labels.length; i++) {
+        final tp = _glyph(labels[i], fs, const Color(0xFF78909C));
+        tp.paint(canvas, Offset((m.padLeft - tp.width) / 2, m.marginY + i * m.stepY - tp.height / 2));
+      }
+    }
 
     // Shuttle cursor (when stopped) — a soft amber column marker
     if (!isPlaying && cursorStep >= 0 && cursorStep < cols) {
