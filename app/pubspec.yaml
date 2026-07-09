@@ -64,6 +64,11 @@ flutter:
     # Drop the full bake in here to replace the bundled spike set.
     - assets/voices/
 
+  fonts:
+    - family: PressStart2P
+      fonts:
+        - asset: assets/fonts/PressStart2P-Regular.ttf
+
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
 
