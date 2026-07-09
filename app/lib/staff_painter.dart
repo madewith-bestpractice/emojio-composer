@@ -138,14 +138,15 @@ class StaffPainter extends CustomPainter {
         scale = t < 0.5 ? 0.6 + t * 2 * 0.6 : 1.2 - (t - 0.5) * 2 * 0.2;
       }
 
+      // Rasterize the glyph at its FINAL pixel size (rounded, so the cache
+      // stays bounded) rather than scaling the canvas — scaling a raster glyph
+      // up is what made animated notes look fuzzy.
+      final fs = (size0 * scale).roundToDouble();
       canvas.save();
       canvas.translate(c.dx, c.dy + dy);
       canvas.rotate(n.rotation);
-      canvas.scale(scale);
-      // Soft shadow
-      _glyph(n.emoji, size0, const Color(0x33000000))
-          .paint(canvas, Offset(-size0 / 2 + 2, -size0 / 2 + 3));
-      _glyph(n.emoji, size0, null).paint(canvas, Offset(-size0 / 2, -size0 / 2));
+      _glyph(n.emoji, fs, const Color(0x33000000)).paint(canvas, Offset(-fs / 2 + 2, -fs / 2 + 3));
+      _glyph(n.emoji, fs, null).paint(canvas, Offset(-fs / 2, -fs / 2));
       canvas.restore();
     }
   }
