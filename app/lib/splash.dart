@@ -65,35 +65,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                   );
                 },
               ),
-              // Hanging Bob — dangles from a string off the top-center, swinging.
-              Align(
-                alignment: Alignment.topCenter,
-                child: AnimatedBuilder(
-                  animation: _c,
-                  builder: (context, _) {
-                    final swing = (Curves.easeInOut.transform(_c.value) - 0.5) * 0.16; // ~±4.5°
-                    return Transform.rotate(
-                      alignment: Alignment.topCenter, // pivot at the top of the string
-                      angle: swing,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(width: 3, height: 150, color: Toy.text), // string off the top edge
-                          Container(
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              boxShadow: [BoxShadow(color: Color(0x33000000), blurRadius: 8, offset: Offset(0, 4))],
-                            ),
-                            child: ClipOval(
-                              child: Image.asset('assets/branding/bob.png', width: 104, height: 104, fit: BoxFit.cover),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
               // Loading cue.
               const Align(
                 alignment: Alignment(0, 0.86),
