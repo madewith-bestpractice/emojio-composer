@@ -24,6 +24,7 @@ class VoiceEngine {
     if (!_soloud.isInitialized) {
       await _soloud.init(sampleRate: m.sampleRate, bufferSize: bufferSize);
     }
+    _installMasterBus();
     // Preload every zone sample once (dedup by filename).
     for (final v in m.voices.values) {
       for (final z in v.zones) {
@@ -35,6 +36,19 @@ class VoiceEngine {
     ready = true;
   }
 
+  /// Master bus: headroom + shared "glue" so dense/stacked columns don't clip.
+  /// The baked voices are dry, so this reintroduces the web app's master chain
+  /// (compressor + limiter + a touch of shared reverb) on the global output.
+  void _installMasterBus() {
+    _soloud.setGlobalVolume(0.7); // headroom for summed voices
+    final f = _soloud.filters;
+    f.limiterFilter.activate(); // brick-wall against clipping
+    f.compressorFilter.activate(); // gentle glue
+    f.freeverbFilter.activate();
+    f.freeverbFilter.wet.value = 0.18; // subtle shared space
+    f.freeverbFilter.roomSize.value = 0.55;
+  }
+
   /// Play [synth] at [targetMidi]. Returns the handle (null if unplayable).
   SoundHandle? playSynth(String synth, int targetMidi, {double velocity = 1.0}) {
     final v = manifest.voices[synth];
@@ -44,14 +58,10 @@ class VoiceEngine {
     if (src == null) return null;
 
     final rate = math.pow(2, (targetMidi - z.midi) / 12).toDouble();
-    final loop = v.isSustain && v.loop != null;
-    final startAt = loop
-        ? Duration(microseconds: (v.loop!.startFrac * z.durSec * 1e6).round())
-        : Duration.zero;
-
-    // Play paused so the pitch is set before the first sample is heard.
-    final h = _soloud.play(src,
-        volume: velocity.clamp(0.0, 1.0), paused: true, looping: loop, loopingStartAt: startAt);
+    // One-shot: the baked sample already contains the full envelope. (Looping
+    // sustained voices here made them play FOREVER, since taps/steps have no
+    // note-off — that's what made the app impossible to silence.)
+    final h = _soloud.play(src, volume: velocity.clamp(0.0, 1.0), paused: true);
     _soloud.setRelativePlaySpeed(h, rate);
     _soloud.setPause(h, false);
     return h;
