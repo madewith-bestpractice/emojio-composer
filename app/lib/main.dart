@@ -165,13 +165,12 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   }
 
   void _playStep(int step) {
-    final scale = _manifest?.scale;
     for (final n in _notes) {
       if (n.gridX != step) continue;
       _engine.playEmoji(n.emoji, n.gridY);
-      if (_midi.outEnabled && scale != null) {
+      if (_midi.outEnabled && _manifest != null) {
         final ev = _manifest!.emojiVoices[n.emoji];
-        _midi.sendNote(noteToMidi(scale[n.gridY]) + (ev?.semi ?? 0));
+        _midi.sendNote(_engine.midiForRow(n.gridY) + (ev?.semi ?? 0));
       }
     }
   }
@@ -265,17 +264,21 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   }
 
   int _rowForMidi(int note, int semi) {
-    final scale = _manifest!.scale;
     final target = note - semi;
     var best = 0, bestD = 1 << 30;
-    for (var i = 0; i < scale.length; i++) {
-      final dd = (noteToMidi(scale[i]) - target).abs();
+    for (var i = 0; i < _rows; i++) {
+      final dd = (_engine.midiForRow(i) - target).abs();
       if (dd < bestD) {
         bestD = dd;
         best = i;
       }
     }
     return best;
+  }
+
+  void _cycleScale() {
+    const modes = ScaleMode.values;
+    setState(() => _engine.setScaleMode(modes[(_engine.scaleMode.index + 1) % modes.length]));
   }
 
   void _openMidi() => showModalBottomSheet<void>(
@@ -476,7 +479,6 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
             if (!_purchases.unlocked) TrialBanner(trial: _trial, onTap: _openPaywall),
             _header(),
             _paletteBar(),
-            _diagnostics(),
             Expanded(child: _staff()),
           ],
         ),
@@ -491,32 +493,42 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
           boxShadow: [BoxShadow(color: Color(0x26000000), offset: Offset(0, 6))],
         ),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        child: Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          crossAxisAlignment: WrapCrossAlignment.center,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.only(right: 4),
-              child: Text('🎵 $_currentName',
-                  style: Toy.label(12, Colors.white).copyWith(
-                    shadows: const [Shadow(color: Toy.text, offset: Offset(2, 2))],
-                  )),
+            Expanded(
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: Text('🎵 ${_currentName == 'Untitled' ? 'Emojio Paint Composer' : _currentName}',
+                        style: Toy.label(12, Colors.white).copyWith(
+                          shadows: const [Shadow(color: Toy.text, offset: Offset(2, 2))],
+                        )),
+                  ),
+                  ToyButton(
+                    label: _playing ? 'Stop' : 'Play',
+                    emoji: _playing ? '⏹️' : '▶️',
+                    color: _playing ? Toy.red : Toy.green,
+                    onPressed: _togglePlay,
+                  ),
+                  ToyButton(label: 'New', emoji: '✨', color: Colors.white, textColor: Toy.text, onPressed: _newSong),
+                  ToyButton(label: 'Random', emoji: '🎲', color: Colors.white, textColor: Toy.text, onPressed: _randomize),
+                  ToyButton(label: 'Save', emoji: '💾', onPressed: _saveFlow),
+                  ToyButton(label: 'Songs', emoji: '📂', color: Toy.purple, onPressed: _openLibrary),
+                  // Only surfaced once a MIDI controller is plugged in.
+                  if (_midi.devices.isNotEmpty)
+                    ToyButton(label: 'MIDI', emoji: '🎹', color: Toy.purple, onPressed: _openMidi),
+                  ToyButton(label: 'Clear', emoji: '🗑️', color: Colors.white, textColor: Toy.text, onPressed: () => setState(_notes.clear)),
+                  ToyButton(label: _engine.scaleMode.label, emoji: '🎼', color: Colors.white, textColor: Toy.text, onPressed: _cycleScale),
+                ],
+              ),
             ),
-            ToyButton(
-              label: _playing ? 'Stop' : 'Play',
-              emoji: _playing ? '⏹️' : '▶️',
-              color: _playing ? Toy.red : Toy.green,
-              onPressed: _togglePlay,
-            ),
-            ToyButton(label: 'New', emoji: '✨', color: Colors.white, textColor: Toy.text, onPressed: _newSong),
-            ToyButton(label: 'Random', emoji: '🎲', color: Colors.white, textColor: Toy.text, onPressed: _randomize),
-            ToyButton(label: 'Save', emoji: '💾', onPressed: _saveFlow),
-            ToyButton(label: 'Songs', emoji: '📂', color: Toy.purple, onPressed: _openLibrary),
-            // Only surfaced once a MIDI controller is plugged in.
-            if (_midi.devices.isNotEmpty)
-              ToyButton(label: 'MIDI', emoji: '🎹', color: Toy.purple, onPressed: _openMidi),
-            ToyButton(label: 'Clear', emoji: '🗑️', color: Colors.white, textColor: Toy.text, onPressed: () => setState(_notes.clear)),
+            const SizedBox(width: 10),
+            // Tempo pinned to the top-right so it never pushes onto a second line.
             _tempo(),
           ],
         ),
@@ -576,6 +588,7 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     for (final e in _palette) _paletteItem(e),
                     _addButton(),
@@ -597,7 +610,6 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
           duration: const Duration(milliseconds: 100),
           width: 52,
           height: 52,
-          transform: Matrix4.translationValues(0, on ? -6 : 0, 0),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: on ? Toy.highlight : Colors.white,
@@ -626,18 +638,6 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
             ),
             child: const Text('➕', style: TextStyle(fontSize: 22)),
           ),
-        ),
-      );
-
-  Widget _diagnostics() => Container(
-        width: double.infinity,
-        color: const Color(0xFF263238),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-        child: Text(
-          'engine ${_engine.ready ? "ready" : "…"} · samples ${_engine.sampleCount} · '
-          'buffer ${_engine.bufferSize} · active ${_engine.activeVoices} · '
-          'notes ${_notes.length} · step ${_currentStep < 0 ? "-" : _currentStep + 1}/$kCols',
-          style: const TextStyle(color: Color(0xFFB2EBF2), fontSize: 9, fontFamily: 'monospace'),
         ),
       );
 

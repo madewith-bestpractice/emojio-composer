@@ -2,6 +2,18 @@ import 'dart:math' as math;
 import 'package:flutter_soloud/flutter_soloud.dart';
 import 'manifest.dart';
 
+/// Musical scale the staff rows map to. `free` = the baked staff pitches
+/// (diatonic white notes); the pentatonics guarantee every note is consonant.
+enum ScaleMode { free, majorPentatonic, minorPentatonic }
+
+extension ScaleModeLabel on ScaleMode {
+  String get label => switch (this) {
+        ScaleMode.free => 'Free',
+        ScaleMode.majorPentatonic => 'Major 5',
+        ScaleMode.minorPentatonic => 'Minor 5',
+      };
+}
+
 /// Plays the baked multisamples through flutter_soloud, pitching each note to
 /// the exact target with varispeed (`setRelativePlaySpeed`) — the same
 /// technique validated in the browser baker's A/B audition.
@@ -15,6 +27,33 @@ class VoiceEngine {
   final Map<String, AudioSource> _sources = {}; // file -> loaded sample
   bool ready = false;
   int bufferSize = 1024; // lower than the 2048 default, for tighter latency
+
+  ScaleMode scaleMode = ScaleMode.free;
+  List<int>? _scaleRows; // row -> MIDI when a scale is active (null = free)
+
+  void setScaleMode(ScaleMode m) {
+    scaleMode = m;
+    _scaleRows = m == ScaleMode.free ? null : _buildScaleRows(m);
+  }
+
+  // Ascending scale pitches (low..high), then reversed so row 0 (top of the
+  // staff) is the highest — matching the free staff's high-to-low layout.
+  List<int> _buildScaleRows(ScaleMode m) {
+    final pcs = m == ScaleMode.majorPentatonic ? const [0, 2, 4, 7, 9] : const [0, 3, 5, 7, 10];
+    final start = m == ScaleMode.majorPentatonic ? 48 : 45; // C3 / A2
+    final asc = <int>[];
+    for (var i = 0; asc.length < manifest.scale.length; i++) {
+      asc.add(start + pcs[i % pcs.length] + 12 * (i ~/ pcs.length));
+    }
+    return asc.reversed.toList();
+  }
+
+  /// Base MIDI for a staff row (before the emoji's semitone offset).
+  int midiForRow(int gridY) {
+    final s = _scaleRows;
+    if (s != null && gridY >= 0 && gridY < s.length) return s[gridY];
+    return noteToMidi(manifest.scale[gridY]);
+  }
 
   int get sampleCount => _sources.length;
   int get activeVoices => ready ? _soloud.getActiveVoiceCount() : 0;
@@ -92,7 +131,7 @@ class VoiceEngine {
   SoundHandle? playEmoji(String emoji, int gridY, {double velocity = 1.0}) {
     final ev = manifest.emojiVoices[emoji];
     if (ev == null) return null;
-    final targetMidi = noteToMidi(manifest.scale[gridY]) + ev.semi;
+    final targetMidi = midiForRow(gridY) + ev.semi;
     return playSynth(ev.synth, targetMidi, velocity: velocity, pan: panForEmoji(emoji));
   }
 
