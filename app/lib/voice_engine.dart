@@ -49,8 +49,27 @@ class VoiceEngine {
     f.freeverbFilter.roomSize.value = 0.55;
   }
 
-  /// Play [synth] at [targetMidi]. Returns the handle (null if unplayable).
-  SoundHandle? playSynth(String synth, int targetMidi, {double velocity = 1.0}) {
+  // Hand-pinned stereo positions for characterful emoji (−1 left … +1 right).
+  static const Map<String, double> _panOverrides = {
+    '🐔': 0.55, '🐓': 0.55, '🐣': 0.5, // chickens to the right
+    '💩': -0.55, // poop to the left
+  };
+
+  /// Stable stereo position for an emoji: the same emoji always sits in the
+  /// same spot in the field. Overrides win; everything else is a stable hash
+  /// spread across ±0.6 (never hard-panned, so nothing is lost on one side).
+  double panForEmoji(String emoji) {
+    final o = _panOverrides[emoji];
+    if (o != null) return o;
+    var h = 0;
+    for (final c in emoji.runes) {
+      h = (h * 31 + c) & 0x7fffffff;
+    }
+    return ((h % 2000) / 1000.0 - 1.0) * 0.6; // -0.6 .. 0.6
+  }
+
+  /// Play [synth] at [targetMidi], optionally panned. Returns the handle.
+  SoundHandle? playSynth(String synth, int targetMidi, {double velocity = 1.0, double pan = 0}) {
     final v = manifest.voices[synth];
     if (v == null) return null;
     final z = v.nearestZone(targetMidi);
@@ -63,16 +82,18 @@ class VoiceEngine {
     // note-off — that's what made the app impossible to silence.)
     final h = _soloud.play(src, volume: velocity.clamp(0.0, 1.0), paused: true);
     _soloud.setRelativePlaySpeed(h, rate);
+    _soloud.setPan(h, pan.clamp(-1.0, 1.0)); // positioned before the first sample is heard
     _soloud.setPause(h, false);
     return h;
   }
 
-  /// Play the voice mapped to [emoji] at staff row [gridY].
+  /// Play the voice mapped to [emoji] at staff row [gridY], panned to the
+  /// emoji's fixed stereo position.
   SoundHandle? playEmoji(String emoji, int gridY, {double velocity = 1.0}) {
     final ev = manifest.emojiVoices[emoji];
     if (ev == null) return null;
     final targetMidi = noteToMidi(manifest.scale[gridY]) + ev.semi;
-    return playSynth(ev.synth, targetMidi, velocity: velocity);
+    return playSynth(ev.synth, targetMidi, velocity: velocity, pan: panForEmoji(emoji));
   }
 
   /// Stop a (looping) voice with a short fade so held pads release cleanly.
