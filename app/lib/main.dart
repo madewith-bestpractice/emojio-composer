@@ -60,6 +60,8 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   final _rng = math.Random();
   final _sw = Stopwatch();
   late final Ticker _ticker;
+  final ValueNotifier<int> _repaint = ValueNotifier<int>(0); // drives only the staff CustomPaint
+  int _midiDevices = 0; // tracked so device connect/disconnect rebuilds the page
   int _cursorStep = 0; // MIDI shuttle scrub position (shown when stopped)
   int _extClock = 0; // MIDI-clock pulse counter (6 per 16th step)
 
@@ -134,6 +136,8 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
       _midi.onStop = _extStop;
       _midi.onSongPosition = _extSongPos;
       await _midi.init();
+      _midiDevices = _midi.devices.length;
+      _midi.addListener(_onMidiDevices);
       final m = await VoiceManifest.load();
       await _engine.init(m);
       final playable = m.playableEmojis();
@@ -153,6 +157,14 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
 
   void _onMonetizationChange() {
     if (mounted) setState(() {});
+  }
+
+  // Rebuild the page only when the MIDI device list changes (not per note),
+  // so the 🎹 button appears/disappears without per-frame page rebuilds.
+  void _onMidiDevices() {
+    if (mounted && _midi.devices.length != _midiDevices) {
+      setState(() => _midiDevices = _midi.devices.length);
+    }
   }
 
   // ---- transport ----
@@ -176,7 +188,11 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
       final barMs = kCols * stepMs;
       _playheadFrac = (elapsed % barMs) / barMs;
     }
-    if (mounted) setState(() {});
+    // Repaint ONLY the staff, and only while something is animating — no
+    // whole-page rebuild per frame, and fully idle (0 render CPU) when static.
+    final now = _nowMs;
+    final animating = _playing || _notes.any((n) => now - n.createdAtMs < 360);
+    if (animating) _repaint.value++;
   }
 
   void _playStep(int step) {
@@ -483,7 +499,9 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
     _engine.dispose();
     _purchases.removeListener(_onMonetizationChange);
     _purchases.dispose();
+    _midi.removeListener(_onMidiDevices);
     _midi.dispose();
+    _repaint.dispose();
     super.dispose();
   }
 
@@ -687,23 +705,28 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
               },
               onPanUpdate: (d) => _paintAt(d.localPosition, size),
               onPanEnd: (_) => _lastPainted = null,
-              child: CustomPaint(
-              size: size,
-              painter: StaffPainter(
-                notes: _notes,
-                cols: kCols,
-                rows: _rows,
-                isPlaying: _playing,
-                currentStep: _currentStep,
-                playheadFrac: _playheadFrac,
-                tMs: _nowMs,
-                cursorStep: _playing ? -1 : _cursorStep,
-                rowLabels: _engine.scaleMode == ScaleMode.free
-                    ? null
-                    : List.generate(_rows, (i) => _pcName(_engine.midiForRow(i))),
-                showClef: _engine.scaleMode == ScaleMode.free,
+              child: RepaintBoundary(
+                child: ListenableBuilder(
+                  listenable: _repaint,
+                  builder: (context, _) => CustomPaint(
+                    size: size,
+                    painter: StaffPainter(
+                      notes: _notes,
+                      cols: kCols,
+                      rows: _rows,
+                      isPlaying: _playing,
+                      currentStep: _currentStep,
+                      playheadFrac: _playheadFrac,
+                      tMs: _nowMs,
+                      cursorStep: _playing ? -1 : _cursorStep,
+                      rowLabels: _engine.scaleMode == ScaleMode.free
+                          ? null
+                          : List.generate(_rows, (i) => _pcName(_engine.midiForRow(i))),
+                      showClef: _engine.scaleMode == ScaleMode.free,
+                    ),
+                  ),
+                ),
               ),
-            ),
           ),
           );
         },
