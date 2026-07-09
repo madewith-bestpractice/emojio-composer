@@ -51,6 +51,24 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.7
+
+# App icon generation: `dart run flutter_launcher_icons`
+flutter_launcher_icons:
+  image_path: "assets/branding/app_icon.png"
+  ios: true
+  remove_alpha_ios: true # iOS icons must be opaque
+  macos:
+    generate: true
+    image_path: "assets/branding/app_icon.png"
+
+# Native launch screen: `dart run flutter_native_splash:create`
+# Brand yellow with the centered logo; the in-app tiled splash follows during boot.
+flutter_native_splash:
+  color: "#fff696"
+  image: "assets/branding/logo.png"
+  ios: true
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -67,6 +85,7 @@ flutter:
     # Baked voice samples + manifest, produced by tools/bake-voices.html.
     # Drop the full bake in here to replace the bundled spike set.
     - assets/voices/
+    - assets/branding/
 
   fonts:
     - family: PressStart2P

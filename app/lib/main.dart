@@ -11,6 +11,7 @@ import 'monetization/trial.dart';
 import 'picker.dart';
 import 'song.dart';
 import 'song_library.dart';
+import 'splash.dart';
 import 'staff_painter.dart';
 import 'theme.dart';
 import 'voice_engine.dart';
@@ -456,9 +457,7 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   @override
   Widget build(BuildContext context) {
     if (_bootError != null) return _errorScreen(_bootError!);
-    if (_manifest == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
+    if (_manifest == null) return const SplashScreen();
     // Hard wall once the 3-day trial ends and the app isn't unlocked.
     if (!_hasAccess) return Paywall(purchases: _purchases, dismissible: false);
     return Scaffold(
