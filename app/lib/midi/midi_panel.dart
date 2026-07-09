@@ -232,6 +232,14 @@ class MidiPanel extends StatelessWidget {
                   ],
                 ),
               ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const SizedBox(width: 108, child: Text('Shuttle mode', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+                for (final m in RelMode.values)
+                  _Chip(label: m.label, on: midi.shuttleMode == m, onTap: () => midi.setShuttleMode(m)),
+              ],
+            ),
             const Padding(
               padding: EdgeInsets.only(top: 6),
               child: Text('Smart defaults are assignable CCs; Shuttle = jog wheel (CC60). Relearn any to fit your controller.',

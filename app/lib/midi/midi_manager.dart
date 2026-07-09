@@ -52,8 +52,30 @@ String midiNoteName(int n) {
   return '${names[n % 12]}${n ~/ 12 - 1}';
 }
 
-/// Relative-CC delta (two's-complement mode, the common jog-wheel encoding).
-int relativeDelta(int value) => value == 0 ? 0 : (value < 64 ? value : value - 128);
+/// Relative-CC encodings for jog/shuttle wheels (vendor-dependent, so the user
+/// picks). twosComplement: +1..+63=0x01..0x3F, −=0x7F..0x41. signedBit: bit6 is
+/// the sign, low 6 bits the magnitude. binOffset: 0x40=no change, offset from 64.
+enum RelMode { twosComplement, signedBit, binOffset }
+
+extension RelModeLabel on RelMode {
+  String get label => switch (this) {
+        RelMode.twosComplement => "2's comp",
+        RelMode.signedBit => 'Signed',
+        RelMode.binOffset => 'Offset',
+      };
+}
+
+int decodeRelative(int value, RelMode mode) {
+  switch (mode) {
+    case RelMode.twosComplement:
+      return (value == 0 || value == 64) ? 0 : (value < 64 ? value : value - 128);
+    case RelMode.signedBit:
+      final mag = value & 0x3F;
+      return (value & 0x40) != 0 ? -mag : mag;
+    case RelMode.binOffset:
+      return value - 64;
+  }
+}
 
 /// Wraps flutter_midi_command: device discovery/connect (USB-first), parses
 /// incoming messages, sends output, and owns the MIDI feature settings +
@@ -74,6 +96,7 @@ class MidiManager extends ChangeNotifier {
   bool useVelocity = true;
   int channelFilter = -1; // -1 = Omni
   int octaveShift = 0; // -3..+3
+  RelMode shuttleMode = RelMode.twosComplement;
 
   // Output settings
   bool outEnabled = false;
@@ -172,6 +195,7 @@ class MidiManager extends ChangeNotifier {
   void setUseVelocity(bool v) => _set(() => useVelocity = v);
   void setChannelFilter(int v) => _set(() => channelFilter = v);
   void setOctaveShift(int v) => _set(() => octaveShift = v.clamp(-3, 3));
+  void setShuttleMode(RelMode m) => _set(() => shuttleMode = m);
   void setOutEnabled(bool v) => _set(() => outEnabled = v);
   void setOutChannel(int v) => _set(() => outChannel = v.clamp(0, 15));
   void setExternalSync(bool v) => _set(() {
@@ -337,7 +361,7 @@ class MidiManager extends ChangeNotifier {
     // Shuttle (relative CC) first — it streams non-press values.
     final sh = mappings[MidiAction.shuttle];
     if (sh != null && sh.matches(ev) && ev.kind == MidiKind.cc) {
-      final delta = relativeDelta(ev.data2);
+      final delta = decodeRelative(ev.data2, shuttleMode);
       if (delta != 0) onShuttle?.call(delta);
       notifyListeners();
       return;
