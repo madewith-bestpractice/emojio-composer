@@ -53,6 +53,7 @@ class StaffPainter extends CustomPainter {
   final int cursorStep; // MIDI shuttle scrub column when stopped; -1 = none
   final List<String>? rowLabels; // per-row pitch names (scale mode); null = free
   final bool showClef;
+  final Color bgColor;
 
   // Rows that get a bold staff line (matches the web app's MAIN_STAFF_LINES).
   static const _mainLines = {1, 3, 5, 7, 9, 11, 13};
@@ -69,6 +70,7 @@ class StaffPainter extends CustomPainter {
     this.cursorStep = -1,
     this.rowLabels,
     this.showClef = true,
+    this.bgColor = Colors.white,
   });
 
   @override
@@ -76,7 +78,7 @@ class StaffPainter extends CustomPainter {
     if (size.width <= 0 || size.height <= 0) return;
     final m = StaffMetrics.of(size, cols, rows);
 
-    canvas.drawRect(Offset.zero & size, Paint()..color = Colors.white);
+    canvas.drawRect(Offset.zero & size, Paint()..color = bgColor);
 
     // Vertical grid lines
     final grid = Paint()

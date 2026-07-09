@@ -1,10 +1,13 @@
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_quick_video_encoder/flutter_quick_video_encoder.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'export/song_exporter.dart';
@@ -358,6 +361,21 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
                 _exportAudio();
               },
             ),
+            const SizedBox(height: 12),
+            ToyButton(
+              label: 'Video (MP4)',
+              emoji: '🎬',
+              color: Toy.accent,
+              fontSize: 11,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              onPressed: () {
+                Navigator.pop(ctx);
+                _exportVideo();
+              },
+            ),
+            const SizedBox(height: 10),
+            const Text('Video shows the staff on brand yellow — no app chrome.',
+                style: TextStyle(fontSize: 10, color: Colors.black45)),
           ],
         ),
       ),
@@ -414,6 +432,103 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
       _dismissProgress();
       _snack('Export failed: $e');
     }
+  }
+
+  Future<void> _exportVideo() async {
+    if (_notes.isEmpty) {
+      _snack('Add some notes first!');
+      return;
+    }
+    _showProgress('Rendering video…');
+    try {
+      final r = await _exporter.renderAudio(notes: _notes, bpm: _bpm, swing: _swing, cols: kCols, loops: _exportLoops);
+      const fps = 30, width = 1280, height = 720;
+      final frameCount = (r.durationSec * fps).round();
+      final stepMs = 60000 / _bpm / 4;
+      final barMs = kCols * stepMs;
+      // Static note copies (no stamp-in animation during export).
+      final frameNotes =
+          _notes.map((n) => Note(n.emoji, n.gridX, n.gridY, n.rotation, -1000000, velocity: n.velocity)).toList();
+      final labels = _engine.scaleMode == ScaleMode.free
+          ? null
+          : List.generate(_rows, (i) => _pcName(_engine.midiForRow(i)));
+      final showClef = _engine.scaleMode == ScaleMode.free;
+
+      final dir = await getTemporaryDirectory();
+      final path = '${dir.path}/${_exportName()}.mp4';
+      await FlutterQuickVideoEncoder.setup(
+        width: width,
+        height: height,
+        fps: fps,
+        videoBitrate: 4000000,
+        profileLevel: ProfileLevel.highAutoLevel,
+        audioChannels: 2,
+        audioBitrate: 128000,
+        sampleRate: r.sampleRate,
+        filepath: path,
+      );
+
+      final samplesPerFrame = (r.sampleRate / fps).round() * 2; // interleaved stereo
+      var audioPos = 0;
+      for (var f = 0; f < frameCount; f++) {
+        final elapsedMs = f / fps * 1000;
+        final rgba = await _renderFrameRgba(
+          width,
+          height,
+          currentStep: (elapsedMs / stepMs).floor() % kCols,
+          playheadFrac: (elapsedMs % barMs) / barMs,
+          tMs: elapsedMs.round(),
+          notes: frameNotes,
+          rowLabels: labels,
+          showClef: showClef,
+        );
+        await FlutterQuickVideoEncoder.appendVideoFrame(rgba);
+        final end = math.min(audioPos + samplesPerFrame, r.stereo.length);
+        if (end > audioPos) {
+          await FlutterQuickVideoEncoder.appendAudioFrame(pcm16Bytes(Float32List.sublistView(r.stereo, audioPos, end)));
+          audioPos = end;
+        }
+      }
+      if (audioPos < r.stereo.length) {
+        await FlutterQuickVideoEncoder.appendAudioFrame(pcm16Bytes(Float32List.sublistView(r.stereo, audioPos)));
+      }
+      await FlutterQuickVideoEncoder.finish();
+      _dismissProgress();
+      await _shareFile(path, 'video/mp4');
+    } catch (e, st) {
+      debugPrint('video export failed: $e\n$st');
+      _dismissProgress();
+      _snack('Video export failed: $e');
+    }
+  }
+
+  Future<Uint8List> _renderFrameRgba(
+    int width,
+    int height, {
+    required int currentStep,
+    required double playheadFrac,
+    required int tMs,
+    required List<Note> notes,
+    List<String>? rowLabels,
+    required bool showClef,
+  }) async {
+    final recorder = ui.PictureRecorder();
+    StaffPainter(
+      notes: notes,
+      cols: kCols,
+      rows: _rows,
+      isPlaying: true,
+      currentStep: currentStep,
+      playheadFrac: playheadFrac,
+      tMs: tMs,
+      rowLabels: rowLabels,
+      showClef: showClef,
+      bgColor: const Color(0xFFFFF696), // brand yellow
+    ).paint(Canvas(recorder), Size(width.toDouble(), height.toDouble()));
+    final img = await recorder.endRecording().toImage(width, height);
+    final bd = await img.toByteData(format: ui.ImageByteFormat.rawRgba);
+    img.dispose();
+    return bd!.buffer.asUint8List();
   }
 
   void _togglePlay() => setState(() {
