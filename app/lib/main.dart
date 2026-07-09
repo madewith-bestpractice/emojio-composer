@@ -1,9 +1,14 @@
+import 'dart:io';
 import 'dart:math' as math;
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'export/song_exporter.dart';
+import 'export/wav.dart';
 import 'manifest.dart';
 import 'midi/midi_manager.dart';
 import 'midi/midi_panel.dart';
@@ -57,6 +62,9 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   final _trial = TrialManager();
   final _purchases = PurchaseManager();
   final _midi = MidiManager();
+  late final SongExporter _exporter = SongExporter(_engine);
+  final GlobalKey _exportKey = GlobalKey(); // share-sheet origin anchor (iPad)
+  static const int _exportLoops = 4;
   final _rng = math.Random();
   final _sw = Stopwatch();
   late final Ticker _ticker;
@@ -324,6 +332,90 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
         builder: (_) => FractionallySizedBox(heightFactor: 0.88, child: MidiPanel(midi: _midi, palette: _palette)),
       );
 
+  // ---- export ----
+  Future<void> _openExport() async {
+    if (_playing) _togglePlay();
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('EXPORT', style: Toy.label(11)),
+            const SizedBox(height: 6),
+            Text('~$_exportLoops loops of your song', style: const TextStyle(fontSize: 11, color: Colors.black54)),
+            const SizedBox(height: 18),
+            ToyButton(
+              label: 'Audio (WAV)',
+              emoji: '🎵',
+              color: Toy.green,
+              fontSize: 11,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              onPressed: () {
+                Navigator.pop(ctx);
+                _exportAudio();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _exportName() {
+    final base = _currentName == 'Untitled' ? 'emojio-song' : _currentName;
+    final clean = base.replaceAll(RegExp(r'[^A-Za-z0-9 _-]'), '').trim().replaceAll(' ', '_');
+    return clean.isEmpty ? 'emojio-song' : clean;
+  }
+
+  void _showProgress(String msg) => showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+          content: Row(children: [
+            const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2)),
+            const SizedBox(width: 16),
+            Expanded(child: Text(msg, style: const TextStyle(fontSize: 13))),
+          ]),
+        ),
+      );
+
+  void _dismissProgress() {
+    if (mounted) Navigator.of(context, rootNavigator: true).pop();
+  }
+
+  void _snack(String m) {
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  }
+
+  Future<void> _shareFile(String path, String mime) async {
+    final box = _exportKey.currentContext?.findRenderObject() as RenderBox?;
+    final origin = box != null ? box.localToGlobal(Offset.zero) & box.size : null;
+    await SharePlus.instance.share(ShareParams(files: [XFile(path, mimeType: mime)], sharePositionOrigin: origin));
+  }
+
+  Future<void> _exportAudio() async {
+    if (_notes.isEmpty) {
+      _snack('Add some notes first!');
+      return;
+    }
+    _showProgress('Rendering audio…');
+    try {
+      final r = await _exporter.renderAudio(notes: _notes, bpm: _bpm, swing: _swing, cols: kCols, loops: _exportLoops);
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/${_exportName()}.wav');
+      await file.writeAsBytes(encodeWav(r.stereo, sampleRate: r.sampleRate));
+      _dismissProgress();
+      await _shareFile(file.path, 'audio/wav');
+    } catch (e, st) {
+      debugPrint('audio export failed: $e\n$st');
+      _dismissProgress();
+      _snack('Export failed: $e');
+    }
+  }
+
   void _togglePlay() => setState(() {
         _playing = !_playing;
         _currentStep = -1;
@@ -563,6 +655,7 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
                   ToyButton(label: 'Random', emoji: '🎲', color: Colors.white, textColor: Toy.text, onPressed: _randomize),
                   ToyButton(label: 'Save', emoji: '💾', onPressed: _saveFlow),
                   ToyButton(label: 'Songs', emoji: '📂', color: Toy.purple, onPressed: _openLibrary),
+                  ToyButton(key: _exportKey, label: 'Export', emoji: '📤', color: Toy.purple, onPressed: _openExport),
                   // Only surfaced once a MIDI controller is plugged in.
                   if (_midi.devices.isNotEmpty)
                     ToyButton(label: 'MIDI', emoji: '🎹', color: Toy.purple, onPressed: _openMidi),

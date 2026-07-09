@@ -1,4 +1,6 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_soloud/flutter_soloud.dart';
 import 'manifest.dart';
 
@@ -25,6 +27,7 @@ class VoiceEngine {
   late VoiceManifest manifest;
 
   final Map<String, AudioSource> _sources = {}; // file -> loaded sample
+  final Map<String, Float32List> _pcmCache = {}; // file -> decoded mono PCM (for export)
   bool ready = false;
   int bufferSize = 1024; // lower than the 2048 default, for tighter latency
 
@@ -73,6 +76,22 @@ class VoiceEngine {
       }
     }
     ready = true;
+  }
+
+  /// Decode a bundled voice file to mono PCM (44.1k) for offline export.
+  /// Uses soloud's own miniaudio/stb_vorbis decoder: requesting >= the frame
+  /// count with average:false yields contiguous, full-fidelity samples.
+  Future<Float32List> decodePcm(String file) async {
+    final cached = _pcmCache[file];
+    if (cached != null) return cached;
+    final bytes = (await rootBundle.load('$kVoicesDir/$file')).buffer.asUint8List();
+    final src = _sources[file];
+    final frames = src != null
+        ? (_soloud.getLength(src).inMicroseconds / 1e6 * manifest.sampleRate).ceil() + 64
+        : bytes.length;
+    final pcm = await _soloud.readSamplesFromMem(bytes, frames, average: false);
+    _pcmCache[file] = pcm;
+    return pcm;
   }
 
   /// Master bus: headroom + shared "glue" so dense/stacked columns don't clip.
