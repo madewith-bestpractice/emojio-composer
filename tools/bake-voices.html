@@ -677,6 +677,9 @@ function getSoundType(emoji) {
 const SR = 44100;
 const ZONE = { minMidi: 48, maxMidi: 84, step: 3 };   // multisample every 3 semitones (C3..C6)
 const SPIKE = ['drum', 'bell', 'angel', 'dog', 'fire'];
+// Only these voices build an async Tone.Reverb IR that needs time to generate
+// before the offline render; the rest skip the wait so baking is fast.
+const REVERB_VOICES = new Set(['angel']);
 
 // Per-voice render config. `sustain` voices get a longer render + loop hints for held notes.
 const VOICE_CFG = {
@@ -721,7 +724,7 @@ async function renderOne(synth, midi, cfg) {
     resetEngine();                                   // fresh nodes in THIS offline context
     const inst = getInstrument(synth);               // verbatim app code, connects to dry master→dest
     inst.triggerAttackRelease(midiToNoteName(midi), cfg.gateSec, 0.02);
-    await wait(320);                                 // let async Reverb IRs finish generating
+    if (REVERB_VOICES.has(synth)) await wait(320);   // let async Reverb IR finish generating
   }, cfg.renderSec, 1, SR);
   return toneBuf.get();                              // underlying AudioBuffer
 }
