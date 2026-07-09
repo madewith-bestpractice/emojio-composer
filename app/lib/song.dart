@@ -88,3 +88,30 @@ class Song {
     return '${t.toRadixString(36)}-${r.toRadixString(36)}';
   }
 }
+
+/// Deployed web player. It loads a song straight from a `#s=<code>` URL fragment
+/// (see the web app's `tryRestoreSong`), so a single link lets anyone open,
+/// play, and remix the song in a browser — the app's "share a song" promise.
+const String kWebPlayerBase = 'https://emojio-composer.madewithbestpractice.com';
+
+/// Builds a web-player share link whose `#s=` payload is byte-compatible with
+/// the web app's encoder: `base64(utf8(json))` of
+/// `{v, bpm, palette, notes:[{p, x, y, e?}]}`, where `p` is the palette index
+/// and `e` carries the raw emoji only when it isn't in the palette.
+String webShareUrl({
+  required double bpm,
+  required List<String> palette,
+  required List<SongNote> notes,
+}) {
+  final obj = {
+    'v': 1,
+    'bpm': bpm,
+    'palette': palette,
+    'notes': notes.map((n) {
+      final p = palette.indexOf(n.emoji);
+      return {'p': p, 'x': n.gridX, 'y': n.gridY, if (p < 0) 'e': n.emoji};
+    }).toList(),
+  };
+  final code = base64.encode(utf8.encode(jsonEncode(obj)));
+  return '$kWebPlayerBase/#s=$code';
+}

@@ -30,6 +30,8 @@ class ToyButton extends StatefulWidget {
   final VoidCallback? onPressed;
   final double fontSize;
   final EdgeInsets padding;
+  final double radius; // corner radius: 30 = pill, smaller = squircle chip
+  final String? tooltip; // accessible name + long-press hint (needed for icon-only chips)
 
   const ToyButton({
     super.key,
@@ -40,6 +42,8 @@ class ToyButton extends StatefulWidget {
     required this.onPressed,
     this.fontSize = 9,
     this.padding = const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+    this.radius = 30,
+    this.tooltip,
   });
 
   @override
@@ -53,7 +57,7 @@ class _ToyButtonState extends State<ToyButton> {
   Widget build(BuildContext context) {
     final enabled = widget.onPressed != null;
     final offset = _down ? 1.0 : 3.0;
-    return GestureDetector(
+    Widget button = GestureDetector(
       onTapDown: enabled ? (_) => setState(() => _down = true) : null,
       onTapCancel: enabled ? () => setState(() => _down = false) : null,
       onTapUp: enabled ? (_) => setState(() => _down = false) : null,
@@ -64,7 +68,7 @@ class _ToyButtonState extends State<ToyButton> {
         padding: widget.padding,
         decoration: BoxDecoration(
           color: enabled ? widget.color : widget.color.withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(30),
+          borderRadius: BorderRadius.circular(widget.radius),
           border: Border.all(color: Toy.text, width: 3),
           boxShadow: [BoxShadow(color: Toy.text, offset: Offset(offset, offset))],
         ),
@@ -81,6 +85,15 @@ class _ToyButtonState extends State<ToyButton> {
         ),
       ),
     );
+    // Icon-only chips have no visible text, so give assistive tech (and a
+    // long-press tooltip) something to read.
+    if (widget.tooltip != null) {
+      button = Tooltip(
+        message: widget.tooltip!,
+        child: Semantics(button: true, label: widget.tooltip, child: button),
+      );
+    }
+    return button;
   }
 }
 

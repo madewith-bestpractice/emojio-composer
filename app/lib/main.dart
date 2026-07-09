@@ -67,7 +67,11 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   final _midi = MidiManager();
   late final SongExporter _exporter = SongExporter(_engine);
   final GlobalKey _exportKey = GlobalKey(); // share-sheet origin anchor (iPad)
+  final GlobalKey _shareKey = GlobalKey(); // share-sheet origin anchor (iPad)
   static const int _exportLoops = 4;
+  // Header button size tiers: medium labelled pills vs small icon-only chips.
+  static const _medPad = EdgeInsets.symmetric(horizontal: 14, vertical: 10);
+  static const _chipPad = EdgeInsets.symmetric(horizontal: 12, vertical: 10);
   final _rng = math.Random();
   final _sw = Stopwatch();
   late final Ticker _ticker;
@@ -94,11 +98,9 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   (int, int)? _lastPainted;
   double _lastPressure = 1.0; // latest Apple Pencil pressure (1.0 for finger/mouse)
 
-  // Swing: delays every other 16th (the offbeat) for a groovy feel.
-  static const _swingLevels = [0.0, 0.14, 0.22, 0.30];
-  static const _swingNames = ['Off', 'Low', 'Med', 'Hi'];
-  int _swingLevel = 0;
-  double get _swing => _swingLevels[_swingLevel];
+  // Swing (delays every other 16th for a groovy feel) is fixed off — the header
+  // toggle was removed. Transport and export still route through _swing.
+  static const double _swing = 0.0;
 
   String? _currentId;
   String _currentName = 'Untitled';
@@ -321,11 +323,6 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
     return best;
   }
 
-  void _cycleScale() {
-    const modes = ScaleMode.values;
-    setState(() => _engine.setScaleMode(modes[(_engine.scaleMode.index + 1) % modes.length]));
-  }
-
   void _openMidi() => showModalBottomSheet<void>(
         context: context,
         isScrollControlled: true,
@@ -414,6 +411,15 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
     await SharePlus.instance.share(ShareParams(files: [XFile(path, mimeType: mime)], sharePositionOrigin: origin));
   }
 
+  // Render ~[_exportLoops] loops of the song to a shareable WAV in a temp file.
+  Future<File> _renderWav() async {
+    final r = await _exporter.renderAudio(notes: _notes, bpm: _bpm, swing: _swing, cols: kCols, loops: _exportLoops);
+    final dir = await getTemporaryDirectory();
+    final file = File('${dir.path}/${_exportName()}.wav');
+    await file.writeAsBytes(encodeWav(r.stereo, sampleRate: r.sampleRate));
+    return file;
+  }
+
   Future<void> _exportAudio() async {
     if (_notes.isEmpty) {
       _snack('Add some notes first!');
@@ -421,16 +427,44 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
     }
     _showProgress('Rendering audio…');
     try {
-      final r = await _exporter.renderAudio(notes: _notes, bpm: _bpm, swing: _swing, cols: kCols, loops: _exportLoops);
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/${_exportName()}.wav');
-      await file.writeAsBytes(encodeWav(r.stereo, sampleRate: r.sampleRate));
+      final file = await _renderWav();
       _dismissProgress();
       await _shareFile(file.path, 'audio/wav');
     } catch (e, st) {
       debugPrint('audio export failed: $e\n$st');
       _dismissProgress();
       _snack('Export failed: $e');
+    }
+  }
+
+  // Share the song straight to the iOS share sheet: a link that opens/plays/
+  // remixes it in the web player, plus the rendered audio as an attachment.
+  Future<void> _shareSong() async {
+    if (_notes.isEmpty) {
+      _snack('Add some notes first!');
+      return;
+    }
+    if (_playing) _togglePlay();
+    _showProgress('Getting your song ready…');
+    try {
+      final file = await _renderWav();
+      final url = webShareUrl(
+        bpm: _bpm,
+        palette: _palette,
+        notes: _notes.map((n) => SongNote(n.emoji, n.gridX, n.gridY, velocity: n.velocity)).toList(),
+      );
+      _dismissProgress();
+      final box = _shareKey.currentContext?.findRenderObject() as RenderBox?;
+      final origin = box != null ? box.localToGlobal(Offset.zero) & box.size : null;
+      await SharePlus.instance.share(ShareParams(
+        text: '🎵 Check out my Emojio song!\n$url',
+        files: [XFile(file.path, mimeType: 'audio/wav')],
+        sharePositionOrigin: origin,
+      ));
+    } catch (e, st) {
+      debugPrint('share failed: $e\n$st');
+      _dismissProgress();
+      _snack('Share failed: $e');
     }
   }
 
@@ -539,8 +573,6 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
           _playStartMs = _nowMs;
         }
       });
-
-  void _cycleSwing() => setState(() => _swingLevel = (_swingLevel + 1) % _swingLevels.length);
 
   void _stopTransport() => setState(() {
         _playing = false;
@@ -760,23 +792,28 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
                           shadows: const [Shadow(color: Toy.text, offset: Offset(2, 2))],
                         )),
                   ),
+                  // Tier 1 — Play: the big, unmissable primary target.
                   ToyButton(
                     label: _playing ? 'Stop' : 'Play',
                     emoji: _playing ? '⏹️' : '▶️',
                     color: _playing ? Toy.red : Toy.green,
+                    fontSize: 14,
+                    radius: 20,
+                    padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
                     onPressed: _togglePlay,
                   ),
-                  ToyButton(label: 'New', emoji: '✨', color: Colors.white, textColor: Toy.text, onPressed: _newSong),
-                  ToyButton(label: 'Random', emoji: '🎲', color: Colors.white, textColor: Toy.text, onPressed: _randomize),
-                  ToyButton(label: 'Save', emoji: '💾', onPressed: _saveFlow),
-                  ToyButton(label: 'Songs', emoji: '📂', color: Toy.purple, onPressed: _openLibrary),
-                  ToyButton(key: _exportKey, label: 'Export', emoji: '📤', color: Toy.purple, onPressed: _openExport),
+                  // Tier 2 — creative actions: medium labelled pills.
+                  ToyButton(label: 'Random', emoji: '🎲', color: Colors.white, textColor: Toy.text, padding: _medPad, onPressed: _randomize),
+                  ToyButton(label: 'Save', emoji: '💾', color: Toy.highlight, textColor: Toy.text, padding: _medPad, onPressed: _saveFlow),
+                  ToyButton(label: 'Songs', emoji: '📂', color: Toy.purple, padding: _medPad, onPressed: _openLibrary),
+                  ToyButton(key: _shareKey, label: 'Share', emoji: '🔗', color: Toy.accent, padding: _medPad, onPressed: _shareSong),
+                  // Tier 3 — utilities: small icon-only chips (name lives in the tooltip).
+                  ToyButton(emoji: '✨', tooltip: 'New song', color: Colors.white, textColor: Toy.text, fontSize: 13, radius: 16, padding: _chipPad, onPressed: _newSong),
+                  ToyButton(key: _exportKey, emoji: '📤', tooltip: 'Export audio or video', color: Toy.purple, fontSize: 13, radius: 16, padding: _chipPad, onPressed: _openExport),
                   // Only surfaced once a MIDI controller is plugged in.
                   if (_midi.devices.isNotEmpty)
-                    ToyButton(label: 'MIDI', emoji: '🎹', color: Toy.purple, onPressed: _openMidi),
-                  ToyButton(label: 'Clear', emoji: '🗑️', color: Colors.white, textColor: Toy.text, onPressed: () => setState(_notes.clear)),
-                  ToyButton(label: _engine.scaleMode.label, emoji: '🎼', color: Colors.white, textColor: Toy.text, onPressed: _cycleScale),
-                  ToyButton(label: 'Swing ${_swingNames[_swingLevel]}', emoji: '🎷', color: Colors.white, textColor: Toy.text, onPressed: _cycleSwing),
+                    ToyButton(emoji: '🎹', tooltip: 'MIDI', color: Toy.purple, fontSize: 13, radius: 16, padding: _chipPad, onPressed: _openMidi),
+                  ToyButton(emoji: '🗑️', tooltip: 'Clear all notes', color: Colors.white, textColor: Toy.text, fontSize: 13, radius: 16, padding: _chipPad, onPressed: () => setState(_notes.clear)),
                 ],
               ),
             ),
