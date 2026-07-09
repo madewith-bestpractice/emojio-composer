@@ -8,7 +8,8 @@ class Note {
   final int gridY;
   final double rotation;
   int createdAtMs;
-  Note(this.emoji, this.gridX, this.gridY, this.rotation, this.createdAtMs);
+  final double velocity; // 0..1, from Apple Pencil pressure (1.0 = full)
+  Note(this.emoji, this.gridX, this.gridY, this.rotation, this.createdAtMs, {this.velocity = 1.0});
 }
 
 /// Geometry shared by the painter and hit-testing so taps line up with pixels.

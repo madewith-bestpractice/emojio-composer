@@ -6,11 +6,17 @@ class SongNote {
   final String emoji;
   final int gridX;
   final int gridY;
-  const SongNote(this.emoji, this.gridX, this.gridY);
+  final double velocity;
+  const SongNote(this.emoji, this.gridX, this.gridY, {this.velocity = 1.0});
 
-  Map<String, dynamic> toJson() => {'e': emoji, 'x': gridX, 'y': gridY};
-  factory SongNote.fromJson(Map<String, dynamic> j) =>
-      SongNote(j['e'] as String, (j['x'] as num).toInt(), (j['y'] as num).toInt());
+  Map<String, dynamic> toJson() =>
+      {'e': emoji, 'x': gridX, 'y': gridY, if (velocity != 1.0) 'v': velocity};
+  factory SongNote.fromJson(Map<String, dynamic> j) => SongNote(
+        j['e'] as String,
+        (j['x'] as num).toInt(),
+        (j['y'] as num).toInt(),
+        velocity: (j['v'] as num?)?.toDouble() ?? 1.0,
+      );
 }
 
 /// A saved composition. Persisted as one JSON file per song in the app's

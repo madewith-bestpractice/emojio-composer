@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:audio_session/audio_session.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -78,6 +79,7 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   int _globalStep = 0; // ever-increasing step counter while playing
   int _playStartMs = 0; // stopwatch ms when play began
   (int, int)? _lastPainted;
+  double _lastPressure = 1.0; // latest Apple Pencil pressure (1.0 for finger/mouse)
 
   // Swing: delays every other 16th (the offbeat) for a groovy feel.
   static const _swingLevels = [0.0, 0.14, 0.22, 0.30];
@@ -180,7 +182,7 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   void _playStep(int step) {
     for (final n in _notes) {
       if (n.gridX != step) continue;
-      _engine.playEmoji(n.emoji, n.gridY);
+      _engine.playEmoji(n.emoji, n.gridY, velocity: n.velocity);
       if (_midi.outEnabled && _manifest != null) {
         final ev = _manifest!.emojiVoices[n.emoji];
         _midi.sendNote(_engine.midiForRow(n.gridY) + (ev?.semi ?? 0));
@@ -338,8 +340,10 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   }
 
   void _addNote(int gx, int gy) {
-    _notes.add(Note(_selected, gx, gy, (_rng.nextDouble() - 0.5) * 0.3, _nowMs));
-    _engine.playEmoji(_selected, gy);
+    // Apple Pencil pressure -> velocity (kept above ~0.45 so light taps aren't silent).
+    final v = (0.45 + 0.55 * _lastPressure).clamp(0.0, 1.0);
+    _notes.add(Note(_selected, gx, gy, (_rng.nextDouble() - 0.5) * 0.3, _nowMs, velocity: v));
+    _engine.playEmoji(_selected, gy, velocity: v);
   }
 
   // Generate a random song from the current palette (ported from the web app):
@@ -394,7 +398,7 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
       if (entered == null) return;
       name = entered;
     }
-    final notes = _notes.map((n) => SongNote(n.emoji, n.gridX, n.gridY)).toList();
+    final notes = _notes.map((n) => SongNote(n.emoji, n.gridX, n.gridY, velocity: n.velocity)).toList();
     final Song s;
     if (_currentId == null) {
       s = Song.fresh(name: name, bpm: _bpm, palette: _palette, selectedEmoji: _selected)..notes = notes;
@@ -449,7 +453,8 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
         _selected = s.selectedEmoji ?? (_palette.isNotEmpty ? _palette.first : _selected);
         _notes
           ..clear()
-          ..addAll(s.notes.map((n) => Note(n.emoji, n.gridX, n.gridY, (_rng.nextDouble() - 0.5) * 0.3, _nowMs)));
+          ..addAll(s.notes.map((n) =>
+              Note(n.emoji, n.gridX, n.gridY, (_rng.nextDouble() - 0.5) * 0.3, _nowMs, velocity: n.velocity)));
       });
 
   Future<void> _openLibrary() async {
@@ -660,18 +665,26 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
         ),
       );
 
+  // Capture Apple Pencil pressure (finger/mouse report no useful pressure -> full).
+  void _capturePressure(PointerEvent e) {
+    _lastPressure = e.kind == PointerDeviceKind.stylus ? e.pressure.clamp(0.0, 1.0) : 1.0;
+  }
+
   Widget _staff() => LayoutBuilder(
         builder: (context, constraints) {
           final size = Size(constraints.maxWidth, constraints.maxHeight);
-          return GestureDetector(
-            onTapUp: (d) => _toggleAt(d.localPosition, size),
-            onPanStart: (d) {
-              _lastPainted = null;
-              _paintAt(d.localPosition, size);
-            },
-            onPanUpdate: (d) => _paintAt(d.localPosition, size),
-            onPanEnd: (_) => _lastPainted = null,
-            child: CustomPaint(
+          return Listener(
+            onPointerDown: _capturePressure,
+            onPointerMove: _capturePressure,
+            child: GestureDetector(
+              onTapUp: (d) => _toggleAt(d.localPosition, size),
+              onPanStart: (d) {
+                _lastPainted = null;
+                _paintAt(d.localPosition, size);
+              },
+              onPanUpdate: (d) => _paintAt(d.localPosition, size),
+              onPanEnd: (_) => _lastPainted = null,
+              child: CustomPaint(
               size: size,
               painter: StaffPainter(
                 notes: _notes,
@@ -684,6 +697,7 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
                 cursorStep: _playing ? -1 : _cursorStep,
               ),
             ),
+          ),
           );
         },
       );
