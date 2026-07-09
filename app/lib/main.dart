@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 import 'manifest.dart';
 import 'midi/midi_manager.dart';
 import 'midi/midi_panel.dart';
@@ -16,7 +17,14 @@ import 'staff_painter.dart';
 import 'theme.dart';
 import 'voice_engine.dart';
 
-void main() => runApp(const EmojioApp());
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setPreferredOrientations(const [
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ]);
+  runApp(const EmojioApp());
+}
 
 class EmojioApp extends StatelessWidget {
   const EmojioApp({super.key});
@@ -176,7 +184,7 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
     if (ev == null) return;
     final note = (e.data1 + 12 * _midi.octaveShift).clamp(0, 127).toInt();
     final vel = _midi.useVelocity ? (e.data2 / 127).clamp(0.15, 1.0).toDouble() : 1.0;
-    if (_midi.livePlay) _engine.playSynth(ev.synth, note, velocity: vel);
+    if (_midi.livePlay) _engine.playSynth(ev.synth, note, velocity: vel, pan: _engine.panForEmoji(_selected));
     if (_midi.recordArm && _playing && _currentStep >= 0) {
       final gy = _rowForMidi(note, ev.semi);
       if (!_notes.any((n) => n.gridX == _currentStep && n.gridY == gy)) {
