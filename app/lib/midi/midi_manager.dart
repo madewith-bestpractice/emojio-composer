@@ -79,6 +79,12 @@ class MidiManager extends ChangeNotifier {
   bool outEnabled = false;
   int outChannel = 0; // 0..15
 
+  // External sync (MIDI clock / Song Position) — external device drives transport
+  bool externalSync = false;
+  double? syncedBpm; // estimated from incoming clock
+  DateTime? _lastClock;
+  int _clockNotify = 0;
+
   // Learn (one target at a time: an action, or a palette slot index)
   MidiAction? learning;
   int? learningPaletteSlot;
@@ -104,6 +110,12 @@ class MidiManager extends ChangeNotifier {
   void Function(MidiAction)? onAction;
   void Function(int delta)? onShuttle;
   void Function(int slot)? onPaletteSlot;
+  // Transport sync (only meaningful when externalSync is on)
+  void Function()? onClock; // 24 PPQN pulse
+  void Function()? onStart;
+  void Function()? onStop;
+  void Function()? onContinue;
+  void Function(int beats)? onSongPosition; // 1 beat = one 16th step
 
   bool isConnected(MidiDevice d) => _connectedIds.contains(d.id);
 
@@ -162,6 +174,10 @@ class MidiManager extends ChangeNotifier {
   void setOctaveShift(int v) => _set(() => octaveShift = v.clamp(-3, 3));
   void setOutEnabled(bool v) => _set(() => outEnabled = v);
   void setOutChannel(int v) => _set(() => outChannel = v.clamp(0, 15));
+  void setExternalSync(bool v) => _set(() {
+        externalSync = v;
+        if (!v) syncedBpm = null;
+      });
 
   void _set(VoidCallback fn) {
     fn();
@@ -217,6 +233,23 @@ class MidiManager extends ChangeNotifier {
     Timer(off, () => _midi.sendData(Uint8List.fromList([0x80 | ch, n, 0])));
   }
 
+  void _onClockPulse() {
+    onClock?.call();
+    final now = DateTime.now();
+    if (_lastClock != null) {
+      final us = now.difference(_lastClock!).inMicroseconds;
+      if (us > 0) {
+        final bpm = 60000000.0 / (us * 24); // 24 PPQN
+        syncedBpm = syncedBpm == null ? bpm : syncedBpm! * 0.8 + bpm * 0.2;
+      }
+    }
+    _lastClock = now;
+    if (++_clockNotify >= 24) {
+      _clockNotify = 0;
+      notifyListeners(); // ~once per quarter, for the BPM readout
+    }
+  }
+
   // ---- incoming ----
   void _onData(MidiDataReceivedEvent e) {
     final d = e.message.data;
@@ -227,6 +260,47 @@ class MidiManager extends ChangeNotifier {
         i++;
         continue;
       }
+      // System real-time (single byte) — can interleave anywhere.
+      if (st >= 0xF8) {
+        switch (st) {
+          case 0xF8:
+            _onClockPulse();
+          case 0xFA:
+            onStart?.call();
+            notifyListeners();
+          case 0xFB:
+            onContinue?.call();
+            notifyListeners();
+          case 0xFC:
+            onStop?.call();
+            notifyListeners();
+        }
+        i++;
+        continue;
+      }
+      // System common.
+      if (st == 0xF2) {
+        // Song Position Pointer: 14-bit, LSB then MSB, in 16th-note beats.
+        if (i + 2 >= d.length) break;
+        onSongPosition?.call(d[i + 1] | (d[i + 2] << 7));
+        notifyListeners();
+        i += 3;
+        continue;
+      }
+      if (st == 0xF0) {
+        // SysEx: skip to end (0xF7).
+        var j = i + 1;
+        while (j < d.length && d[j] != 0xF7) {
+          j++;
+        }
+        i = j + 1;
+        continue;
+      }
+      if (st == 0xF1 || st == 0xF3) {
+        i += 2; // MTC quarter-frame / song select
+        continue;
+      }
+      // Channel-voice.
       final hi = st & 0xF0, ch = st & 0x0F;
       if (hi == 0x90 || hi == 0x80 || hi == 0xB0) {
         if (i + 2 >= d.length) break;
@@ -236,9 +310,17 @@ class MidiManager extends ChangeNotifier {
             : (hi == 0x90 && b > 0 ? MidiKind.noteOn : MidiKind.noteOff);
         _dispatch(MidiEvent(kind, ch, a, b));
         i += 3;
-      } else {
-        break; // SysEx / system not handled in Phase 1
+        continue;
       }
+      if (hi == 0xC0 || hi == 0xD0) {
+        i += 2; // program change / channel pressure
+        continue;
+      }
+      if (hi == 0xA0 || hi == 0xE0) {
+        i += 3; // poly aftertouch / pitch bend
+        continue;
+      }
+      i++; // unknown
     }
   }
 

@@ -47,6 +47,8 @@ class MidiPanel extends StatelessWidget {
                 const SizedBox(height: 18),
                 _output(),
                 const SizedBox(height: 18),
+                _sync(),
+                const SizedBox(height: 18),
                 _controls(),
                 const SizedBox(height: 18),
                 _paletteSlots(),
@@ -174,6 +176,30 @@ class MidiPanel extends StatelessWidget {
                 ],
               ),
             ),
+          ],
+        ),
+      );
+
+  Widget _sync() => _section(
+        'SYNC',
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _ToyToggle(
+              label: 'Follow external MIDI clock',
+              value: midi.externalSync,
+              onChanged: midi.setExternalSync,
+            ),
+            if (midi.externalSync)
+              Padding(
+                padding: const EdgeInsets.only(top: 2, bottom: 4),
+                child: Text(
+                  midi.syncedBpm != null ? 'Detected tempo: ${midi.syncedBpm!.round()} BPM' : 'Waiting for clock…',
+                  style: const TextStyle(fontSize: 12, color: Colors.black54),
+                ),
+              ),
+            const Text('When on, the external device drives Play/Stop, tempo, and position.',
+                style: TextStyle(fontSize: 10, color: Colors.black38)),
           ],
         ),
       );

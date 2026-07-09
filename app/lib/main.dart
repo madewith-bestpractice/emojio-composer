@@ -50,6 +50,7 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   final _sw = Stopwatch();
   late final Ticker _ticker;
   int _cursorStep = 0; // MIDI shuttle scrub position (shown when stopped)
+  int _extClock = 0; // MIDI-clock pulse counter (6 per 16th step)
 
   bool get _hasAccess => _purchases.unlocked || _trial.active;
 
@@ -90,6 +91,13 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
       _midi.onAction = _doMidiAction;
       _midi.onShuttle = _shuttle;
       _midi.onPaletteSlot = _selectSlot;
+      _midi.onClock = _extClockStep;
+      _midi.onStart = _extStart;
+      _midi.onContinue = () {
+        if (_midi.externalSync) _playing = true;
+      };
+      _midi.onStop = _extStop;
+      _midi.onSongPosition = _extSongPos;
       await _midi.init();
       final m = await VoiceManifest.load();
       await _engine.init(m);
@@ -114,7 +122,9 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
 
   // ---- transport ----
   void _onTick(Duration _) {
-    if (_playing) {
+    // Internal clock. When synced to external MIDI clock, the clock handlers
+    // drive the step instead (see _extClockStep).
+    if (_playing && !_midi.externalSync) {
       final stepMs = 60000 / _bpm / 4;
       final pos = _sw.elapsedMilliseconds / stepMs;
       final step = pos.floor() % kCols;
@@ -178,6 +188,40 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
 
   void _selectSlot(int i) {
     if (i >= 0 && i < _palette.length) _select(_palette[i]);
+  }
+
+  // ---- external MIDI-clock transport (fields mutate; the ticker repaints) ----
+  void _extClockStep() {
+    if (!_midi.externalSync || !_playing) return;
+    if (++_extClock >= 6) {
+      _extClock = 0;
+      final ns = (_currentStep + 1) % kCols;
+      _currentStep = ns;
+      _playheadFrac = ns / kCols;
+      _playStep(ns);
+    }
+  }
+
+  void _extStart() {
+    if (!_midi.externalSync) return;
+    _playing = true;
+    _extClock = 0;
+    _currentStep = 0;
+    _playheadFrac = 0;
+    _playStep(0);
+  }
+
+  void _extStop() {
+    if (!_midi.externalSync) return;
+    _playing = false;
+    _currentStep = -1;
+  }
+
+  void _extSongPos(int beats) {
+    if (!_midi.externalSync) return;
+    _currentStep = beats % kCols;
+    _extClock = 0;
+    _playheadFrac = _currentStep / kCols;
   }
 
   void _cycleVoice(int dir) {
