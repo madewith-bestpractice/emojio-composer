@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_midi_command/flutter_midi_command.dart';
+import 'package:path_provider/path_provider.dart';
 
 enum MidiKind { noteOn, noteOff, cc, other }
 
@@ -44,6 +47,10 @@ class MidiBinding {
           : (e.kind == MidiKind.noteOn || e.kind == MidiKind.noteOff));
 
   String get label => kind == MidiKind.cc ? 'CC $data1·ch${channel + 1}' : 'Note $data1·ch${channel + 1}';
+
+  Map<String, dynamic> toJson() => {'k': kind.index, 'ch': channel, 'd': data1};
+  factory MidiBinding.fromJson(Map<String, dynamic> j) =>
+      MidiBinding(MidiKind.values[j['k'] as int], j['ch'] as int, j['d'] as int);
 }
 
 /// Note number -> name, e.g. 60 -> "C4".
@@ -84,6 +91,8 @@ class MidiManager extends ChangeNotifier {
   final MidiCommand _midi = MidiCommand();
   StreamSubscription<MidiDataReceivedEvent>? _dataSub;
   StreamSubscription<dynamic>? _setupSub;
+  File? _cfgFile;
+  Timer? _saveTimer;
 
   List<MidiDevice> devices = [];
   final Set<String> _connectedIds = {};
@@ -143,6 +152,7 @@ class MidiManager extends ChangeNotifier {
   bool isConnected(MidiDevice d) => _connectedIds.contains(d.id);
 
   Future<void> init() async {
+    await _load(); // restore saved mappings + settings first
     try {
       _dataSub = _midi.onMidiDataReceived?.listen(_onData);
       _setupSub = _midi.onMidiSetupChanged?.listen((_) => refresh());
@@ -151,6 +161,69 @@ class MidiManager extends ChangeNotifier {
       status = 'MIDI unavailable: $e';
       notifyListeners();
     }
+  }
+
+  // ---- persistence (mappings + settings survive restarts) ----
+  Future<File> _configFile() async {
+    if (_cfgFile != null) return _cfgFile!;
+    final dir = await getApplicationDocumentsDirectory();
+    return _cfgFile = File('${dir.path}/midi_config.json');
+  }
+
+  Map<String, dynamic> _toJson() => {
+        'channelFilter': channelFilter,
+        'octaveShift': octaveShift,
+        'useVelocity': useVelocity,
+        'livePlay': livePlay,
+        'recordArm': recordArm,
+        'outEnabled': outEnabled,
+        'outChannel': outChannel,
+        'externalSync': externalSync,
+        'shuttleMode': shuttleMode.index,
+        'mappings': {for (final e in mappings.entries) e.key.name: e.value.toJson()},
+        'paletteBindings': [for (final b in paletteBindings) b?.toJson()],
+      };
+
+  Future<void> _load() async {
+    try {
+      final f = await _configFile();
+      if (!await f.exists()) return;
+      final j = jsonDecode(await f.readAsString()) as Map<String, dynamic>;
+      channelFilter = j['channelFilter'] as int? ?? channelFilter;
+      octaveShift = j['octaveShift'] as int? ?? octaveShift;
+      useVelocity = j['useVelocity'] as bool? ?? useVelocity;
+      livePlay = j['livePlay'] as bool? ?? livePlay;
+      recordArm = j['recordArm'] as bool? ?? recordArm;
+      outEnabled = j['outEnabled'] as bool? ?? outEnabled;
+      outChannel = j['outChannel'] as int? ?? outChannel;
+      externalSync = j['externalSync'] as bool? ?? externalSync;
+      final sm = j['shuttleMode'] as int?;
+      if (sm != null && sm >= 0 && sm < RelMode.values.length) shuttleMode = RelMode.values[sm];
+      final mp = j['mappings'] as Map<String, dynamic>?;
+      if (mp != null) {
+        for (final a in MidiAction.values) {
+          final b = mp[a.name];
+          if (b != null) mappings[a] = MidiBinding.fromJson(b as Map<String, dynamic>);
+        }
+      }
+      final pb = j['paletteBindings'] as List?;
+      if (pb != null) {
+        for (var i = 0; i < paletteBindings.length && i < pb.length; i++) {
+          paletteBindings[i] = pb[i] == null ? null : MidiBinding.fromJson(pb[i] as Map<String, dynamic>);
+        }
+      }
+    } catch (_) {
+      // ignore corrupt config
+    }
+  }
+
+  void _scheduleSave() {
+    _saveTimer?.cancel();
+    _saveTimer = Timer(const Duration(milliseconds: 300), () async {
+      try {
+        await (await _configFile()).writeAsString(jsonEncode(_toJson()));
+      } catch (_) {}
+    });
   }
 
   Future<void> refresh() async {
@@ -206,6 +279,7 @@ class MidiManager extends ChangeNotifier {
   void _set(VoidCallback fn) {
     fn();
     notifyListeners();
+    _scheduleSave();
   }
 
   // ---- learn ----
@@ -238,6 +312,7 @@ class MidiManager extends ChangeNotifier {
     learning = null;
     status = '"${a.label}" → ${mappings[a]!.label}';
     notifyListeners();
+    _scheduleSave();
   }
 
   void _bindPaletteSlot(MidiEvent e) {
@@ -246,6 +321,7 @@ class MidiManager extends ChangeNotifier {
     learningPaletteSlot = null;
     status = 'Palette slot ${i + 1} → ${paletteBindings[i]!.label}';
     notifyListeners();
+    _scheduleSave();
   }
 
   // ---- output ----
@@ -394,6 +470,7 @@ class MidiManager extends ChangeNotifier {
   void dispose() {
     _dataSub?.cancel();
     _setupSub?.cancel();
+    _saveTimer?.cancel();
     super.dispose();
   }
 }
