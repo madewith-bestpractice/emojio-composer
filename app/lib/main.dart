@@ -75,8 +75,15 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   bool _playing = false;
   int _currentStep = -1;
   double _playheadFrac = 0;
-  int _lastStep = -1;
+  int _globalStep = 0; // ever-increasing step counter while playing
+  int _playStartMs = 0; // stopwatch ms when play began
   (int, int)? _lastPainted;
+
+  // Swing: delays every other 16th (the offbeat) for a groovy feel.
+  static const _swingLevels = [0.0, 0.14, 0.22, 0.30];
+  static const _swingNames = ['Off', 'Low', 'Med', 'Hi'];
+  int _swingLevel = 0;
+  double get _swing => _swingLevels[_swingLevel];
 
   String? _currentId;
   String _currentName = 'Untitled';
@@ -147,19 +154,25 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   }
 
   // ---- transport ----
+  // Swung onset (ms from play start) of global step k: offbeats pushed later.
+  double _onsetMs(int k, double stepMs) => (k + (k.isOdd ? _swing : 0.0)) * stepMs;
+
   void _onTick(Duration _) {
     // Internal clock. When synced to external MIDI clock, the clock handlers
     // drive the step instead (see _extClockStep).
     if (_playing && !_midi.externalSync) {
       final stepMs = 60000 / _bpm / 4;
-      final pos = _sw.elapsedMilliseconds / stepMs;
-      final step = pos.floor() % kCols;
-      if (step != _lastStep) {
-        _lastStep = step;
-        _playStep(step);
+      final elapsed = _nowMs - _playStartMs;
+      // Fire every step whose (swung) onset has passed — catch-up so a laggy
+      // frame never drops notes, and swing is honored.
+      while (_onsetMs(_globalStep, stepMs) <= elapsed) {
+        _currentStep = _globalStep % kCols;
+        _playStep(_currentStep);
+        _globalStep++;
       }
-      _currentStep = step;
-      _playheadFrac = (pos % kCols) / kCols;
+      // Smooth straight sweep for the playhead (swing is an audio-timing detail).
+      final barMs = kCols * stepMs;
+      _playheadFrac = (elapsed % barMs) / barMs;
     }
     if (mounted) setState(() {});
   }
@@ -292,9 +305,14 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
 
   void _togglePlay() => setState(() {
         _playing = !_playing;
-        _lastStep = -1;
         _currentStep = -1;
+        if (_playing) {
+          _globalStep = 0;
+          _playStartMs = _nowMs;
+        }
       });
+
+  void _cycleSwing() => setState(() => _swingLevel = (_swingLevel + 1) % _swingLevels.length);
 
   void _stopTransport() => setState(() {
         _playing = false;
@@ -524,6 +542,7 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
                     ToyButton(label: 'MIDI', emoji: '🎹', color: Toy.purple, onPressed: _openMidi),
                   ToyButton(label: 'Clear', emoji: '🗑️', color: Colors.white, textColor: Toy.text, onPressed: () => setState(_notes.clear)),
                   ToyButton(label: _engine.scaleMode.label, emoji: '🎼', color: Colors.white, textColor: Toy.text, onPressed: _cycleScale),
+                  ToyButton(label: 'Swing ${_swingNames[_swingLevel]}', emoji: '🎷', color: Colors.white, textColor: Toy.text, onPressed: _cycleSwing),
                 ],
               ),
             ),
