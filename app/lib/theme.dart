@@ -56,14 +56,16 @@ class _ToyButtonState extends State<ToyButton> {
   @override
   Widget build(BuildContext context) {
     final enabled = widget.onPressed != null;
+    // iOS "Reduce Motion": snap the press feedback instead of animating it.
+    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     final offset = _down ? 1.0 : 3.0;
-    Widget button = GestureDetector(
+    Widget visual = GestureDetector(
       onTapDown: enabled ? (_) => setState(() => _down = true) : null,
       onTapCancel: enabled ? () => setState(() => _down = false) : null,
       onTapUp: enabled ? (_) => setState(() => _down = false) : null,
       onTap: widget.onPressed,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 60),
+        duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 60),
         transform: Matrix4.translationValues(_down ? 2 : 0, _down ? 2 : 0, 0),
         padding: widget.padding,
         decoration: BoxDecoration(
@@ -85,15 +87,21 @@ class _ToyButtonState extends State<ToyButton> {
         ),
       ),
     );
-    // Icon-only chips have no visible text, so give assistive tech (and a
-    // long-press tooltip) something to read.
+    // Long-press hint bubble for icon-only chips (helps sighted users too).
     if (widget.tooltip != null) {
-      button = Tooltip(
-        message: widget.tooltip!,
-        child: Semantics(button: true, label: widget.tooltip, child: button),
-      );
+      visual = Tooltip(message: widget.tooltip!, child: visual);
     }
-    return button;
+    // Expose ONE clean accessible node: the visible label (or the tooltip for
+    // icon-only chips), a Button trait, enabled state, and an activation action.
+    // ExcludeSemantics drops the decorative emoji so VoiceOver / Switch Control
+    // don't announce e.g. "right-pointing triangle" alongside the label.
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      label: widget.tooltip ?? widget.label,
+      onTap: enabled ? widget.onPressed : null,
+      child: ExcludeSemantics(child: visual),
+    );
   }
 }
 

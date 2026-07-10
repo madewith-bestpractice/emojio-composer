@@ -45,7 +45,12 @@ class _PickerBody extends StatelessWidget {
             tabAlignment: TabAlignment.start,
             tabs: [
               for (final c in cats)
-                Tab(child: Text(categoryIcon(c), style: const TextStyle(fontSize: 22))),
+                Tab(
+                  child: Semantics(
+                    label: c,
+                    child: ExcludeSemantics(child: Text(categoryIcon(c), style: const TextStyle(fontSize: 22))),
+                  ),
+                ),
             ],
           ),
           Expanded(
@@ -89,20 +94,27 @@ class _Item extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      label: playable ? emoji : '$emoji, no sound',
       onTap: () => Navigator.pop(context, emoji),
-      child: Opacity(
-        opacity: playable ? 1 : 0.35,
-        child: Container(
-          alignment: Alignment.center,
-          decoration: toyBox(radius: 10, border: 2, shadow: false),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Text(emoji, style: const TextStyle(fontSize: 26)),
-              if (!playable)
-                const Positioned(right: 2, bottom: 1, child: Text('🔇', style: TextStyle(fontSize: 10))),
-            ],
+      child: ExcludeSemantics(
+        child: GestureDetector(
+          onTap: () => Navigator.pop(context, emoji),
+          child: Opacity(
+            opacity: playable ? 1 : 0.35,
+            child: Container(
+              alignment: Alignment.center,
+              decoration: toyBox(radius: 10, border: 2, shadow: false),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Text(emoji, style: const TextStyle(fontSize: 26)),
+                  if (!playable)
+                    const Positioned(right: 2, bottom: 1, child: Text('🔇', style: TextStyle(fontSize: 10))),
+                ],
+              ),
+            ),
           ),
         ),
       ),

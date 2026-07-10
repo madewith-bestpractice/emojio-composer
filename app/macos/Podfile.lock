@@ -1,4 +1,6 @@
 PODS:
+  - app_links (6.4.1):
+    - FlutterMacOS
   - audio_session (0.0.1):
     - FlutterMacOS
   - flutter_midi_command_darwin (1.0.0):
@@ -19,6 +21,7 @@ PODS:
     - FlutterMacOS
 
 DEPENDENCIES:
+  - app_links (from `Flutter/ephemeral/.symlinks/plugins/app_links/macos`)
   - audio_session (from `Flutter/ephemeral/.symlinks/plugins/audio_session/macos`)
   - flutter_midi_command_darwin (from `Flutter/ephemeral/.symlinks/plugins/flutter_midi_command_darwin/darwin`)
   - flutter_quick_video_encoder (from `Flutter/ephemeral/.symlinks/plugins/flutter_quick_video_encoder/macos`)
@@ -29,6 +32,8 @@ DEPENDENCIES:
   - share_plus (from `Flutter/ephemeral/.symlinks/plugins/share_plus/macos`)
 
 EXTERNAL SOURCES:
+  app_links:
+    :path: Flutter/ephemeral/.symlinks/plugins/app_links/macos
   audio_session:
     :path: Flutter/ephemeral/.symlinks/plugins/audio_session/macos
   flutter_midi_command_darwin:
@@ -47,6 +52,7 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/share_plus/macos
 
 SPEC CHECKSUMS:
+  app_links: 05a6ec2341985eb05e9f97dc63f5837c39895c3f
   audio_session: eaca2512cf2b39212d724f35d11f46180ad3a33e
   flutter_midi_command_darwin: 6afc0c0eb03f1a60a8a1704240e3bcfe68b76a51
   flutter_quick_video_encoder: efd77d113a3c1c93b1268a2012d96a21067b7bdb

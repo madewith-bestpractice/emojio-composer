@@ -54,6 +54,7 @@ class StaffPainter extends CustomPainter {
   final List<String>? rowLabels; // per-row pitch names (scale mode); null = free
   final bool showClef;
   final Color bgColor;
+  final bool reduceMotion; // iOS "Reduce Motion": drop the bounce + stamp-in
 
   // Rows that get a bold staff line (matches the web app's MAIN_STAFF_LINES).
   static const _mainLines = {1, 3, 5, 7, 9, 11, 13};
@@ -71,6 +72,7 @@ class StaffPainter extends CustomPainter {
     this.rowLabels,
     this.showClef = true,
     this.bgColor = Colors.white,
+    this.reduceMotion = false,
   });
 
   @override
@@ -149,8 +151,8 @@ class StaffPainter extends CustomPainter {
       final age = tMs - n.createdAtMs;
       if (active) {
         scale = 1.18;
-        dy = -(math.sin(tMs * 0.015).abs()) * 10;
-      } else if (age < 320) {
+        dy = reduceMotion ? 0 : -(math.sin(tMs * 0.015).abs()) * 10;
+      } else if (!reduceMotion && age < 320) {
         final t = age / 320.0;
         scale = t < 0.5 ? 0.6 + t * 2 * 0.6 : 1.2 - (t - 0.5) * 2 * 0.2;
       }

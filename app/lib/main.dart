@@ -874,7 +874,7 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('🐢', style: TextStyle(fontSize: 16)),
+            const ExcludeSemantics(child: Text('🐢', style: TextStyle(fontSize: 16))),
             SizedBox(
               width: 130,
               child: Slider(
@@ -883,12 +883,13 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
                 value: _bpm,
                 divisions: 120,
                 label: '${_bpm.round()} BPM',
+                semanticFormatterCallback: (v) => '${v.round()} beats per minute',
                 onChanged: (v) => setState(() => _bpm = v),
               ),
             ),
-            const Text('🐇', style: TextStyle(fontSize: 16)),
+            const ExcludeSemantics(child: Text('🐇', style: TextStyle(fontSize: 16))),
             const SizedBox(width: 6),
-            Text('${_bpm.round()}', style: Toy.label(9)),
+            ExcludeSemantics(child: Text('${_bpm.round()}', style: Toy.label(9))),
           ],
         ),
       );
@@ -899,19 +900,24 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
         child: Row(
           children: [
             // Active swatch
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('ACTIVE', style: Toy.label(6)),
-                const SizedBox(height: 4),
-                Container(
-                  width: 58,
-                  height: 58,
-                  alignment: Alignment.center,
-                  decoration: toyBox(radius: 14),
-                  child: Text(_selected, style: const TextStyle(fontSize: 34)),
-                ),
-              ],
+            Semantics(
+              label: 'Active sound',
+              value: _selected,
+              excludeSemantics: true,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('ACTIVE', style: Toy.label(6)),
+                  const SizedBox(height: 4),
+                  Container(
+                    width: 58,
+                    height: 58,
+                    alignment: Alignment.center,
+                    decoration: toyBox(radius: 14),
+                    child: Text(_selected, style: const TextStyle(fontSize: 34)),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(width: 18),
             Expanded(
@@ -932,22 +938,31 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
 
   Widget _paletteItem(String e) {
     final on = e == _selected;
+    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 5),
-      child: GestureDetector(
+      child: Semantics(
+        button: true,
+        selected: on,
+        label: 'Sound $e',
         onTap: () => _select(e),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 100),
-          width: 52,
-          height: 52,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: on ? Toy.highlight : Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: on ? Toy.text : Colors.transparent, width: 3),
-            boxShadow: [BoxShadow(color: Toy.text.withValues(alpha: on ? 1 : 0.1), offset: const Offset(3, 3))],
+        child: ExcludeSemantics(
+          child: GestureDetector(
+            onTap: () => _select(e),
+            child: AnimatedContainer(
+              duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 100),
+              width: 52,
+              height: 52,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: on ? Toy.highlight : Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: on ? Toy.text : Colors.transparent, width: 3),
+                boxShadow: [BoxShadow(color: Toy.text.withValues(alpha: on ? 1 : 0.1), offset: const Offset(3, 3))],
+              ),
+              child: Text(e, style: const TextStyle(fontSize: 30)),
+            ),
           ),
-          child: Text(e, style: const TextStyle(fontSize: 30)),
         ),
       ),
     );
@@ -955,18 +970,25 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
 
   Widget _addButton() => Padding(
         padding: const EdgeInsets.symmetric(horizontal: 5),
-        child: GestureDetector(
+        child: Semantics(
+          button: true,
+          label: 'Add a sound',
           onTap: _openPicker,
-          child: Container(
-            width: 52,
-            height: 52,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: const Color(0xFFECEFF1),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFFB0BEC5), width: 3, style: BorderStyle.solid),
+          child: ExcludeSemantics(
+            child: GestureDetector(
+              onTap: _openPicker,
+              child: Container(
+                width: 52,
+                height: 52,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFECEFF1),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFB0BEC5), width: 3, style: BorderStyle.solid),
+                ),
+                child: const Text('➕', style: TextStyle(fontSize: 22)),
+              ),
             ),
-            child: const Text('➕', style: TextStyle(fontSize: 22)),
           ),
         ),
       );
@@ -979,40 +1001,48 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   Widget _staff() => LayoutBuilder(
         builder: (context, constraints) {
           final size = Size(constraints.maxWidth, constraints.maxHeight);
-          return Listener(
-            onPointerDown: _capturePressure,
-            onPointerMove: _capturePressure,
-            child: GestureDetector(
-              onTapUp: (d) => _toggleAt(d.localPosition, size),
-              onPanStart: (d) {
-                _lastPainted = null;
-                _paintAt(d.localPosition, size);
-              },
-              onPanUpdate: (d) => _paintAt(d.localPosition, size),
-              onPanEnd: (_) => _lastPainted = null,
-              child: RepaintBoundary(
-                child: ListenableBuilder(
-                  listenable: _repaint,
-                  builder: (context, _) => CustomPaint(
-                    size: size,
-                    painter: StaffPainter(
-                      notes: _notes,
-                      cols: kCols,
-                      rows: _rows,
-                      isPlaying: _playing,
-                      currentStep: _currentStep,
-                      playheadFrac: _playheadFrac,
-                      tMs: _nowMs,
-                      cursorStep: _playing ? -1 : _cursorStep,
-                      rowLabels: _engine.scaleMode == ScaleMode.free
-                          ? null
-                          : List.generate(_rows, (i) => _pcName(_engine.midiForRow(i))),
-                      showClef: _engine.scaleMode == ScaleMode.free,
+          final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+          return Semantics(
+            container: true,
+            label: 'Music staff',
+            hint: 'Tap a spot to place or remove a sound',
+            value: '${_notes.length} sound${_notes.length == 1 ? '' : 's'} placed',
+            child: Listener(
+              onPointerDown: _capturePressure,
+              onPointerMove: _capturePressure,
+              child: GestureDetector(
+                onTapUp: (d) => _toggleAt(d.localPosition, size),
+                onPanStart: (d) {
+                  _lastPainted = null;
+                  _paintAt(d.localPosition, size);
+                },
+                onPanUpdate: (d) => _paintAt(d.localPosition, size),
+                onPanEnd: (_) => _lastPainted = null,
+                child: RepaintBoundary(
+                  child: ListenableBuilder(
+                    listenable: _repaint,
+                    builder: (context, _) => CustomPaint(
+                      size: size,
+                      painter: StaffPainter(
+                        notes: _notes,
+                        cols: kCols,
+                        rows: _rows,
+                        isPlaying: _playing,
+                        currentStep: _currentStep,
+                        playheadFrac: _playheadFrac,
+                        tMs: _nowMs,
+                        cursorStep: _playing ? -1 : _cursorStep,
+                        rowLabels: _engine.scaleMode == ScaleMode.free
+                            ? null
+                            : List.generate(_rows, (i) => _pcName(_engine.midiForRow(i))),
+                        showClef: _engine.scaleMode == ScaleMode.free,
+                        reduceMotion: reduceMotion,
+                      ),
                     ),
                   ),
                 ),
               ),
-          ),
+            ),
           );
         },
       );
