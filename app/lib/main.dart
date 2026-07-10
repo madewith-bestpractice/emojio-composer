@@ -883,9 +883,9 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
                     label: _playing ? 'Stop' : 'Play',
                     emoji: _playing ? '⏹️' : '▶️',
                     color: _playing ? Toy.red : Toy.green,
-                    fontSize: 14,
-                    radius: 20,
-                    padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+                    fontSize: 18,
+                    radius: 10, // square-ish corners
+                    padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
                     onPressed: _togglePlay,
                   ),
                   // Tier 2 — creative actions: medium labelled pills.

@@ -65,9 +65,6 @@ class VoiceEngine {
     manifest = m;
     if (!_soloud.isInitialized) {
       await _soloud.init(sampleRate: m.sampleRate, bufferSize: bufferSize);
-      // More polyphony headroom than SoLoud's default 16 — dense columns (up to
-      // one note per row) plus the tails of prior steps can stack well past 16.
-      _soloud.setMaxActiveVoiceCount(32);
     }
     _installMasterBus();
     // Preload every zone sample once (dedup by filename).
