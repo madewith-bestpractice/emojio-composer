@@ -29,7 +29,9 @@ class VoiceEngine {
   final Map<String, AudioSource> _sources = {}; // file -> loaded sample
   final Map<String, Float32List> _pcmCache = {}; // file -> decoded mono PCM (for export)
   bool ready = false;
-  int bufferSize = 1024; // lower than the 2048 default, for tighter latency
+  // SoLoud's default. A smaller buffer (was 1024) underruns on CPU spikes —
+  // rebuilds, stamp-in animations, dialogs — and that's the crackle/grinding.
+  int bufferSize = 2048;
 
   ScaleMode scaleMode = ScaleMode.free;
   List<int>? _scaleRows; // row -> MIDI when a scale is active (null = free)
@@ -65,6 +67,9 @@ class VoiceEngine {
     manifest = m;
     if (!_soloud.isInitialized) {
       await _soloud.init(sampleRate: m.sampleRate, bufferSize: bufferSize);
+      // Polyphony headroom above SoLoud's default 16 — dense columns plus the
+      // tails of prior steps can stack past 16. Safe now that the buffer is 2048.
+      _soloud.setMaxActiveVoiceCount(32);
     }
     _installMasterBus();
     // Preload every zone sample once (dedup by filename).
