@@ -176,6 +176,15 @@ class MidiPanel extends StatelessWidget {
                 ],
               ),
             ),
+            const SizedBox(height: 10),
+            _ToyToggle(
+              label: 'Send MIDI clock (master)',
+              value: midi.sendClock,
+              enabled: !midi.externalSync,
+              onChanged: midi.setSendClock,
+            ),
+            const Text('Emits 24 PPQN clock + Start/Stop so external gear locks to Emojio’s tempo & transport.',
+                style: TextStyle(fontSize: 10, color: Colors.black38)),
           ],
         ),
       );
@@ -188,6 +197,7 @@ class MidiPanel extends StatelessWidget {
             _ToyToggle(
               label: 'Follow external MIDI clock',
               value: midi.externalSync,
+              enabled: !midi.sendClock,
               onChanged: midi.setExternalSync,
             ),
             if (midi.externalSync)
@@ -319,6 +329,14 @@ class MidiPanel extends StatelessWidget {
             child: Text(label,
                 style: const TextStyle(fontSize: 11, fontFamily: 'monospace', color: Color(0xFFB2EBF2))),
           ),
+          // Live clock-interval jitter (loopback out→in for the master test, or
+          // incoming-clock quality when following).
+          if (midi.clockJitterUs > 0)
+            Padding(
+              padding: const EdgeInsets.only(right: 10),
+              child: Text('⏱±${midi.clockJitterUs.toStringAsFixed(0)}µs',
+                  style: const TextStyle(fontSize: 10, fontFamily: 'monospace', color: Color(0xFFFFE082))),
+            ),
           SizedBox(
             width: 60,
             child: LinearProgressIndicator(
@@ -403,13 +421,14 @@ class _ToyToggle extends StatelessWidget {
   final String label;
   final bool value;
   final ValueChanged<bool> onChanged;
-  const _ToyToggle({required this.label, required this.value, required this.onChanged});
+  final bool enabled;
+  const _ToyToggle({required this.label, required this.value, required this.onChanged, this.enabled = true});
   @override
   Widget build(BuildContext context) => SwitchListTile(
         dense: true,
         contentPadding: EdgeInsets.zero,
-        title: Text(label, style: const TextStyle(fontSize: 12)),
+        title: Text(label, style: TextStyle(fontSize: 12, color: enabled ? null : Colors.black38)),
         value: value,
-        onChanged: onChanged,
+        onChanged: enabled ? onChanged : null,
       );
 }

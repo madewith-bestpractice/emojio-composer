@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_midi_command/flutter_midi_command.dart';
 import 'package:path_provider/path_provider.dart';
+import 'host_time.dart';
 
 enum MidiKind { noteOn, noteOff, cc, other }
 
@@ -110,12 +111,21 @@ class MidiManager extends ChangeNotifier {
   // Output settings
   bool outEnabled = false;
   int outChannel = 0; // 0..15
+  bool sendClock = false; // emit 24-PPQN clock + transport as master
 
   // External sync (MIDI clock / Song Position) — external device drives transport
   bool externalSync = false;
   double? syncedBpm; // estimated from incoming clock
   DateTime? _lastClock;
   int _clockNotify = 0;
+
+  // Hardware-timestamped clock-interval jitter (µs), from received packet
+  // timestamps — the measurement for the loopback clock-out test, and a live
+  // quality readout when following an external clock.
+  HostClock? _hostClock;
+  int? _lastClockTicks;
+  double _clockIntervalAvgTicks = 0;
+  double clockJitterUs = 0;
 
   // Learn (one target at a time: an action, or a palette slot index)
   MidiAction? learning;
@@ -154,6 +164,11 @@ class MidiManager extends ChangeNotifier {
   Future<void> init() async {
     await _load(); // restore saved mappings + settings first
     try {
+      _hostClock = MachHostClock();
+    } catch (_) {
+      // non-Apple platform — jitter readout stays 0, everything else works
+    }
+    try {
       _dataSub = _midi.onMidiDataReceived?.listen(_onData);
       _setupSub = _midi.onMidiSetupChanged?.listen((_) => refresh());
       await refresh();
@@ -178,6 +193,7 @@ class MidiManager extends ChangeNotifier {
         'recordArm': recordArm,
         'outEnabled': outEnabled,
         'outChannel': outChannel,
+        'sendClock': sendClock,
         'externalSync': externalSync,
         'shuttleMode': shuttleMode.index,
         'mappings': {for (final e in mappings.entries) e.key.name: e.value.toJson()},
@@ -196,6 +212,7 @@ class MidiManager extends ChangeNotifier {
       recordArm = j['recordArm'] as bool? ?? recordArm;
       outEnabled = j['outEnabled'] as bool? ?? outEnabled;
       outChannel = j['outChannel'] as int? ?? outChannel;
+      sendClock = j['sendClock'] as bool? ?? sendClock;
       externalSync = j['externalSync'] as bool? ?? externalSync;
       final sm = j['shuttleMode'] as int?;
       if (sm != null && sm >= 0 && sm < RelMode.values.length) shuttleMode = RelMode.values[sm];
@@ -271,9 +288,14 @@ class MidiManager extends ChangeNotifier {
   void setShuttleMode(RelMode m) => _set(() => shuttleMode = m);
   void setOutEnabled(bool v) => _set(() => outEnabled = v);
   void setOutChannel(int v) => _set(() => outChannel = v.clamp(0, 15));
+  void setSendClock(bool v) => _set(() {
+        sendClock = v;
+        if (v) externalSync = false; // master and follower are mutually exclusive
+      });
   void setExternalSync(bool v) => _set(() {
         externalSync = v;
         if (!v) syncedBpm = null;
+        if (v) sendClock = false; // master and follower are mutually exclusive
       });
 
   void _set(VoidCallback fn) {
@@ -333,7 +355,14 @@ class MidiManager extends ChangeNotifier {
     Timer(off, () => _midi.sendData(Uint8List.fromList([0x80 | ch, n, 0])));
   }
 
-  void _onClockPulse() {
+  /// Send a System Real-Time / Common message (no channel) to connected outputs,
+  /// optionally stamped at a future host-time [timestamp] (Mach ticks) for precise
+  /// delivery. Used by the clock-out master; independent of [outEnabled].
+  void sendRealtime(List<int> bytes, {int? timestamp}) {
+    _midi.sendData(Uint8List.fromList(bytes), timestamp: timestamp);
+  }
+
+  void _onClockPulse(int tsTicks) {
     onClock?.call();
     final now = DateTime.now();
     if (_lastClock != null) {
@@ -344,10 +373,34 @@ class MidiManager extends ChangeNotifier {
       }
     }
     _lastClock = now;
+    _measureClockJitter(tsTicks);
     if (++_clockNotify >= 24) {
       _clockNotify = 0;
-      notifyListeners(); // ~once per quarter, for the BPM readout
+      notifyListeners(); // ~once per quarter, for the BPM + jitter readout
     }
+  }
+
+  // Rolling deviation of the received clock interval from its own running mean,
+  // measured from hardware packet timestamps (µs). Resets across a stop/start
+  // gap (an interval far larger than the running mean).
+  void _measureClockJitter(int tsTicks) {
+    final hc = _hostClock;
+    final last = _lastClockTicks;
+    if (hc != null && last != null) {
+      final dt = tsTicks - last;
+      if (dt > 0) {
+        if (_clockIntervalAvgTicks != 0 && dt > _clockIntervalAvgTicks * 3) {
+          _clockIntervalAvgTicks = 0; // gap → restart the average
+          clockJitterUs = 0;
+        } else {
+          _clockIntervalAvgTicks =
+              _clockIntervalAvgTicks == 0 ? dt.toDouble() : _clockIntervalAvgTicks * 0.9 + dt * 0.1;
+          final devUs = hc.ticksToNanos((dt - _clockIntervalAvgTicks).abs().round()) / 1000.0;
+          clockJitterUs = clockJitterUs * 0.8 + devUs * 0.2;
+        }
+      }
+    }
+    _lastClockTicks = tsTicks;
   }
 
   // ---- incoming ----
@@ -364,7 +417,7 @@ class MidiManager extends ChangeNotifier {
       if (st >= 0xF8) {
         switch (st) {
           case 0xF8:
-            _onClockPulse();
+            _onClockPulse(e.timestamp);
           case 0xFA:
             onStart?.call();
             notifyListeners();
