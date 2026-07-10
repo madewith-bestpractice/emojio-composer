@@ -880,8 +880,8 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
                   ),
                   // Tier 1 — Play: the big, unmissable primary target.
                   ToyButton(
-                    label: _playing ? 'Stop' : 'Play',
-                    emoji: _playing ? '⏹️' : '▶️',
+                    label: _playing ? 'Pause' : 'Play',
+                    emoji: _playing ? '⏸️' : '▶️',
                     color: _playing ? Toy.red : Toy.green,
                     fontSize: 18,
                     radius: 10, // square-ish corners
