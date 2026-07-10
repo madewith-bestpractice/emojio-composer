@@ -1,4 +1,6 @@
 PODS:
+  - app_links (7.0.0):
+    - Flutter
   - audio_session (0.0.1):
     - Flutter
   - Flutter (1.0.0)
@@ -6,6 +8,8 @@ PODS:
     - Flutter
     - FlutterMacOS
   - flutter_native_splash (2.4.3):
+    - Flutter
+  - flutter_quick_video_encoder (0.0.1):
     - Flutter
   - flutter_secure_storage_darwin (10.0.0):
     - Flutter
@@ -15,17 +19,24 @@ PODS:
   - in_app_purchase_storekit (0.0.1):
     - Flutter
     - FlutterMacOS
+  - share_plus (0.0.1):
+    - Flutter
 
 DEPENDENCIES:
+  - app_links (from `.symlinks/plugins/app_links/ios`)
   - audio_session (from `.symlinks/plugins/audio_session/ios`)
   - Flutter (from `Flutter`)
   - flutter_midi_command_darwin (from `.symlinks/plugins/flutter_midi_command_darwin/darwin`)
   - flutter_native_splash (from `.symlinks/plugins/flutter_native_splash/ios`)
+  - flutter_quick_video_encoder (from `.symlinks/plugins/flutter_quick_video_encoder/ios`)
   - flutter_secure_storage_darwin (from `.symlinks/plugins/flutter_secure_storage_darwin/darwin`)
   - flutter_soloud (from `.symlinks/plugins/flutter_soloud/ios`)
   - in_app_purchase_storekit (from `.symlinks/plugins/in_app_purchase_storekit/darwin`)
+  - share_plus (from `.symlinks/plugins/share_plus/ios`)
 
 EXTERNAL SOURCES:
+  app_links:
+    :path: ".symlinks/plugins/app_links/ios"
   audio_session:
     :path: ".symlinks/plugins/audio_session/ios"
   Flutter:
@@ -34,21 +45,28 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/flutter_midi_command_darwin/darwin"
   flutter_native_splash:
     :path: ".symlinks/plugins/flutter_native_splash/ios"
+  flutter_quick_video_encoder:
+    :path: ".symlinks/plugins/flutter_quick_video_encoder/ios"
   flutter_secure_storage_darwin:
     :path: ".symlinks/plugins/flutter_secure_storage_darwin/darwin"
   flutter_soloud:
     :path: ".symlinks/plugins/flutter_soloud/ios"
   in_app_purchase_storekit:
     :path: ".symlinks/plugins/in_app_purchase_storekit/darwin"
+  share_plus:
+    :path: ".symlinks/plugins/share_plus/ios"
 
 SPEC CHECKSUMS:
+  app_links: a754cbec3c255bd4bbb4d236ecc06f28cd9a7ce8
   audio_session: 9bb7f6c970f21241b19f5a3658097ae459681ba0
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
   flutter_midi_command_darwin: 6afc0c0eb03f1a60a8a1704240e3bcfe68b76a51
   flutter_native_splash: c32d145d68aeda5502d5f543ee38c192065986cf
+  flutter_quick_video_encoder: c012b1523f40093feeffa90cebfe71b32b7b6d25
   flutter_secure_storage_darwin: acdb3f316ed05a3e68f856e0353b133eec373a23
   flutter_soloud: d9969a9777b511239e85da6e108e05b429207baf
   in_app_purchase_storekit: 22cca7d08eebca9babdf4d07d0baccb73325d3c8
+  share_plus: 50da8cb520a8f0f65671c6c6a99b3617ed10a58a
 
 PODFILE CHECKSUM: 5933b8d7d351f22b1bf8248a949f9fd994ed0b41
 

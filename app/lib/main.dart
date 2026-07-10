@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
+import 'package:app_links/app_links.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -65,6 +67,8 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   final _trial = TrialManager();
   final _purchases = PurchaseManager();
   final _midi = MidiManager();
+  final _appLinks = AppLinks();
+  StreamSubscription<Uri>? _linkSub; // incoming universal/share links
   late final SongExporter _exporter = SongExporter(_engine);
   final GlobalKey _exportKey = GlobalKey(); // share-sheet origin anchor (iPad)
   final GlobalKey _shareKey = GlobalKey(); // share-sheet origin anchor (iPad)
@@ -162,6 +166,7 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
         if (_palette.isNotEmpty) _selected = _palette.first;
       });
       _ticker.start();
+      await _initDeepLinks();
     } catch (e, st) {
       debugPrint('boot failed: $e\n$st');
       setState(() => _bootError = '$e');
@@ -715,6 +720,40 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
               Note(n.emoji, n.gridX, n.gridY, (_rng.nextDouble() - 0.5) * 0.3, _nowMs, velocity: n.velocity)));
       });
 
+  // ---- deep links ----
+  // A shared link (universal link, or one pasted/opened) that carries a song in
+  // its `#s=` payload opens it here — on cold start and while already running.
+  Future<void> _initDeepLinks() async {
+    try {
+      final initial = await _appLinks.getInitialLink();
+      if (initial != null) _handleIncomingLink(initial);
+      _linkSub = _appLinks.uriLinkStream.listen(_handleIncomingLink);
+    } catch (e) {
+      debugPrint('deep link init failed: $e');
+    }
+  }
+
+  void _handleIncomingLink(Uri uri) {
+    final shared = sharedSongFromUri(uri);
+    if (shared == null || !mounted) return;
+    _loadShared(shared);
+    _snack('Loaded shared song!');
+  }
+
+  // Like _loadSong but for an incoming link: no id/name, so it behaves as a
+  // fresh unsaved song the recipient can tweak and Save under their own name.
+  void _loadShared(SharedSong s) => setState(() {
+        _currentId = null;
+        _currentName = 'Untitled';
+        _bpm = s.bpm.clamp(60, 180);
+        if (s.palette.isNotEmpty) _palette = List.of(s.palette);
+        if (_palette.isNotEmpty) _selected = _palette.first;
+        _notes
+          ..clear()
+          ..addAll(s.notes.map((n) =>
+              Note(n.emoji, n.gridX, n.gridY, (_rng.nextDouble() - 0.5) * 0.3, _nowMs, velocity: n.velocity)));
+      });
+
   Future<void> _openLibrary() async {
     if (_playing) _togglePlay();
     await showModalBottomSheet<void>(
@@ -734,6 +773,7 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
 
   @override
   void dispose() {
+    _linkSub?.cancel();
     _ticker.dispose();
     _engine.dispose();
     _purchases.removeListener(_onMonetizationChange);
