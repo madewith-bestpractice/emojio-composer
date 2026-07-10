@@ -56,9 +56,17 @@ class _ToyButtonState extends State<ToyButton> {
   @override
   Widget build(BuildContext context) {
     final enabled = widget.onPressed != null;
+    final media = MediaQuery.maybeOf(context);
     // iOS "Reduce Motion": snap the press feedback instead of animating it.
-    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final reduceMotion = media?.disableAnimations ?? false;
     final offset = _down ? 1.0 : 3.0;
+    // iOS "Increase Contrast": darken bright fills that carry light text so the
+    // label clears WCAG AA (~4.5:1). The default toy palette is left untouched;
+    // dark-text buttons (white/amber fills) already have ample contrast.
+    var fill = enabled ? widget.color : widget.color.withValues(alpha: 0.5);
+    if ((media?.highContrast ?? false) && widget.textColor.computeLuminance() > 0.5) {
+      fill = Color.lerp(fill, Colors.black, 0.3)!;
+    }
     Widget visual = GestureDetector(
       onTapDown: enabled ? (_) => setState(() => _down = true) : null,
       onTapCancel: enabled ? () => setState(() => _down = false) : null,
@@ -69,7 +77,7 @@ class _ToyButtonState extends State<ToyButton> {
         transform: Matrix4.translationValues(_down ? 2 : 0, _down ? 2 : 0, 0),
         padding: widget.padding,
         decoration: BoxDecoration(
-          color: enabled ? widget.color : widget.color.withValues(alpha: 0.5),
+          color: fill,
           borderRadius: BorderRadius.circular(widget.radius),
           border: Border.all(color: Toy.text, width: 3),
           boxShadow: [BoxShadow(color: Toy.text, offset: Offset(offset, offset))],

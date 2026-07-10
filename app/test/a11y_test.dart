@@ -38,5 +38,28 @@ void main() {
       expect(find.bySemanticsLabel('Save'), findsOneWidget);
       handle.dispose();
     });
+
+    testWidgets('Increase Contrast darkens a light-text button', (tester) async {
+      Color fillOf() => (tester
+              .widget<AnimatedContainer>(find.descendant(
+                  of: find.byType(ToyButton), matching: find.byType(AnimatedContainer)))
+              .decoration! as BoxDecoration)
+          .color!;
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(body: ToyButton(label: 'Play', color: const Color(0xFF4CAF50), onPressed: () {})),
+      ));
+      final normal = fillOf();
+
+      await tester.pumpWidget(MaterialApp(
+        home: Builder(
+          builder: (ctx) => MediaQuery(
+            data: MediaQuery.of(ctx).copyWith(highContrast: true),
+            child: Scaffold(body: ToyButton(label: 'Play', color: const Color(0xFF4CAF50), onPressed: () {})),
+          ),
+        ),
+      ));
+      expect(fillOf().computeLuminance(), lessThan(normal.computeLuminance()));
+    });
   });
 }
