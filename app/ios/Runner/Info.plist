@@ -11,6 +11,13 @@
 		<!-- Network (RTP) MIDI over the local network. -->
 		<key>NSLocalNetworkUsageDescription</key>
 		<string>Connect to network MIDI devices on your local network.</string>
+		<!-- Keep audio + the MIDI clock master running when backgrounded (the app
+		     configures a music AVAudioSession and can drive external gear as a
+		     clock master). -->
+		<key>UIBackgroundModes</key>
+		<array>
+			<string>audio</string>
+		</array>
 		<key>CFBundleDevelopmentRegion</key>
 		<string>$(DEVELOPMENT_LANGUAGE)</string>
 		<key>CFBundleDisplayName</key>

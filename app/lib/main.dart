@@ -15,6 +15,8 @@ import 'package:share_plus/share_plus.dart';
 import 'export/song_exporter.dart';
 import 'export/wav.dart';
 import 'manifest.dart';
+import 'midi/clock_out.dart';
+import 'midi/host_time.dart';
 import 'midi/midi_manager.dart';
 import 'midi/midi_panel.dart';
 import 'monetization/paywall.dart';
@@ -67,6 +69,7 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   final _trial = TrialManager();
   final _purchases = PurchaseManager();
   final _midi = MidiManager();
+  MidiClockOut? _clockOut; // MIDI clock master (null if the host clock is unavailable)
   final _appLinks = AppLinks();
   StreamSubscription<Uri>? _linkSub; // incoming universal/share links
   late final SongExporter _exporter = SongExporter(_engine);
@@ -117,6 +120,16 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
     super.initState();
     _ticker = createTicker(_onTick);
     _sw.start();
+    // MIDI clock master; null if the Mach host clock can't be resolved (non-Apple
+    // platform) so the rest of the app is unaffected.
+    try {
+      _clockOut = MidiClockOut(
+        clock: MachHostClock(),
+        send: (bytes, ts) => _midi.sendRealtime(bytes, timestamp: ts),
+      );
+    } catch (e) {
+      debugPrint('clock-out unavailable: $e');
+    }
     _boot();
   }
 
@@ -182,6 +195,23 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   void _onMidiDevices() {
     if (mounted && _midi.devices.length != _midiDevices) {
       setState(() => _midiDevices = _midi.devices.length);
+    }
+    // Also picks up the clock-master / follow-clock toggles flipping mid-play.
+    _syncClockOut();
+  }
+
+  bool get _clockOutShouldRun => _playing && _midi.sendClock && !_midi.externalSync;
+
+  // Start/stop the clock master to match the transport + settings. Anchored at
+  // the same play-press instant as _playStartMs, so the app's audio and the
+  // emitted 24-PPQN clock share a downbeat (same host clock, same rate).
+  void _syncClockOut() {
+    final co = _clockOut;
+    if (co == null) return;
+    if (_clockOutShouldRun && !co.isRunning) {
+      co.start(_bpm);
+    } else if (!_clockOutShouldRun && co.isRunning) {
+      co.stop();
     }
   }
 
@@ -570,19 +600,25 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
     return bd!.buffer.asUint8List();
   }
 
-  void _togglePlay() => setState(() {
-        _playing = !_playing;
-        _currentStep = -1;
-        if (_playing) {
-          _globalStep = 0;
-          _playStartMs = _nowMs;
-        }
-      });
+  void _togglePlay() {
+    setState(() {
+      _playing = !_playing;
+      _currentStep = -1;
+      if (_playing) {
+        _globalStep = 0;
+        _playStartMs = _nowMs;
+      }
+    });
+    _syncClockOut();
+  }
 
-  void _stopTransport() => setState(() {
-        _playing = false;
-        _currentStep = -1;
-      });
+  void _stopTransport() {
+    setState(() {
+      _playing = false;
+      _currentStep = -1;
+    });
+    _syncClockOut();
+  }
 
   // ---- editing ----
   void _toggleAt(Offset p, Size size) {
@@ -774,6 +810,7 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   @override
   void dispose() {
     _linkSub?.cancel();
+    _clockOut?.dispose();
     _ticker.dispose();
     _engine.dispose();
     _purchases.removeListener(_onMonetizationChange);
@@ -884,7 +921,10 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
                 divisions: 120,
                 label: '${_bpm.round()} BPM',
                 semanticFormatterCallback: (v) => '${v.round()} beats per minute',
-                onChanged: (v) => setState(() => _bpm = v),
+                onChanged: (v) {
+                  setState(() => _bpm = v);
+                  if (_clockOut?.isRunning ?? false) _clockOut!.setBpm(v);
+                },
               ),
             ),
             const ExcludeSemantics(child: Text('🐇', style: TextStyle(fontSize: 16))),
