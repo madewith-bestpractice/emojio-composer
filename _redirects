@@ -1,3 +1,10 @@
+# Cloudflare Pages doesn't deploy the dot-directory .well-known file, and this
+# project serves index.html for unmatched paths (SPA not-found handling). So
+# rewrite the canonical Apple app-site-association path to a real, non-dotted
+# JSON asset. _redirects is evaluated before the SPA fallback, so Apple's CDN
+# gets the JSON (not index.html).
+/.well-known/apple-app-site-association   /aasa.json   200
+
 # Share links are /play#s=<code>. The #fragment stays in the browser; the
 # server just needs to serve the composer here (universal link opens the app
 # if installed, otherwise this loads and reads the song from the hash).

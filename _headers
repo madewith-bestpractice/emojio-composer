@@ -1,3 +1,6 @@
-# Apple requires the app-site-association file served as JSON, no redirect.
+# Apple requires the app-site-association served as JSON, no redirect. The
+# canonical path is rewritten to /aasa.json (see _redirects); force JSON on both.
+/aasa.json
+  Content-Type: application/json
 /.well-known/apple-app-site-association
   Content-Type: application/json
