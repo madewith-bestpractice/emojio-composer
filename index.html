@@ -1247,8 +1247,8 @@
             if (instruments[type]) return instruments[type];
             
             const bus = getMasterBus();
-            // Global maxPolyphony limit for performance
-            const polyOptions = { maxPolyphony: 4 };
+            // Per-instrument polyphony cap (headroom vs. browser CPU on iPad Safari)
+            const polyOptions = { maxPolyphony: 8 };
 
             switch (type) {
                 case 'dog': {
@@ -1292,7 +1292,7 @@
                     instruments.boat.volume.value = -10;
                     break;
                 case 'flower':
-                    instruments.flower = new Tone.PolySynth(Tone.FMSynth, { harmonicity: 3.01, modulationIndex: 2, oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 0.5, sustain: 0, release: 0.3 }, modulation: { type: "sine" }, modulationEnvelope: { attack: 0.01, decay: 0.5, sustain: 0, release: 0.3 } }).connect(bus);
+                    instruments.flower = new Tone.PolySynth(Tone.FMSynth, { ...polyOptions, harmonicity: 3.01, modulationIndex: 2, oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 0.5, sustain: 0, release: 0.3 }, modulation: { type: "sine" }, modulationEnvelope: { attack: 0.01, decay: 0.5, sustain: 0, release: 0.3 } }).connect(bus);
                     instruments.flower.volume.value = -5;
                     break;
                 case 'mario': {
