@@ -16,6 +16,11 @@ original Tone.js voices, baked to samples and played natively via
 - **Emoji picker** — full categorized picker; palette add/select (cap 10).
 - **Local song library** — save/name/duplicate/delete songs on-device
   (`<documents>/songs/*.json`), with mini staff previews. No account.
+- **Export & share** — bounce ~4 loops to a **WAV** or an **MP4** (chrome-free
+  staff on brand yellow) and open the iOS share sheet. **Share** also sends a
+  link that reopens the song in the app (universal links) or the web player.
+- **Accessibility** — VoiceOver labels on every control, Reduce Motion, and an
+  Increase-Contrast response.
 - **MIDI (iPad, USB-first)** — see below.
 - **Monetization** — 3-day Keychain trial → single non-consumable "unlock
   forever" IAP (StoreKit 2). Paywall + trial banner.
@@ -102,6 +107,5 @@ flutter run -d <ipad-id>      # on iPad; plug in a USB-MIDI controller to test M
 - `lib/main.dart` — app shell + transport + wiring.
 
 ## Known simplifications (tech debt)
-- Rebuilds via an always-on 60fps Ticker (fine for now; gate to playing/animating later).
 - Dry audio (the shared reverb/compressor aren't re-applied as a global mix bus yet).
 - Sustain-loop points are manifest placeholders; hand-tune for held notes.
