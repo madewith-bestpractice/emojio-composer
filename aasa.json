@@ -1,0 +1,16 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "8MVR56ALMS.com.madewithbestpractice.emojio",
+        "appIDs": ["8MVR56ALMS.com.madewithbestpractice.emojio"],
+        "paths": ["/play", "/play/*"],
+        "components": [
+          { "/": "/play", "comment": "Open a shared song in the app" },
+          { "/": "/play/*", "comment": "Open a shared song in the app" }
+        ]
+      }
+    ]
+  }
+}
