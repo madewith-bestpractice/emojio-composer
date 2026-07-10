@@ -113,7 +113,9 @@ String webShareUrl({
     }).toList(),
   };
   final code = base64.encode(utf8.encode(jsonEncode(obj)));
-  return '$kWebPlayerBase/#s=$code';
+  // `/play` is the universal-link path (see the site's apple-app-site-association):
+  // opens the app when installed, otherwise the web player loads and reads `#s=`.
+  return '$kWebPlayerBase/play#s=$code';
 }
 
 /// A song decoded from a share link — just enough to drop into the composer.

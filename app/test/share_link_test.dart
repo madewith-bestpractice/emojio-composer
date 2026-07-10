@@ -12,7 +12,7 @@ void main() {
       ];
       final url = webShareUrl(bpm: 128, palette: palette, notes: notes);
 
-      expect(url, startsWith('$kWebPlayerBase/#s='));
+      expect(url, startsWith('$kWebPlayerBase/play#s='));
 
       final decoded = sharedSongFromUri(Uri.parse(url));
       expect(decoded, isNotNull);
