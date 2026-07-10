@@ -155,8 +155,6 @@
             white-space: nowrap;
             letter-spacing: 1px;
             line-height: 1.4;
-            /* Give it a little breathing room */
-            margin-right: auto; 
             flex-shrink: 1; /* Allow shrinking if needed */
             overflow: hidden;
             text-overflow: ellipsis;
@@ -607,6 +605,67 @@
              font-size: 0.8rem;
         }
 
+        /* "Get the iPad app" badge — deliberately understated and kept on the
+           title side of the header, away from the play/share buttons, so it's
+           hard to hit by accident. */
+        .get-app-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-right: auto;            /* keep the action buttons pushed right */
+            align-self: center;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.42rem;
+            line-height: 1.5;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            color: var(--text-color);
+            background: rgba(255,255,255,0.5);
+            border: 2px solid rgba(55,71,79,0.45);
+            border-radius: 999px;
+            padding: 6px 11px;
+            text-decoration: none;
+            cursor: pointer;
+            opacity: 0.75;
+            white-space: nowrap;
+            transition: opacity .15s ease, transform .15s ease, border-color .15s ease;
+        }
+        .get-app-badge:hover,
+        .get-app-badge:focus-visible {
+            opacity: 1;
+            border-color: var(--text-color);
+            transform: translateY(-1px);
+            outline: none;
+        }
+        .get-app-badge .ga-emoji { font-size: 0.7rem; }
+        @media (max-width: 800px) {
+            .get-app-badge { align-self: flex-start; }  /* its own line under the title */
+        }
+
+        /* iPad app upsell modal */
+        .app-modal-box { max-width: 460px; text-align: left; }
+        .app-modal-emoji { font-size: 2rem; text-align: center; margin-bottom: 4px; }
+        .app-modal-box .modal-title { text-align: center; margin-bottom: 8px; }
+        .app-modal-sub {
+            font-size: 0.6rem; line-height: 1.6; color: #555;
+            text-align: center; margin: 0 0 18px;
+        }
+        .app-feature-list {
+            list-style: none; padding: 0; margin: 0 0 22px;
+            display: grid; gap: 12px;
+        }
+        .app-feature-list li {
+            display: grid; grid-template-columns: 22px 1fr; gap: 10px;
+            align-items: start; font-size: 0.56rem; line-height: 1.65; color: var(--text-color);
+        }
+        .app-feature-list li .fi { font-size: 0.95rem; line-height: 1.2; }
+        .app-store-cta {
+            display: flex; justify-content: center; margin-bottom: 14px;
+        }
+        .app-store-cta img { height: 48px; width: auto; display: block; transition: transform .15s ease; }
+        .app-store-cta:hover img { transform: translateY(-2px); }
+        .app-later { display: block; width: 100%; }
+
         /* Textarea for Sharing */
         textarea {
             font-family: 'Press Start 2P', cursive;
@@ -717,6 +776,10 @@
 
     <header>
         <h1><img src="emojio-icon.png" alt="Emojio" width="44" height="44" style="vertical-align:middle;border-radius:9px"> Emojio Paint Composer</h1>
+        <a class="get-app-badge" id="getAppBadge" href="#" role="button" aria-haspopup="dialog"
+           title="Emojio for iPad — see what the app adds">
+            <span class="ga-emoji" aria-hidden="true">📱</span> Get the iPad app
+        </a>
         <div class="controls">
             <!-- Buttons now populated by JS with icons AND text -->
             <button id="playToggle" class="play-btn">
@@ -803,6 +866,30 @@
             <button id="loadSongCodeBtn" class="action-btn" style="width:100%; margin-bottom:12px;">Load Song From Code</button>
 
             <button id="closeShareModalBtn" class="danger" style="width:100%;">Close</button>
+        </div>
+    </div>
+
+    <!-- iPad App Upsell Modal -->
+    <div id="appModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="appModalTitle">
+        <div class="modal-box app-modal-box">
+            <div class="app-modal-emoji" aria-hidden="true">📱✨</div>
+            <div class="modal-title" id="appModalTitle">Emojio is even better on iPad</div>
+            <p class="app-modal-sub">Everything you can do here — plus a bunch the web can’t:</p>
+            <ul class="app-feature-list">
+                <li><span class="fi" aria-hidden="true">🎬</span> Export your song as a video (MP4) or audio (WAV)</li>
+                <li><span class="fi" aria-hidden="true">💾</span> Save a whole library of songs — name them, reopen anytime</li>
+                <li><span class="fi" aria-hidden="true">🔗</span> Share a link that opens right back in the app</li>
+                <li><span class="fi" aria-hidden="true">🎹</span> Play &amp; record with a MIDI keyboard</li>
+                <li><span class="fi" aria-hidden="true">✏️</span> Apple Pencil pressure sets each note’s volume</li>
+                <li><span class="fi" aria-hidden="true">🔊</span> Studio-quality sound — plays with the silent switch &amp; in the background</li>
+            </ul>
+            <!-- TODO: replace href with the real App Store URL once the app is published -->
+            <a class="app-store-cta" id="getAppBtn" href="https://apps.apple.com/app/emojio"
+               target="_blank" rel="noopener" aria-label="Download Emojio on the App Store">
+                <img src="https://toolbox.marketingtools.apple.com/api/v2/badges/download-on-the-app-store/black/en-us"
+                     alt="Download on the App Store">
+            </a>
+            <button id="closeAppModalBtn" class="action-btn app-later">Maybe later</button>
         </div>
     </div>
 
@@ -2133,6 +2220,20 @@
             if (!code) return;
             loadSongFromCode(code);
             closeShareModal();
+        });
+
+        // --- iPad APP UPSELL ---
+        const getAppBadge = document.getElementById('getAppBadge');
+        const appModal = document.getElementById('appModal');
+        const closeAppModalBtn = document.getElementById('closeAppModalBtn');
+        function openAppModal() { appModal.classList.remove('hidden'); }
+        function closeAppModal() { appModal.classList.add('hidden'); }
+        getAppBadge.addEventListener('click', (e) => { e.preventDefault(); openAppModal(); });
+        closeAppModalBtn.addEventListener('click', closeAppModal);
+        // Tap the dim backdrop or press Esc to dismiss.
+        appModal.addEventListener('click', (e) => { if (e.target === appModal) closeAppModal(); });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !appModal.classList.contains('hidden')) closeAppModal();
         });
 
         // Smart Random
