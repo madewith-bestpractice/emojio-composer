@@ -691,6 +691,10 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
       });
 
   Future<void> _saveFlow() async {
+    // Stop the transport first (like Library/Export/MIDI do) so the naming
+    // dialog + keyboard don't compete with live playback for the CPU — that
+    // contention was starving the audio thread (crackle/drop-outs).
+    if (_playing) _togglePlay();
     var name = _currentName;
     if (_currentId == null) {
       final entered = await _promptName(initial: name == 'Untitled' ? 'My Song' : name);
@@ -720,28 +724,33 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
         SnackBar(content: Text('Saved "$name"'), duration: const Duration(seconds: 1)));
   }
 
-  Future<String?> _promptName({required String initial}) {
+  Future<String?> _promptName({required String initial}) async {
     final ctrl = TextEditingController(text: initial);
-    return showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Name your song', style: TextStyle(fontSize: 14)),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          style: const TextStyle(fontSize: 12),
-          decoration: const InputDecoration(hintText: 'e.g. Happy Robot'),
-          onSubmitted: (v) => Navigator.pop(ctx, v.trim().isEmpty ? 'Untitled' : v.trim()),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, ctrl.text.trim().isEmpty ? 'Untitled' : ctrl.text.trim()),
-            child: const Text('Save'),
+    try {
+      return await showDialog<String>(
+        context: context,
+        barrierDismissible: false, // must use Cancel/Save — avoids stray-tap dismissal
+        builder: (ctx) => AlertDialog(
+          title: const Text('Name your song', style: TextStyle(fontSize: 14)),
+          content: TextField(
+            controller: ctrl,
+            autofocus: true,
+            style: const TextStyle(fontSize: 12),
+            decoration: const InputDecoration(hintText: 'e.g. Happy Robot'),
+            onSubmitted: (v) => Navigator.pop(ctx, v.trim().isEmpty ? 'Untitled' : v.trim()),
           ),
-        ],
-      ),
-    );
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, ctrl.text.trim().isEmpty ? 'Untitled' : ctrl.text.trim()),
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      ctrl.dispose();
+    }
   }
 
   void _loadSong(Song s) => setState(() {
