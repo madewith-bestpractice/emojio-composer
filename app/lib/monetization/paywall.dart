@@ -1,121 +1,35 @@
 import 'package:flutter/material.dart';
+import 'package:purchases_ui_flutter/purchases_ui_flutter.dart';
 import '../theme.dart';
-import 'purchases.dart';
 import 'trial.dart';
 
-/// The unlock screen. Shown as a hard wall when the trial has ended
-/// (`dismissible: false`), or pushed as a dismissible route from the trial
-/// banner so users can buy early.
-class Paywall extends StatelessWidget {
-  final PurchaseManager purchases;
-  final bool dismissible;
-  const Paywall({super.key, required this.purchases, this.dismissible = false});
+/// Hard-wall paywall shown when the trial has ended. Its content — hero image,
+/// title, feature bullets, price and buttons — is configured in the RevenueCat
+/// dashboard (the current offering's paywall), NOT in Dart. When the user buys
+/// or restores, [PurchaseManager]'s customer-info listener flips `unlocked` and
+/// the app tree rebuilds away from this screen automatically.
+class RcPaywall extends StatelessWidget {
+  const RcPaywall({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return PopScope(
-      canPop: dismissible,
-      child: Scaffold(
-        backgroundColor: Toy.bg,
-        body: SafeArea(
-          child: ListenableBuilder(
-            listenable: purchases,
-            builder: (context, _) => Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(28),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('🎵', style: TextStyle(fontSize: 64)),
-                    const SizedBox(height: 16),
-                    Text(dismissible ? 'Unlock Emojio' : 'Your free trial has ended',
-                        textAlign: TextAlign.center, style: Toy.label(15)),
-                    const SizedBox(height: 18),
-                    Container(
-                      padding: const EdgeInsets.all(18),
-                      decoration: toyBox(fill: Toy.panel),
-                      child: Column(
-                        children: const [
-                          _Bullet('🎹', 'Every emoji voice & instrument'),
-                          _Bullet('💾', 'Save unlimited songs on your iPad'),
-                          _Bullet('♾️', 'Pay once — yours forever'),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 22),
-                    if (purchases.purchasePending)
-                      const Padding(
-                        padding: EdgeInsets.all(8),
-                        child: CircularProgressIndicator(),
-                      )
-                    else
-                      ToyButton(
-                        label: purchases.priceLabel.isEmpty
-                            ? 'Unlock Forever'
-                            : 'Unlock Forever · ${purchases.priceLabel}',
-                        emoji: '🔓',
-                        color: Toy.green,
-                        fontSize: 11,
-                        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-                        onPressed: purchases.product == null ? null : purchases.buy,
-                      ),
-                    const SizedBox(height: 12),
-                    ToyButton(
-                      label: 'Restore Purchase',
-                      color: Colors.white,
-                      textColor: Toy.text,
-                      onPressed: purchases.restore,
-                    ),
-                    if (dismissible) ...[
-                      const SizedBox(height: 12),
-                      TextButton(
-                        onPressed: () => Navigator.of(context).maybePop(),
-                        child: Text('Maybe later', style: Toy.label(8, Toy.text)),
-                      ),
-                    ],
-                    if (purchases.product == null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 16),
-                        child: Text(
-                          'Product not configured yet.\nCreate "${PurchaseManager.productId}"\n(non-consumable) in App Store Connect.',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 10, color: Colors.black45),
-                        ),
-                      ),
-                    if (purchases.error != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 12),
-                        child: Text(purchases.error!,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(fontSize: 10, color: Toy.red)),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _Bullet extends StatelessWidget {
-  final String emoji;
-  final String text;
-  const _Bullet(this.emoji, this.text);
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Row(
-          children: [
-            Text(emoji, style: const TextStyle(fontSize: 20)),
-            const SizedBox(width: 12),
-            Expanded(child: Text(text, style: Toy.label(8).copyWith(height: 1.5))),
-          ],
+  Widget build(BuildContext context) => PopScope(
+        canPop: false, // trial's over — no way past it but to buy/restore
+        child: Scaffold(
+          backgroundColor: Toy.bg,
+          body: PaywallView(displayCloseButton: false),
         ),
       );
 }
+
+/// Presents the RevenueCat paywall as a dismissible modal — used from the trial
+/// banner so users can buy before the trial ends.
+Future<void> presentEmojioPaywall() =>
+    RevenueCatUI.presentPaywall(displayCloseButton: true);
+
+/// Opens the RevenueCat Customer Center (restore purchases, manage the unlock,
+/// contact support). Makes sense to keep reachable even after unlocking.
+Future<void> presentEmojioCustomerCenter() =>
+    RevenueCatUI.presentCustomerCenter();
 
 /// Slim banner shown during the trial (when not yet unlocked). Tapping opens
 /// the paywall so users can buy before the trial ends.

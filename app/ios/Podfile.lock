@@ -16,9 +16,20 @@ PODS:
     - FlutterMacOS
   - flutter_soloud (0.0.1):
     - Flutter
-  - in_app_purchase_storekit (0.0.1):
+  - purchases_flutter (10.4.1):
     - Flutter
-    - FlutterMacOS
+    - PurchasesHybridCommon (= 18.19.0)
+  - purchases_ui_flutter (10.4.1):
+    - Flutter
+    - PurchasesHybridCommonUI (= 18.19.0)
+  - PurchasesHybridCommon (18.19.0):
+    - RevenueCat (= 5.80.2)
+  - PurchasesHybridCommonUI (18.19.0):
+    - PurchasesHybridCommon (= 18.19.0)
+    - RevenueCatUI (= 5.80.2)
+  - RevenueCat (5.80.2)
+  - RevenueCatUI (5.80.2):
+    - RevenueCat (= 5.80.2)
   - share_plus (0.0.1):
     - Flutter
 
@@ -31,8 +42,16 @@ DEPENDENCIES:
   - flutter_quick_video_encoder (from `.symlinks/plugins/flutter_quick_video_encoder/ios`)
   - flutter_secure_storage_darwin (from `.symlinks/plugins/flutter_secure_storage_darwin/darwin`)
   - flutter_soloud (from `.symlinks/plugins/flutter_soloud/ios`)
-  - in_app_purchase_storekit (from `.symlinks/plugins/in_app_purchase_storekit/darwin`)
+  - purchases_flutter (from `.symlinks/plugins/purchases_flutter/ios`)
+  - purchases_ui_flutter (from `.symlinks/plugins/purchases_ui_flutter/ios`)
   - share_plus (from `.symlinks/plugins/share_plus/ios`)
+
+SPEC REPOS:
+  trunk:
+    - PurchasesHybridCommon
+    - PurchasesHybridCommonUI
+    - RevenueCat
+    - RevenueCatUI
 
 EXTERNAL SOURCES:
   app_links:
@@ -51,8 +70,10 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/flutter_secure_storage_darwin/darwin"
   flutter_soloud:
     :path: ".symlinks/plugins/flutter_soloud/ios"
-  in_app_purchase_storekit:
-    :path: ".symlinks/plugins/in_app_purchase_storekit/darwin"
+  purchases_flutter:
+    :path: ".symlinks/plugins/purchases_flutter/ios"
+  purchases_ui_flutter:
+    :path: ".symlinks/plugins/purchases_ui_flutter/ios"
   share_plus:
     :path: ".symlinks/plugins/share_plus/ios"
 
@@ -65,9 +86,14 @@ SPEC CHECKSUMS:
   flutter_quick_video_encoder: c012b1523f40093feeffa90cebfe71b32b7b6d25
   flutter_secure_storage_darwin: acdb3f316ed05a3e68f856e0353b133eec373a23
   flutter_soloud: d9969a9777b511239e85da6e108e05b429207baf
-  in_app_purchase_storekit: 22cca7d08eebca9babdf4d07d0baccb73325d3c8
+  purchases_flutter: 1bfc08dbcd8f55c6e79dfc055a76fe2081a2b729
+  purchases_ui_flutter: 63ddcc72cf0ae40f68da66ff650fad07a68f3913
+  PurchasesHybridCommon: 1eb67a6c8997233b35ed9b4eee8205dd8dd92890
+  PurchasesHybridCommonUI: e990fdbfdcd607bbb240ac237e7f208b2fb2d893
+  RevenueCat: b772273e51fa103a2ecc644439dd54a5dec199f3
+  RevenueCatUI: 89a3f81665e6f3e2b70a15403e91683ff0959952
   share_plus: 50da8cb520a8f0f65671c6c6a99b3617ed10a58a
 
-PODFILE CHECKSUM: 5933b8d7d351f22b1bf8248a949f9fd994ed0b41
+PODFILE CHECKSUM: 164802c75952f370344870163e7e01a4131d0ea0
 
 COCOAPODS: 1.16.2

@@ -75,10 +75,14 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   late final SongExporter _exporter = SongExporter(_engine);
   final GlobalKey _exportKey = GlobalKey(); // share-sheet origin anchor (iPad)
   final GlobalKey _shareKey = GlobalKey(); // share-sheet origin anchor (iPad)
+  // Handset note-grid horizontal scroll. Drives the torn-paper edge, which only
+  // shows once content has actually scrolled under the clef gutter.
+  final ScrollController _handsetScroll = ScrollController();
+  // Palette-strip horizontal scroll. Drives a soft shadow under the pinned
+  // active swatch once the set has been swiped.
+  final ScrollController _paletteScroll = ScrollController();
   static const int _exportLoops = 4;
   // Header button size tiers: medium labelled pills vs small icon-only chips.
-  static const _medPad = EdgeInsets.symmetric(horizontal: 14, vertical: 10);
-  static const _chipPad = EdgeInsets.symmetric(horizontal: 12, vertical: 10);
   final _rng = math.Random();
   final _sw = Stopwatch();
   late final Ticker _ticker;
@@ -621,16 +625,58 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   }
 
   // ---- editing ----
-  void _toggleAt(Offset p, Size size) {
-    final hit = StaffMetrics.of(size, kCols, _rows).hitTest(p);
+  void _toggleAt(Offset p, Size size, {double padLeft = 88, double? fixedStepX}) {
+    final hit = StaffMetrics.of(size, kCols, _rows,
+            padLeft: padLeft, fixedStepX: fixedStepX)
+        .hitTest(p);
     if (hit == null) return;
     final (gx, gy) = hit;
     final idx = _notes.indexWhere((n) => n.gridX == gx && n.gridY == gy);
     setState(() => idx >= 0 ? _notes.removeAt(idx) : _addNote(gx, gy));
   }
 
-  void _paintAt(Offset p, Size size) {
-    final hit = StaffMetrics.of(size, kCols, _rows).hitTest(p);
+  // ---- drag a placed note to a new cell (long-press to grab) ----
+  Note? _dragNote;
+
+  StaffMetrics _metrics(Size size, double padLeft, double? fixedStepX) =>
+      StaffMetrics.of(size, kCols, _rows, padLeft: padLeft, fixedStepX: fixedStepX);
+
+  void _grabAt(Offset p, Size size, {double padLeft = 88, double? fixedStepX}) {
+    final hit = _metrics(size, padLeft, fixedStepX).hitTest(p);
+    if (hit == null) return;
+    final (gx, gy) = hit;
+    final idx = _notes.indexWhere((n) => n.gridX == gx && n.gridY == gy);
+    if (idx < 0) return; // long-pressed empty space — nothing to grab
+    HapticFeedback.mediumImpact(); // "picked up"
+    setState(() => _dragNote = _notes[idx]);
+  }
+
+  void _dragTo(Offset p, Size size, {double padLeft = 88, double? fixedStepX}) {
+    final n = _dragNote;
+    if (n == null) return;
+    final hit = _metrics(size, padLeft, fixedStepX).hitTest(p);
+    if (hit == null) return;
+    final (gx, gy) = hit;
+    if (n.gridX == gx && n.gridY == gy) return;
+    // Don't stack onto a cell another note already holds.
+    if (_notes.any((o) => !identical(o, n) && o.gridX == gx && o.gridY == gy)) return;
+    setState(() {
+      n
+        ..gridX = gx
+        ..gridY = gy;
+    });
+  }
+
+  void _dropNote() {
+    if (_dragNote == null) return;
+    HapticFeedback.selectionClick(); // "dropped"
+    setState(() => _dragNote = null);
+  }
+
+  void _paintAt(Offset p, Size size, {double padLeft = 88, double? fixedStepX}) {
+    final hit = StaffMetrics.of(size, kCols, _rows,
+            padLeft: padLeft, fixedStepX: fixedStepX)
+        .hitTest(p);
     if (hit == null || hit == _lastPainted) return;
     _lastPainted = hit;
     final (gx, gy) = hit;
@@ -679,7 +725,13 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   }
 
   Future<void> _openPicker() async {
-    final picked = await showEmojiPicker(context, playable: _playable);
+    final picked = await showEmojiPicker(
+      context,
+      playable: _playable,
+      // Hear the sticker when it's chosen (or hovered with Apple Pencil), at a
+      // middle pitch.
+      onPreview: (e) => _engine.playEmoji(e, _rows ~/ 2),
+    );
     if (picked != null) _addToPalette(picked);
   }
 
@@ -690,33 +742,41 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
         _notes.clear();
       });
 
+  // Playful song-name words paired with the emoji voices below.
+  static const List<String> _songWords = [
+    'Jam', 'Tune', 'Groove', 'Beat', 'Bop', 'Anthem', 'Riff',
+    'Melody', 'Ditty', 'Jingle', 'Remix', 'Medley', 'Loop', 'Number',
+  ];
+
+  // A fun default name built from two of the song's emoji voices (lion, rocket,
+  // unicorn, ...) plus a synonym for "song" — e.g. "Lion Rocket Jam".
+  String _suggestSongName() {
+    String cap(String s) => s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';
+    final source = _notes.isNotEmpty ? _notes.map((n) => n.emoji) : _palette;
+    final words = <String>[];
+    for (final e in source) {
+      final syn = _manifest?.emojiVoices[e]?.synth;
+      if (syn != null && !words.contains(syn)) words.add(syn);
+    }
+    words.shuffle(_rng);
+    final picks = words.take(2).map(cap).toList();
+    final song = _songWords[_rng.nextInt(_songWords.length)];
+    return picks.isEmpty ? song : '${picks.join(' ')} $song';
+  }
+
   Future<void> _saveFlow() async {
     // Stop the transport first (like Library/Export/MIDI do) so the naming
     // dialog + keyboard don't compete with live playback for the CPU — that
     // contention was starving the audio thread (crackle/drop-outs).
     if (_playing) _togglePlay();
-    var name = _currentName;
-    if (_currentId == null) {
-      final entered = await _promptName(initial: name == 'Untitled' ? 'My Song' : name);
-      if (entered == null) return;
-      name = entered;
-    }
+    // Every save writes a NEW song file rather than overwriting the last one,
+    // pre-filled with a generated name the user can keep or edit.
+    final name = await _promptName(initial: _suggestSongName());
+    if (name == null) return;
     final notes = _notes.map((n) => SongNote(n.emoji, n.gridX, n.gridY, velocity: n.velocity)).toList();
-    final Song s;
-    if (_currentId == null) {
-      s = Song.fresh(name: name, bpm: _bpm, palette: _palette, selectedEmoji: _selected)..notes = notes;
-      _currentId = s.id;
-    } else {
-      s = Song(
-        id: _currentId!,
-        name: name,
-        bpm: _bpm,
-        palette: _palette,
-        selectedEmoji: _selected,
-        notes: notes,
-        updatedAt: 0,
-      );
-    }
+    final s = Song.fresh(name: name, bpm: _bpm, palette: _palette, selectedEmoji: _selected)
+      ..notes = notes;
+    _currentId = s.id;
     await _library.save(s);
     if (!mounted) return;
     setState(() => _currentName = name);
@@ -724,34 +784,11 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
         SnackBar(content: Text('Saved "$name"'), duration: const Duration(seconds: 1)));
   }
 
-  Future<String?> _promptName({required String initial}) async {
-    final ctrl = TextEditingController(text: initial);
-    try {
-      return await showDialog<String>(
+  Future<String?> _promptName({required String initial}) => showDialog<String>(
         context: context,
         barrierDismissible: false, // must use Cancel/Save — avoids stray-tap dismissal
-        builder: (ctx) => AlertDialog(
-          title: const Text('Name your song', style: TextStyle(fontSize: 14)),
-          content: TextField(
-            controller: ctrl,
-            autofocus: true,
-            style: const TextStyle(fontSize: 12),
-            decoration: const InputDecoration(hintText: 'e.g. Happy Robot'),
-            onSubmitted: (v) => Navigator.pop(ctx, v.trim().isEmpty ? 'Untitled' : v.trim()),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, ctrl.text.trim().isEmpty ? 'Untitled' : ctrl.text.trim()),
-              child: const Text('Save'),
-            ),
-          ],
-        ),
+        builder: (ctx) => _NameDialog(initial: initial),
       );
-    } finally {
-      ctrl.dispose();
-    }
-  }
 
   void _loadSong(Song s) => setState(() {
         _currentId = s.id;
@@ -827,90 +864,207 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
     _midi.removeListener(_onMidiDevices);
     _midi.dispose();
     _repaint.dispose();
+    _handsetScroll.dispose();
+    _paletteScroll.dispose();
     super.dispose();
   }
 
-  void _openPaywall() => Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => Paywall(purchases: _purchases, dismissible: true)),
-      );
+  // Dismissible RevenueCat paywall (from the trial banner). Fire-and-forget:
+  // the purchase manager's customer-info listener updates state on completion.
+  void _openPaywall() {
+    presentEmojioPaywall();
+  }
+
+  void _openCustomerCenter() {
+    presentEmojioCustomerCenter();
+  }
 
   @override
   Widget build(BuildContext context) {
     if (_bootError != null) return _errorScreen(_bootError!);
     if (_manifest == null) return const SplashScreen();
     // Hard wall once the 3-day trial ends and the app isn't unlocked.
-    if (!_hasAccess) return Paywall(purchases: _purchases, dismissible: false);
+    if (!_hasAccess) return const RcPaywall();
+    // Edge-to-edge: the coloured bars run to every screen edge. The blue header
+    // owns the top (including the status-bar inset), so the top of the screen is
+    // always blue; the trial ribbon, if any, sits just beneath it.
+    final topInset = MediaQuery.of(context).padding.top;
     return Scaffold(
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch, // bars span full width
-          children: [
-            if (!_purchases.unlocked) TrialBanner(trial: _trial, onTap: _openPaywall),
-            _header(),
-            _paletteBar(),
-            Expanded(child: _staff()),
-          ],
-        ),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch, // bars span full width
+        children: [
+          _header(topInset: topInset),
+          if (!_purchases.unlocked)
+            TrialBanner(trial: _trial, onTap: _openPaywall),
+          _paletteBar(),
+          Expanded(child: _staff()),
+        ],
       ),
     );
   }
 
-  Widget _header() => Container(
-        decoration: const BoxDecoration(
-          color: Toy.header,
-          border: Border(bottom: BorderSide(color: Toy.text, width: 4)),
-          boxShadow: [BoxShadow(color: Color(0x26000000), offset: Offset(0, 6))],
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(right: 4),
-                    child: Text('🎵 ${_currentName == 'Untitled' ? 'Emojio Paint Composer' : _currentName}',
-                        style: Toy.label(12, Colors.white).copyWith(
-                          shadows: const [Shadow(color: Toy.text, offset: Offset(2, 2))],
-                        )),
-                  ),
-                  // Tier 1 — Play: the big, unmissable primary target.
-                  ToyButton(
-                    label: _playing ? 'Stop' : 'Play',
-                    emoji: _playing ? '⏹️' : '▶️',
-                    color: _playing ? Toy.red : Toy.green,
-                    fontSize: 18,
-                    radius: 10, // square-ish corners
-                    padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
-                    onPressed: _togglePlay,
-                  ),
-                  // Tier 2 — creative actions: medium labelled pills.
-                  ToyButton(label: 'Random', emoji: '🎲', color: Colors.white, textColor: Toy.text, padding: _medPad, onPressed: _randomize),
-                  ToyButton(label: 'Save', emoji: '💾', color: Toy.highlight, textColor: Toy.text, padding: _medPad, onPressed: _saveFlow),
-                  ToyButton(label: 'Songs', emoji: '📂', color: Toy.purple, padding: _medPad, onPressed: _openLibrary),
-                  ToyButton(key: _shareKey, label: 'Share', emoji: '🔗', color: Toy.accent, padding: _medPad, onPressed: _shareSong),
-                  // Tier 3 — utilities: small icon-only chips (name lives in the tooltip).
-                  ToyButton(emoji: '✨', tooltip: 'New song', color: Colors.white, textColor: Toy.text, fontSize: 13, radius: 16, padding: _chipPad, onPressed: _newSong),
-                  ToyButton(key: _exportKey, emoji: '📤', tooltip: 'Export audio or video', color: Toy.purple, fontSize: 13, radius: 16, padding: _chipPad, onPressed: _openExport),
-                  // Only surfaced once a MIDI controller is plugged in.
-                  if (_midi.devices.isNotEmpty)
-                    ToyButton(emoji: '🎹', tooltip: 'MIDI', color: Toy.purple, fontSize: 13, radius: 16, padding: _chipPad, onPressed: _openMidi),
-                  ToyButton(emoji: '🗑️', tooltip: 'Clear all notes', color: Colors.white, textColor: Toy.text, fontSize: 13, radius: 16, padding: _chipPad, onPressed: () => setState(_notes.clear)),
-                ],
+  static const _headerDeco = BoxDecoration(
+    color: Toy.header,
+    border: Border(bottom: BorderSide(color: Toy.text, width: 4)),
+    boxShadow: [BoxShadow(color: Color(0x26000000), offset: Offset(0, 6))],
+  );
+
+  // Brand mark — the rounded app icon + wordmark. Always the top-left title
+  // (never the song name).
+  Widget _brandTitle() => Semantics(
+        button: true,
+        label: 'Emojio. Long-press to manage your purchase',
+        child: GestureDetector(
+          // Long-press the brand to open the RevenueCat Customer Center
+          // (restore / manage / support) — reachable even after unlocking.
+          behavior: HitTestBehavior.opaque,
+          onLongPress: _openCustomerCenter,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.asset('assets/branding/app_icon.png',
+                    width: 34, height: 34, fit: BoxFit.cover, filterQuality: FilterQuality.medium),
               ),
-            ),
-            const SizedBox(width: 10),
-            // Tempo pinned to the top-right so it never pushes onto a second line.
-            _tempo(),
+              const SizedBox(width: 8),
+              Text('Emojio',
+                  style: Toy.label(14, Colors.white).copyWith(
+                    shadows: const [Shadow(color: Toy.text, offset: Offset(2, 2))],
+                  )),
+              const SizedBox(width: 4),
+            ],
+          ),
+        ),
+      );
+
+  // Every top-bar button shares Play's size, padding, radius and style — only
+  // the colour (and label/emoji) changes.
+  // One shared button size so the whole toolbar is a single, even row that
+  // fits an iPad in landscape without scrolling.
+  static const _barPad = EdgeInsets.symmetric(horizontal: 18, vertical: 14);
+  static const _barFont = 13.0;
+  static const _barRadius = 10.0;
+  static const _barGap = 10.0;
+
+  Widget _barButton({
+    Key? key,
+    String? label,
+    String? emoji,
+    required Color color,
+    Color textColor = Colors.white,
+    String? tooltip,
+    required VoidCallback onPressed,
+  }) =>
+      ToyButton(
+        key: key,
+        label: label,
+        emoji: emoji,
+        color: color,
+        textColor: textColor,
+        tooltip: tooltip,
+        fontSize: _barFont,
+        radius: _barRadius,
+        padding: _barPad,
+        onPressed: onPressed,
+      );
+
+  // The primary target.
+  Widget _playButton() => _barButton(
+        label: _playing ? 'Stop' : 'Play',
+        emoji: _playing ? '⏹️' : '▶️',
+        color: _playing ? Toy.red : Toy.green,
+        onPressed: _togglePlay,
+      );
+
+  // Creative + utility actions, in the order the user set: Play (prepended)
+  // New, Random, Save, Songs, Export, Share, MIDI. All identical to Play but
+  // for colour. (_exportKey anchors the export share-sheet on iPad; _shareKey
+  // anchors Share's.)
+  List<Widget> _actionButtons() => [
+        _barButton(label: 'New', emoji: '✨', color: Colors.white, textColor: Toy.text, onPressed: _newSong),
+        _barButton(label: 'Random', emoji: '🎲', color: Colors.white, textColor: Toy.text, onPressed: _randomize),
+        _barButton(label: 'Save', emoji: '💾', color: Toy.highlight, textColor: Toy.text, onPressed: _saveFlow),
+        _barButton(label: 'Songs', emoji: '📂', color: Toy.purple, onPressed: _openLibrary),
+        _barButton(key: _exportKey, label: 'Export', emoji: '📤', color: Toy.purple, onPressed: _openExport),
+        _barButton(key: _shareKey, label: 'Share', emoji: '🔗', color: Toy.accent, onPressed: _shareSong),
+        _barButton(label: 'MIDI', emoji: '🎹', color: Toy.green, onPressed: _openMidi),
+      ];
+
+  // Buttons in a horizontal row that scrolls if it can't all fit, so the header
+  // is always exactly one row, with even margins between every button.
+  Widget _buttonRow(List<Widget> buttons) => SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        // Bottom room so the buttons' hard offset shadow isn't clipped.
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Row(
+          children: [
+            for (final b in buttons) ...[b, const SizedBox(width: _barGap)],
           ],
         ),
       );
 
-  Widget _tempo() => Container(
+  Widget _header({double topInset = 0}) {
+    final landscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
+    if (landscape) {
+      // One tidy blue row: brand · Play · actions · tempo.
+      return Container(
+        decoration: _headerDeco,
+        padding: EdgeInsets.fromLTRB(14, 10 + topInset, 14, 10),
+        child: Row(
+          children: [
+            _brandTitle(),
+            const SizedBox(width: 12),
+            _playButton(),
+            const SizedBox(width: 12),
+            Expanded(child: _buttonRow(_actionButtons())),
+            const SizedBox(width: 10),
+            _tempo(width: 104),
+          ],
+        ),
+      );
+    }
+    // Portrait: brand + tempo (top-right) on the first row; a full-bleed action
+    // scroll on the second row — buttons run edge to edge and bleed off the
+    // sides instead of clipping inside the header padding.
+    return Container(
+      decoration: _headerDeco,
+      padding: EdgeInsets.only(top: 10 + topInset, bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: Row(
+              children: [
+                _brandTitle(),
+                const Spacer(),
+                _tempo(width: 120),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            // Bottom room so the buttons' hard offset shadow isn't clipped by
+            // the scroll viewport.
+            padding: const EdgeInsets.fromLTRB(14, 0, 14, 6),
+            child: Row(
+              children: [
+                for (final b in [_playButton(), ..._actionButtons()]) ...[
+                  b,
+                  const SizedBox(width: _barGap),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _tempo({double width = 130}) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.4),
@@ -922,7 +1076,7 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
           children: [
             const ExcludeSemantics(child: Text('🐢', style: TextStyle(fontSize: 16))),
             SizedBox(
-              width: 130,
+              width: width,
               child: Slider(
                 min: 60,
                 max: 180,
@@ -943,45 +1097,112 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
         ),
       );
 
+  // Active swatch (left) and add button (right) are pinned; the palette set
+  // scrolls in the strip between them and slides *behind* both as you swipe.
+  static const double _barH = 76.0;
+  static const double _activeLeadPad = 76.0; // active swatch width + gap
+  static const double _addTrailPad = 70.0; // add button width + gap
+
   Widget _paletteBar() => Container(
         color: Toy.panel,
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
-        child: Row(
-          children: [
-            // Active swatch
-            Semantics(
-              label: 'Active sound',
-              value: _selected,
-              excludeSemantics: true,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('ACTIVE', style: Toy.label(6)),
-                  const SizedBox(height: 4),
-                  Container(
-                    width: 58,
-                    height: 58,
-                    alignment: Alignment.center,
-                    decoration: toyBox(radius: 14),
-                    child: Text(_selected, style: const TextStyle(fontSize: 34)),
+        child: SizedBox(
+          height: _barH,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // The scrolling set runs the full width but is inset so that, at
+              // rest, stickers sit between the two pinned controls; swiping
+              // slides them under the opaque active swatch / add button.
+              Positioned.fill(
+                child: SingleChildScrollView(
+                  controller: _paletteScroll,
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.only(left: _activeLeadPad, right: _addTrailPad),
+                  child: SizedBox(
+                    height: _barH,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [for (final e in _palette) _paletteItem(e)],
+                    ),
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 18),
-            Expanded(
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    for (final e in _palette) _paletteItem(e),
-                    _addButton(),
-                  ],
                 ),
               ),
-            ),
-          ],
+              // Soft shadow the active swatch casts over the strip — fades in
+              // over the first few pixels of swipe so stickers read as sliding
+              // under it.
+              Positioned(
+                left: _activeLeadPad - 14,
+                top: 0,
+                bottom: 0,
+                width: 16,
+                child: IgnorePointer(
+                  child: AnimatedBuilder(
+                    animation: _paletteScroll,
+                    builder: (context, _) {
+                      final off = _paletteScroll.hasClients ? _paletteScroll.offset : 0.0;
+                      final op = (off / 14).clamp(0.0, 1.0);
+                      return Opacity(
+                        opacity: op,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.centerLeft,
+                              end: Alignment.centerRight,
+                              colors: [
+                                Toy.text.withValues(alpha: 0.22),
+                                Toy.text.withValues(alpha: 0.0),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              // Pinned active swatch (left), opaque so the set vanishes behind it.
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                child: Container(
+                  color: Toy.panel,
+                  alignment: Alignment.centerLeft,
+                  child: Semantics(
+                    label: 'Active sound',
+                    value: _selected,
+                    excludeSemantics: true,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('ACTIVE', style: Toy.label(6)),
+                        const SizedBox(height: 4),
+                        Container(
+                          width: 58,
+                          height: 58,
+                          alignment: Alignment.center,
+                          decoration: toyBox(radius: 14),
+                          child: Text(_selected, style: const TextStyle(fontSize: 34)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              // Pinned add button (right), opaque mask on the far end.
+              Positioned(
+                right: 0,
+                top: 0,
+                bottom: 0,
+                child: Container(
+                  color: Toy.panel,
+                  alignment: Alignment.centerRight,
+                  child: _addButton(),
+                ),
+              ),
+            ],
+          ),
         ),
       );
 
@@ -1047,16 +1268,55 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
     _lastPressure = e.kind == PointerDeviceKind.stylus ? e.pressure.clamp(0.0, 1.0) : 1.0;
   }
 
+  // Handset column width — big enough to tap and to keep the emoji from
+  // colliding; 16 of these overflow a phone, so the grid scrolls horizontally.
+  static const double _handsetStepX = 64.0;
+
   Widget _staff() => LayoutBuilder(
         builder: (context, constraints) {
-          final size = Size(constraints.maxWidth, constraints.maxHeight);
           final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-          return Semantics(
-            container: true,
-            label: 'Music staff',
-            hint: 'Tap a spot to place or remove a sound',
-            value: '${_notes.length} sound${_notes.length == 1 ? '' : 's'} placed',
-            child: Listener(
+          final handset = MediaQuery.of(context).size.shortestSide < 600;
+          final labels = _engine.scaleMode == ScaleMode.free
+              ? null
+              : List.generate(_rows, (i) => _pcName(_engine.midiForRow(i)));
+          final showClef = _engine.scaleMode == ScaleMode.free;
+
+          // The note grid. On handset the clef/labels live in a pinned gutter,
+          // so the grid draws with padLeft 0 and a fixed column width.
+          StaffPainter gridPainter({required bool withGutter, double? fixedStepX}) =>
+              StaffPainter(
+                notes: _notes,
+                cols: kCols,
+                rows: _rows,
+                isPlaying: _playing,
+                currentStep: _currentStep,
+                playheadFrac: _playheadFrac,
+                tMs: _nowMs,
+                cursorStep: _playing ? -1 : _cursorStep,
+                rowLabels: withGutter ? labels : null,
+                showClef: withGutter && showClef,
+                reduceMotion: reduceMotion,
+                padLeft: withGutter ? 88.0 : 0.0,
+                drawGutter: withGutter,
+                fixedStepX: fixedStepX,
+              );
+
+          Widget grid(Size size, {double? fixedStepX, required bool withGutter}) =>
+              RepaintBoundary(
+                child: ListenableBuilder(
+                  listenable: _repaint,
+                  builder: (context, _) => CustomPaint(
+                    size: size,
+                    painter: gridPainter(withGutter: withGutter, fixedStepX: fixedStepX),
+                  ),
+                ),
+              );
+
+          Widget body;
+          if (!handset) {
+            // Tablet / wide: the staff fills the width; drag paints a run of notes.
+            final size = Size(constraints.maxWidth, constraints.maxHeight);
+            body = Listener(
               onPointerDown: _capturePressure,
               onPointerMove: _capturePressure,
               child: GestureDetector(
@@ -1067,31 +1327,100 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
                 },
                 onPanUpdate: (d) => _paintAt(d.localPosition, size),
                 onPanEnd: (_) => _lastPainted = null,
-                child: RepaintBoundary(
-                  child: ListenableBuilder(
-                    listenable: _repaint,
-                    builder: (context, _) => CustomPaint(
-                      size: size,
-                      painter: StaffPainter(
-                        notes: _notes,
-                        cols: kCols,
-                        rows: _rows,
-                        isPlaying: _playing,
-                        currentStep: _currentStep,
-                        playheadFrac: _playheadFrac,
-                        tMs: _nowMs,
-                        cursorStep: _playing ? -1 : _cursorStep,
-                        rowLabels: _engine.scaleMode == ScaleMode.free
-                            ? null
-                            : List.generate(_rows, (i) => _pcName(_engine.midiForRow(i))),
-                        showClef: _engine.scaleMode == ScaleMode.free,
-                        reduceMotion: reduceMotion,
+                // Hold a placed note to grab it, then drag to move.
+                onLongPressStart: (d) => _grabAt(d.localPosition, size),
+                onLongPressMoveUpdate: (d) => _dragTo(d.localPosition, size),
+                onLongPressEnd: (_) => _dropNote(),
+                child: grid(size, withGutter: true),
+              ),
+            );
+          } else {
+            // Handset: frozen clef/label gutter + a horizontally-scrolling grid.
+            // Drag scrolls; a tap places/removes a note (no drag-paint, so the
+            // scroll and the placement gestures never fight).
+            final h = constraints.maxHeight;
+            final gridSize = Size(kCols * _handsetStepX, h);
+            body = Stack(
+              children: [
+                Row(
+                  children: [
+                    SizedBox(
+                      width: StaffMetrics.gutter,
+                      height: h,
+                      // Repaint with the staff so the clef's play-time rainbow
+                      // animates (the ticker bumps _repaint each frame).
+                      child: RepaintBoundary(
+                        child: ListenableBuilder(
+                          listenable: _repaint,
+                          builder: (context, _) => CustomPaint(
+                            painter: StaffGutterPainter(
+                              rows: _rows,
+                              rowLabels: labels,
+                              showClef: showClef,
+                              isPlaying: _playing,
+                              tMs: _nowMs,
+                            ),
+                          ),
+                        ),
                       ),
+                    ),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        controller: _handsetScroll,
+                        scrollDirection: Axis.horizontal,
+                        child: Listener(
+                          onPointerDown: _capturePressure,
+                          child: GestureDetector(
+                            onTapUp: (d) => _toggleAt(d.localPosition, gridSize,
+                                padLeft: 0, fixedStepX: _handsetStepX),
+                            // Hold a placed note to grab it, then drag to move
+                            // (holding still wins over the horizontal scroll).
+                            onLongPressStart: (d) => _grabAt(d.localPosition, gridSize,
+                                padLeft: 0, fixedStepX: _handsetStepX),
+                            onLongPressMoveUpdate: (d) => _dragTo(d.localPosition, gridSize,
+                                padLeft: 0, fixedStepX: _handsetStepX),
+                            onLongPressEnd: (_) => _dropNote(),
+                            child: grid(gridSize,
+                                withGutter: false, fixedStepX: _handsetStepX),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                // Torn-paper right edge of the clef gutter — the notes read as
+                // scrolling under the ripped edge of the staff paper. Hidden at
+                // rest (nothing has slid under yet); it fades in over the first
+                // few pixels of scroll.
+                Positioned(
+                  left: StaffMetrics.gutter - 8,
+                  top: 0,
+                  bottom: 0,
+                  width: 24,
+                  child: IgnorePointer(
+                    child: AnimatedBuilder(
+                      animation: _handsetScroll,
+                      builder: (context, _) {
+                        final off = _handsetScroll.hasClients ? _handsetScroll.offset : 0.0;
+                        final op = (off / 16).clamp(0.0, 1.0);
+                        return Opacity(
+                          opacity: op,
+                          child: const CustomPaint(painter: TornEdgePainter()),
+                        );
+                      },
                     ),
                   ),
                 ),
-              ),
-            ),
+              ],
+            );
+          }
+
+          return Semantics(
+            container: true,
+            label: 'Music staff',
+            hint: 'Tap a spot to place or remove a sound',
+            value: '${_notes.length} sound${_notes.length == 1 ? '' : 's'} placed',
+            child: body,
           );
         },
       );
@@ -1119,6 +1448,51 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
             ),
           ),
         ),
+      );
+}
+
+/// "Name your song" dialog. Owns its [TextEditingController] as state so it's
+/// disposed only when the dialog is fully gone — disposing it synchronously
+/// after `showDialog` returns crashes as the exit animation still rebuilds the
+/// field ("TextEditingController used after being disposed").
+class _NameDialog extends StatefulWidget {
+  final String initial;
+  const _NameDialog({required this.initial});
+  @override
+  State<_NameDialog> createState() => _NameDialogState();
+}
+
+class _NameDialogState extends State<_NameDialog> {
+  late final TextEditingController _ctrl =
+      TextEditingController(text: widget.initial);
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  String _clean(String v) => v.trim().isEmpty ? 'Untitled' : v.trim();
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: const Text('Name your song', style: TextStyle(fontSize: 14)),
+        content: TextField(
+          controller: _ctrl,
+          autofocus: true,
+          style: const TextStyle(fontSize: 12),
+          decoration: const InputDecoration(hintText: 'e.g. Happy Robot'),
+          onSubmitted: (v) => Navigator.pop(context, _clean(v)),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, _clean(_ctrl.text)),
+            child: const Text('Save'),
+          ),
+        ],
       );
 }
 
@@ -1180,46 +1554,62 @@ class _LibrarySheetState extends State<_LibrarySheet> {
             separatorBuilder: (_, _) => const Divider(height: 1),
             itemBuilder: (context, i) {
               final s = songs[i];
-              return ListTile(
-                leading: SizedBox(
-                  width: 96,
-                  height: 54,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Toy.text),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: CustomPaint(
-                        painter: StaffPainter(
-                          notes: s.notes.map((n) => Note(n.emoji, n.gridX, n.gridY, 0, -1000000)).toList(),
-                          cols: kCols,
-                          rows: widget.rows,
-                          isPlaying: false,
-                          currentStep: -1,
-                          playheadFrac: 0,
-                          tMs: 0,
+              final selected = s.id == widget.currentId;
+              final ago = _ago(s.updatedAt);
+              return InkWell(
+                onTap: () => widget.onLoad(s),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  child: Row(
+                    children: [
+                      // A colourful cover of the song's palette stickers.
+                      Container(
+                        width: 118,
+                        height: 56,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: Toy.panel,
+                          border: Border.all(color: Toy.text, width: 2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          s.palette.take(4).join(' '),
+                          maxLines: 1,
+                          overflow: TextOverflow.clip,
+                          style: const TextStyle(fontSize: 20, height: 1),
                         ),
                       ),
-                    ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(s.name.isEmpty ? 'Untitled' : s.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Toy.label(11, selected ? Toy.accent : Toy.text)),
+                            const SizedBox(height: 7),
+                            Text(
+                              '${s.notes.length} notes · ${s.bpm.round()} BPM${ago.isEmpty ? '' : ' · $ago'}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Toy.label(7, Toy.line),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, color: Toy.text),
+                        tooltip: 'Delete',
+                        onPressed: () async {
+                          await widget.library.delete(s.id);
+                          _reload();
+                        },
+                      ),
+                    ],
                   ),
                 ),
-                title: Text(s.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Toy.label(10, s.id == widget.currentId ? Toy.accent : Toy.text)),
-                subtitle: Text('${s.notes.length} notes · ${s.bpm.round()} BPM · ${_ago(s.updatedAt)}',
-                    style: const TextStyle(fontSize: 11)),
-                trailing: IconButton(
-                  icon: const Icon(Icons.delete_outline),
-                  tooltip: 'Delete',
-                  onPressed: () async {
-                    await widget.library.delete(s.id);
-                    _reload();
-                  },
-                ),
-                onTap: () => widget.onLoad(s),
               );
             },
           );

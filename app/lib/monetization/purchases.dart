@@ -1,93 +1,121 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:flutter/services.dart' show PlatformException;
+import 'package:purchases_flutter/purchases_flutter.dart';
 
-/// Wraps the single non-consumable "unlock forever" IAP via the official
-/// in_app_purchase plugin (StoreKit 2 on iOS/macOS).
+/// Emojio's one-time "lifetime" unlock, via RevenueCat (`purchases_flutter`).
 ///
-/// SETUP REQUIRED: create a non-consumable product with id [productId] in App
-/// Store Connect. Until then [available] is true but [product] stays null.
+/// RevenueCat sits on top of the same App Store / Play product — it does NOT
+/// replace the store IAP. Dashboard setup (once):
+///   1. Products    → add your App Store product `emojio.unlock_forever`
+///                    (+ the Play product later).
+///   2. Entitlements→ create one with identifier [entitlementId] and attach
+///                    the product to it.
+///   3. Offerings   → create an offering (e.g. "default") with a **lifetime**
+///                    package pointing to that product.
 ///
-/// Non-consumables auto-restore through `restorePurchases()` (which replays
-/// past purchases on the stream), so entitlement survives reinstall / new
-/// device. We also cache the unlocked flag in the Keychain for instant,
-/// offline gating on launch.
+/// Entitlement state is checked from [CustomerInfo]; RevenueCat caches it
+/// locally, so the launch gate is instant and works offline.
 class PurchaseManager extends ChangeNotifier {
-  static const String productId = 'com.madewithbestpractice.emojio.unlock_forever';
-  static const _cacheKey = 'emojio.unlocked';
+  /// RevenueCat PUBLIC SDK key — safe to embed in the app binary.
+  /// PRODUCTION: use your Apple-platform key (starts with `appl_`) from
+  /// RevenueCat → Project settings → API keys. The `test_…` key below targets
+  /// RevenueCat's Test Store and will NOT make real App Store purchases.
+  static const String _apiKey = 'test_WQyCppSeDpGPkaiTqUtQHyPxhPO';
 
-  final InAppPurchase _iap = InAppPurchase.instance;
-  final FlutterSecureStorage _store;
-  StreamSubscription<List<PurchaseDetails>>? _sub;
+  /// MUST exactly match the Entitlement *identifier* in the RevenueCat
+  /// dashboard (case- and space-sensitive).
+  static const String entitlementId = 'Emojio Genius';
+
+  /// The lifetime package identifier in the offering (diagnostics / hints).
+  static const String productId = 'lifetime';
 
   bool available = false;
   bool unlocked = false;
   bool purchasePending = false;
-  ProductDetails? product;
+  Package? product; // the lifetime package from the current offering
   String? error;
 
-  PurchaseManager([FlutterSecureStorage? store]) : _store = store ?? const FlutterSecureStorage();
-
-  String get priceLabel => product?.price ?? '';
+  String get priceLabel => product?.storeProduct.priceString ?? '';
 
   Future<void> init() async {
-    // Instant offline gate from the cached flag.
-    unlocked = (await _store.read(key: _cacheKey)) == '1';
-    notifyListeners();
-
-    available = await _iap.isAvailable();
-    _sub = _iap.purchaseStream.listen(_onPurchases, onError: (Object e) {
+    try {
+      if (kDebugMode) await Purchases.setLogLevel(LogLevel.debug);
+      await Purchases.configure(PurchasesConfiguration(_apiKey));
+      available = true;
+      Purchases.addCustomerInfoUpdateListener(_onCustomerInfo);
+      _apply(await Purchases.getCustomerInfo()); // cached → instant, offline-safe
+      await _loadOffering();
+    } catch (e) {
       error = '$e';
-      notifyListeners();
-    });
-
-    if (available) {
-      final resp = await _iap.queryProductDetails({productId});
-      if (resp.productDetails.isNotEmpty) product = resp.productDetails.first;
-      // Replays owned non-consumables onto the stream -> _onPurchases.
-      await _iap.restorePurchases();
     }
     notifyListeners();
   }
 
-  Future<void> _onPurchases(List<PurchaseDetails> purchases) async {
-    for (final p in purchases) {
-      if (p.status == PurchaseStatus.pending) {
-        purchasePending = true;
-      } else {
-        purchasePending = false;
-        if (p.status == PurchaseStatus.error) {
-          error = p.error?.message;
-        } else if (p.productID == productId &&
-            (p.status == PurchaseStatus.purchased || p.status == PurchaseStatus.restored)) {
-          unlocked = true;
-          await _store.write(key: _cacheKey, value: '1');
-        }
-        if (p.pendingCompletePurchase) await _iap.completePurchase(p);
-      }
+  Future<void> _loadOffering() async {
+    try {
+      final current = (await Purchases.getOfferings()).current;
+      if (current == null) return;
+      product = current.lifetime ??
+          (current.availablePackages.isNotEmpty
+              ? current.availablePackages.first
+              : null);
+    } catch (e) {
+      error = '$e';
     }
+  }
+
+  void _onCustomerInfo(CustomerInfo info) {
+    _apply(info);
     notifyListeners();
   }
 
+  void _apply(CustomerInfo info) {
+    unlocked = info.entitlements.active.containsKey(entitlementId);
+  }
+
+  /// Buy the lifetime unlock. Silently ignores user cancellation; surfaces real
+  /// failures in [error].
   Future<void> buy() async {
-    if (product == null) {
+    final p = product;
+    if (p == null) {
       error = 'Product unavailable';
       notifyListeners();
       return;
     }
     error = null;
-    await _iap.buyNonConsumable(purchaseParam: PurchaseParam(productDetails: product!));
+    purchasePending = true;
+    notifyListeners();
+    try {
+      final result = await Purchases.purchase(PurchaseParams.package(p));
+      _apply(result.customerInfo);
+    } on PlatformException catch (e) {
+      if (PurchasesErrorHelper.getErrorCode(e) !=
+          PurchasesErrorCode.purchaseCancelledError) {
+        error = e.message;
+      }
+    } catch (e) {
+      error = '$e';
+    } finally {
+      purchasePending = false;
+      notifyListeners();
+    }
   }
 
+  /// Replays past purchases so the entitlement survives reinstall / new device.
   Future<void> restore() async {
     error = null;
-    await _iap.restorePurchases();
+    try {
+      _apply(await Purchases.restorePurchases());
+    } catch (e) {
+      error = '$e';
+    }
+    notifyListeners();
   }
 
   @override
   void dispose() {
-    _sub?.cancel();
+    Purchases.removeCustomerInfoUpdateListener(_onCustomerInfo);
     super.dispose();
   }
 }
