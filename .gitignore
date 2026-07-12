@@ -3,3 +3,6 @@
 
 # Cloudflare Wrangler local cache
 .wrangler/
+
+# Large local archive — not source, don't commit
+Archive.zip
