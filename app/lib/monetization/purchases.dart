@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:purchases_flutter/purchases_flutter.dart';
@@ -17,11 +18,12 @@ import 'package:purchases_flutter/purchases_flutter.dart';
 /// Entitlement state is checked from [CustomerInfo]; RevenueCat caches it
 /// locally, so the launch gate is instant and works offline.
 class PurchaseManager extends ChangeNotifier {
-  /// RevenueCat PUBLIC SDK key — safe to embed in the app binary.
-  /// PRODUCTION: use your Apple-platform key (starts with `appl_`) from
-  /// RevenueCat → Project settings → API keys. The `test_…` key below targets
-  /// RevenueCat's Test Store and will NOT make real App Store purchases.
-  static const String _apiKey = 'test_WQyCppSeDpGPkaiTqUtQHyPxhPO';
+  /// RevenueCat PUBLIC SDK keys — designed to be embedded in the app binary.
+  /// Platform-specific: the Apple key serves iOS + macOS, the Google key
+  /// serves Android. (From RevenueCat → Project settings → API keys.)
+  static const String _appleApiKey = 'appl_JadovrJqnnwnZGlfdTzOCaimYOw';
+  static const String _googleApiKey = 'goog_SyBSDZbIchuFAXDAwSDejqxONLx';
+  static String get _apiKey => Platform.isAndroid ? _googleApiKey : _appleApiKey;
 
   /// MUST exactly match the Entitlement *identifier* in the RevenueCat
   /// dashboard (case- and space-sensitive).
