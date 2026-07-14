@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:purchases_ui_flutter/purchases_ui_flutter.dart';
 import '../theme.dart';
 import 'trial.dart';
@@ -22,14 +23,21 @@ class RcPaywall extends StatelessWidget {
 }
 
 /// Presents the RevenueCat paywall as a dismissible modal — used from the trial
-/// banner so users can buy before the trial ends.
-Future<void> presentEmojioPaywall() =>
-    RevenueCatUI.presentPaywall(displayCloseButton: true);
+/// banner so users can buy before the trial ends. Gated on [Purchases.isConfigured]:
+/// presenting before the SDK is configured trips a native `Purchases.shared`
+/// assertion (SIGTRAP) that a Dart try/catch can't catch, so we no-op instead.
+Future<void> presentEmojioPaywall() async {
+  if (!await Purchases.isConfigured) return;
+  await RevenueCatUI.presentPaywall(displayCloseButton: true);
+}
 
 /// Opens the RevenueCat Customer Center (restore purchases, manage the unlock,
-/// contact support). Makes sense to keep reachable even after unlocking.
-Future<void> presentEmojioCustomerCenter() =>
-    RevenueCatUI.presentCustomerCenter();
+/// contact support). Makes sense to keep reachable even after unlocking. Gated
+/// on [Purchases.isConfigured] for the same native-assertion reason as above.
+Future<void> presentEmojioCustomerCenter() async {
+  if (!await Purchases.isConfigured) return;
+  await RevenueCatUI.presentCustomerCenter();
+}
 
 /// Slim banner shown during the trial (when not yet unlocked). Tapping opens
 /// the paywall so users can buy before the trial ends.
