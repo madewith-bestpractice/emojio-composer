@@ -179,6 +179,12 @@
             justify-content: flex-end;
         }
 
+        .actions-scroll {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
         /* Buttons */
         button {
             font-family: 'Press Start 2P', cursive;
@@ -638,9 +644,7 @@
             outline: none;
         }
         .get-app-badge .ga-emoji { font-size: 0.7rem; }
-        @media (max-width: 800px) {
-            .get-app-badge { align-self: flex-start; }  /* its own line under the title */
-        }
+        .get-app-badge .ga-short { display: none; }
 
         /* App Store upsell modal */
         .app-modal-box { max-width: 460px; text-align: left; }
@@ -693,18 +697,39 @@
             position: relative;
             background: #ffffff;
             /* Keep cursor:none here to be doubly sure */
-            cursor: none; 
+            cursor: none;
             overflow: hidden;
-            display: flex;
-            align-items: center;
-            justify-content: center;
         }
 
-        canvas {
+        /* Owns the staff's horizontal scroll. The staff canvas is as wide as the
+           whole song, so scrolling is native (compositor-driven, with momentum)
+           and nothing has to be redrawn to move it — the same trick the Flutter
+           handset build uses. touch-action is set in resizeCanvas(), and is what
+           arbitrates "this drag scrolls" vs "this drag paints notes". */
+        .staff-scroll {
+            position: absolute;
+            inset: 0;
+            overflow-x: auto;
+            overflow-y: hidden;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior-x: contain;
+            scrollbar-width: none;
+        }
+        .staff-scroll::-webkit-scrollbar { height: 0; width: 0; }
+
+        #musicCanvas {
             display: block;
-            width: 100%;
             height: 100%;
-            image-rendering: pixelated; 
+            image-rendering: pixelated;
+        }
+
+        /* The clef gutter: pinned outside the scroller so the staff slides under it. */
+        #clefGutter {
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            pointer-events: none;
         }
 
         .hidden { display: none !important; }
@@ -766,12 +791,73 @@
         }
 
         @media (max-width: 800px) {
-            header { flex-direction: column; align-items: stretch; gap: 15px; padding: 15px; }
-            h1 { text-align: center; margin-right: 0; font-size: 0.8rem; white-space: normal; }
-            .controls { justify-content: center; flex-wrap: wrap; gap: 10px; }
             .palette-bar { padding: 15px; overflow-x: auto; justify-content: flex-start; }
             .palette-container { justify-content: flex-start; flex-wrap: nowrap; }
-            .tempo-control { width: 100%; justify-content: center; }
+        }
+
+        /* Phone header — two tidy rows: brand + app badge, then the transport.
+           It used to stack into four loose rows and eat close to half a phone
+           screen, and every pixel up here is a pixel the staff doesn't get. */
+        @media (max-width: 620px) {
+            header {
+                flex-wrap: wrap;
+                align-items: center;
+                justify-content: flex-start;
+                gap: 8px 6px;
+                padding: 8px 10px;
+            }
+
+            h1 {
+                font-size: 0.62rem;
+                flex: 1 1 auto;
+                min-width: 0;
+                padding: 0;
+            }
+            h1 img { width: 26px; height: 26px; margin-right: 8px; }
+
+            .get-app-badge { margin-right: 0; flex: 0 0 auto; }
+
+            /* Controls claim the whole second row, which leaves the brand and the
+               app badge to share the first. */
+            .controls {
+                flex: 1 0 100%;
+                min-width: 0;
+                flex-wrap: nowrap;
+                justify-content: flex-start;
+                gap: 6px;
+            }
+            .controls > .play-btn { flex: 0 0 auto; }
+            /* Tempo hugs the right edge, with the actions filling the gap between. */
+            .controls > .tempo-control { flex: 0 0 auto; margin-left: auto; }
+
+            .actions-scroll {
+                flex: 0 1 auto;
+                min-width: 0;
+                overflow-x: auto;
+                scrollbar-width: none;
+                /* Breathing room so the buttons' hard shadows aren't clipped by the
+                   scroll container; negative margins keep the row's spacing even. */
+                padding: 3px 3px 5px;
+                margin: -3px -3px -5px;
+            }
+            .actions-scroll::-webkit-scrollbar { height: 0; }
+
+            /* Trim the tempo pill so the transport row fits without the actions
+               having to shrink and clip. */
+            .tempo-control { padding: 5px 8px; gap: 4px; }
+            .tempo-control input[type=range] { width: 56px; }
+            .tempo-icon { width: 16px; height: 16px; }
+        }
+
+        /* Narrowest phones: the labels are what stop the transport row from fitting,
+           and these three emoji read fine alone. Play keeps its word — it's the one
+           button worth spelling out. */
+        @media (max-width: 480px) {
+            .actions-scroll .btn-label { display: none; }
+            .actions-scroll button { padding: 8px 10px; }
+            button.play-btn { padding: 9px 12px; font-size: 0.55rem; }
+            .get-app-badge .ga-label { display: none; }
+            .get-app-badge .ga-short { display: inline; }
         }
     </style>
 </head>
@@ -784,7 +870,7 @@
         <h1><img src="emojio-icon.png" alt="Emojio" width="44" height="44" style="vertical-align:middle;border-radius:9px"> Emojio Paint Composer</h1>
         <a class="get-app-badge" id="getAppBadge" href="#" role="button" aria-haspopup="dialog"
            title="Get Emojio on the App Store — see what the app adds">
-            <span class="ga-emoji" aria-hidden="true">📱</span> Get the app
+            <span class="ga-emoji" aria-hidden="true">📱</span><span class="ga-label">Get the app</span><span class="ga-short" aria-hidden="true">App</span>
         </a>
         <div class="controls">
             <!-- Buttons now populated by JS with icons AND text -->
@@ -793,19 +879,24 @@
                 <span id="playLabel">Play</span>
             </button>
             
-            <button id="randomBtn" class="action-btn" title="Randomize Notes" aria-label="Randomize notes">
-                 <img id="randomIcon" alt="random">
-                 <span>Random</span>
-            </button>
-            <button id="clearBtn" class="action-btn" title="Clear All" aria-label="Clear all notes">
-                 <img id="clearIcon" alt="clear">
-                 <span>Clear</span>
-            </button>
-            <button id="shareBtn" class="action-btn" title="Share Song" aria-label="Share song">
-                 <img id="shareIcon" alt="share">
-                 <span>Share</span>
-            </button>
-            
+            <!-- Secondary actions ride in their own strip so that on a phone they can
+                 scroll sideways while Play and the tempo stay put — same split the
+                 app's toolbar uses. -->
+            <div class="actions-scroll">
+                <button id="randomBtn" class="action-btn" title="Randomize Notes" aria-label="Randomize notes">
+                     <img id="randomIcon" alt="random">
+                     <span class="btn-label">Random</span>
+                </button>
+                <button id="clearBtn" class="action-btn" title="Clear All" aria-label="Clear all notes">
+                     <img id="clearIcon" alt="clear">
+                     <span class="btn-label">Clear</span>
+                </button>
+                <button id="shareBtn" class="action-btn" title="Share Song" aria-label="Share song">
+                     <img id="shareIcon" alt="share">
+                     <span class="btn-label">Share</span>
+                </button>
+            </div>
+
             <div class="tempo-control">
                 <!-- Programmatically filled with emoji icons -->
                 <div id="tempoIconSlow" class="tempo-icon" aria-hidden="true"></div>
@@ -906,7 +997,10 @@
     </div>
 
     <div class="canvas-wrapper" id="canvasContainer">
-        <canvas id="musicCanvas" aria-label="Music canvas. Click or tap to place emoji notes on the staff."></canvas>
+        <div class="staff-scroll" id="staffScroll">
+            <canvas id="musicCanvas" aria-label="Music canvas. Click or tap to place emoji notes on the staff."></canvas>
+        </div>
+        <canvas id="clefGutter" aria-hidden="true"></canvas>
     </div>
 
     <!-- Screen-reader announcements for note add/remove etc. -->
@@ -919,7 +1013,11 @@
         /**
          * 1. CONFIGURATION & CONSTANTS
          */
-        const GRID_COLS = 16; 
+        const GRID_COLS = 16;
+        // Columns never get narrower than this. 16 of them overflow a phone, so the
+        // staff scrolls sideways instead of collapsing into slivers too thin to hit.
+        // Ported from the Flutter handset build's _handsetStepX.
+        const MIN_STEP_X = 64;
         const SCALE = [
             'G5', 'F5', 'E5', 'D5', 'C5', 'B4', 'A4', 'G4', 'F4', 'E4', 'D4', 'C4', 'B3', 'A3', 'G3'
         ];
@@ -978,6 +1076,10 @@
         const canvas = document.getElementById('musicCanvas');
         const ctx = canvas.getContext('2d');
         ctx.imageSmoothingEnabled = true;
+
+        const staffScroll = document.getElementById('staffScroll');
+        const clefGutter = document.getElementById('clefGutter');
+        const gutterCtx = clefGutter.getContext('2d');
 
         const playToggle = document.getElementById('playToggle');
         const playIcon = document.getElementById('playIcon');
@@ -1896,21 +1998,46 @@
         /**
          * 7. VISUAL RENDERER
          */
-        let stepX, stepY, staffPaddingLeft = 120; 
+        let stepX, stepY, staffPaddingLeft = 120;
+        // Width of the whole song in canvas pixels, and whether that overflows the
+        // viewport (i.e. whether the staff scrolls at all).
+        let contentWidth = 0;
+        let staffScrollable = false;
 
         function resizeCanvas() {
             const container = document.getElementById('canvasContainer');
             const rect = container.getBoundingClientRect();
+            const viewW = Math.max(1, rect.width);
+            const viewH = Math.max(1, rect.height);
 
-            canvas.width = rect.width;
-            canvas.height = rect.height;
+            // Wide screens still fit all 16 columns exactly as before. Narrow ones
+            // pin the columns at MIN_STEP_X and let the staff overflow, which is what
+            // makes it scroll.
+            stepX = Math.max(MIN_STEP_X, (viewW - staffPaddingLeft) / GRID_COLS);
+            contentWidth = Math.round(staffPaddingLeft + stepX * GRID_COLS);
+            staffScrollable = contentWidth > viewW + 1;
 
-            bgCanvas.width = rect.width;
-            bgCanvas.height = rect.height;
+            // The staff canvas is the full song wide and scrolls natively inside
+            // #staffScroll; the gutter canvas is pinned over its left edge.
+            canvas.width = contentWidth;
+            canvas.height = viewH;
+            canvas.style.width = contentWidth + 'px';
 
-            stepX = (canvas.width - staffPaddingLeft) / GRID_COLS;
+            bgCanvas.width = contentWidth;
+            bgCanvas.height = viewH;
+
+            clefGutter.width = staffPaddingLeft + TEAR_W + 8;
+            clefGutter.height = viewH;
+            clefGutter.style.width = clefGutter.width + 'px';
+
+            // When the staff overflows, a horizontal drag belongs to the scroller and
+            // only vertical drags paint; when it all fits there is nothing to scroll,
+            // so every drag paints (the existing desktop behaviour).
+            canvas.style.touchAction = staffScrollable ? 'pan-x' : 'none';
+            if (!staffScrollable) staffScroll.scrollLeft = 0;
+
             const marginY = 40;
-            stepY = (canvas.height - (marginY * 2)) / (GRID_ROWS - 1);
+            stepY = (viewH - (marginY * 2)) / (GRID_ROWS - 1);
 
             bgDirty = true;
             markDirty();
@@ -1920,7 +2047,6 @@
             if (!bgDirty) return;
             bgDirty = false;
 
-            const marginY = 40;
             bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
 
             // Grid
@@ -1935,27 +2061,156 @@
             }
 
             // Staff
-            bgCtx.lineCap = "round";
+            drawStaffLines(bgCtx, 20, bgCanvas.width - 20);
+        }
+
+        // Shared by the scrolling staff and the pinned gutter so the gutter's line
+        // stubs meet the staff's lines exactly at the seam.
+        function drawStaffLines(g, x0, x1) {
+            const marginY = 40;
+            g.lineCap = "round";
             for (let i = 0; i < GRID_ROWS; i++) {
                 if (i % 2 !== 0) {
                     const y = marginY + i * stepY;
                     const isMain = MAIN_STAFF_LINES.includes(i);
-                    bgCtx.strokeStyle = isMain ? COLORS.staffLine : '#eceff1';
-                    bgCtx.lineWidth = isMain ? 4 : 2;
-                    bgCtx.beginPath();
-                    bgCtx.moveTo(20, y);
-                    bgCtx.lineTo(bgCanvas.width - 20, y);
-                    bgCtx.stroke();
+                    g.strokeStyle = isMain ? COLORS.staffLine : '#eceff1';
+                    g.lineWidth = isMain ? 4 : 2;
+                    g.beginPath();
+                    g.moveTo(x0, y);
+                    g.lineTo(x1, y);
+                    g.stroke();
                 }
             }
+        }
 
-            // Clef
-            bgCtx.fillStyle = COLORS.clef;
-            bgCtx.font = `${stepY * 14}px serif`;
-            bgCtx.textAlign = "center";
-            bgCtx.textBaseline = "alphabetic";
-            const g4Y = marginY + 7 * stepY;
-            bgCtx.fillText("𝄞", staffPaddingLeft / 2.5, g4Y + (stepY * 4.5));
+        /* ---- Pinned clef gutter (ported from the Flutter app's StaffGutterPainter) ---- */
+
+        const CLEF_GLYPH = "𝄞";
+        const TEAR_W = 24;
+        const TEAR_SEG = 15;
+        // Deterministic ragged silhouette (0 = tear pulled in, 1 = paper reaches far).
+        // Fixed rather than random so the tear doesn't crawl from frame to frame.
+        const TEAR_JAG = [0.32, 0.86, 0.5, 1.0, 0.4, 0.72, 0.58, 0.94,
+                          0.44, 0.8, 0.52, 0.9, 0.6, 1.0, 0.38, 0.7];
+        // Soft rainbow that slowly rotates over the clef while a song plays. Alpha < 1
+        // over the dark ink keeps it colourful but not neon; first and last colours
+        // match so the sweep loops seamlessly.
+        const CLEF_RAINBOW = ['rgba(255,94,126,0.85)', 'rgba(255,162,75,0.85)',
+                              'rgba(255,213,74,0.85)', 'rgba(85,201,122,0.85)',
+                              'rgba(79,176,240,0.85)', 'rgba(155,123,240,0.85)',
+                              'rgba(255,94,126,0.85)'];
+
+        // Ink extents of the clef per 1px of font size. The em box has huge side
+        // bearings, so measuring is the only reliable way to fit and centre the glyph
+        // across platform serif fonts. Ratios are constant, so measure once.
+        let clefInk = null;
+        function clefInkRatios(g) {
+            if (clefInk) return clefInk;
+            const REF = 100;
+            g.save();
+            g.font = `${REF}px serif`;
+            g.textAlign = "center";
+            g.textBaseline = "alphabetic";
+            const m = g.measureText(CLEF_GLYPH);
+            g.restore();
+            clefInk = {
+                right: m.actualBoundingBoxRight / REF,
+                asc: m.actualBoundingBoxAscent / REF,
+                desc: m.actualBoundingBoxDescent / REF
+            };
+            return clefInk;
+        }
+
+        function drawClef(g) {
+            const r = clefInkRatios(g);
+            const marginY = 40;
+            const anchorX = staffPaddingLeft / 2.5;
+            const idealSize = stepY * 14;
+
+            // The classic size is stepY*14, but the glyph grows with the staff, and on
+            // a tall one it outgrows the gutter. Cap it so the clef always stays on the
+            // pinned paper: a clef bleeding onto the scrolling notes would break the
+            // illusion. When the staff scrolls, also keep clear of the torn edge, which
+            // would otherwise slice straight through the glyph.
+            const reserve = staffScrollable ? TEAR_W / 2 : 2;
+            const size = Math.min(idealSize, (staffPaddingLeft - reserve - anchorX) / r.right);
+            // Keep the ink centred where the full-size clef sits, so capping only ever
+            // shrinks it rather than sliding it down the staff.
+            const idealBaseline = marginY + 7 * stepY + (stepY * 4.5);
+            const centreY = idealBaseline + (r.desc - r.asc) * idealSize / 2;
+            const baseline = centreY - (r.desc - r.asc) * size / 2;
+
+            g.font = `${size}px serif`;
+            g.textAlign = "center";
+            g.textBaseline = "alphabetic";
+            g.fillStyle = COLORS.clef;
+            g.fillText(CLEF_GLYPH, anchorX, baseline);
+
+            // Rainbow sweep while playing: a second pass of translucent gradient over
+            // the ink, which is what the Flutter build's srcATOP blend amounts to.
+            if (state.isPlaying && g.createConicGradient) {
+                const phase = (Date.now() / 5000) * Math.PI * 2;  // a full turn every 5s
+                const grad = g.createConicGradient(phase, anchorX, centreY);
+                CLEF_RAINBOW.forEach((c, i) => grad.addColorStop(i / (CLEF_RAINBOW.length - 1), c));
+                g.fillStyle = grad;
+                g.fillText(CLEF_GLYPH, anchorX, baseline);
+            }
+        }
+
+        // A torn-paper right edge for the gutter, so the notes read as scrolling *under*
+        // the ripped edge of the staff paper rather than sliding beneath a ruled line.
+        function tearPath(g, left, h) {
+            const x = (i) => left + TEAR_W * (0.4 + 0.6 * TEAR_JAG[i % TEAR_JAG.length]);
+            g.beginPath();
+            g.moveTo(left, -2);
+            g.lineTo(x(0), -2);
+            let i = 1;
+            for (let y = TEAR_SEG; y < h; y += TEAR_SEG, i++) g.lineTo(x(i), y);
+            g.lineTo(x(i), h + 2);
+            g.lineTo(left, h + 2);
+            g.closePath();
+        }
+
+        function drawTornEdge(g, h, opacity) {
+            g.save();
+            g.globalAlpha = opacity;
+            // One fill paints both: the shadow the paper casts onto the notes sliding
+            // under it, then the paper itself on top.
+            tearPath(g, staffPaddingLeft - 8, h);
+            g.shadowColor = 'rgba(0, 0, 0, 0.22)';
+            g.shadowBlur = 6;
+            g.shadowOffsetX = 3;
+            g.fillStyle = COLORS.bg;
+            g.fill();
+            g.restore();
+
+            // The staff lines are printed on the paper, so carry them across the torn
+            // strip and let the rip cut them off. Without this the paper reads as a
+            // blank white margin tacked onto the end of the staff.
+            g.save();
+            g.globalAlpha = opacity;
+            tearPath(g, staffPaddingLeft - 8, h);
+            g.clip();
+            drawStaffLines(g, 20, staffPaddingLeft + TEAR_W);
+            g.restore();
+        }
+
+        function drawGutter() {
+            const h = clefGutter.height;
+            gutterCtx.clearRect(0, 0, clefGutter.width, h);
+
+            // Opaque paper exactly as wide as the gutter — the staff scrolls beneath it.
+            gutterCtx.fillStyle = COLORS.bg;
+            gutterCtx.fillRect(0, 0, staffPaddingLeft, h);
+            drawStaffLines(gutterCtx, 20, staffPaddingLeft);
+            drawClef(gutterCtx);
+
+            // The tear only makes sense once the paper has something sliding under it,
+            // so it fades in over the first 16px of scroll.
+            if (staffScrollable) {
+                const opacity = Math.min(1, Math.max(0, staffScroll.scrollLeft / 16));
+                if (opacity > 0) drawTornEdge(gutterCtx, h, opacity);
+            }
         }
 
         // Render loop sleeps when idle and is woken via markDirty()/wakeRenderLoop().
@@ -2083,10 +2338,73 @@
                 ctx.restore();
             });
 
+            drawGutter();
+            followPlayhead();
+
             if (animateNextFrame) {
                 needsRedraw = true; // Keep loop going if animating
             }
+            // While playing the clef rainbow and the auto-scroll both animate every
+            // frame, so keep the loop awake for the whole song rather than only while
+            // a note is bouncing. It still sleeps completely when stopped.
+            if (state.isPlaying) needsRedraw = true;
         }
+
+        /* ---- Auto-scroll: keep the playhead on screen while a scrolled song plays ---- */
+
+        // Eased rather than snapped, so the staff glides under the notes instead of
+        // lurching a column at a time. Pauses after a manual scroll so we never fight
+        // the user's finger.
+        let userScrolledAtMs = 0;
+        let autoScrollLeft = -1;
+        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+        function followPlayhead() {
+            if (!staffScrollable || !state.isPlaying || state.currentStep < 0) return;
+            if (Date.now() - userScrolledAtMs < 2000) return;
+
+            const viewW = staffScroll.clientWidth;
+            const maxScroll = Math.max(0, contentWidth - viewW);
+            const playheadX = staffPaddingLeft + state.currentStep * stepX;
+            // Park the playhead ~40% into the visible staff so you can see what is
+            // coming, clamped so the song's ends still reach the edges.
+            const target = Math.min(maxScroll, Math.max(0,
+                playheadX - staffPaddingLeft - (viewW - staffPaddingLeft) * 0.4));
+
+            // Gliding is the nicer default, but a staff sliding continuously under the
+            // notes is exactly the kind of motion to drop for anyone who asked for less
+            // of it — so jump straight to the target instead.
+            const ease = reduceMotion.matches ? 1 : 0.18;
+            const current = staffScroll.scrollLeft;
+            const next = Math.abs(target - current) < 0.5
+                ? target
+                : current + (target - current) * ease;
+            if (next !== current) {
+                autoScrollLeft = next;
+                staffScroll.scrollLeft = next;
+            }
+        }
+
+        staffScroll.addEventListener('scroll', () => {
+            // Tell the user's finger apart from our own auto-follow writes (the browser
+            // rounds scrollLeft, hence the tolerance rather than an equality check).
+            if (Math.abs(staffScroll.scrollLeft - autoScrollLeft) > 1.5) {
+                userScrolledAtMs = Date.now();
+            }
+            markDirty();  // repaint the torn edge at its new opacity
+        }, { passive: true });
+
+        // A plain mouse wheel only reports vertical delta, and the staff has no vertical
+        // scroll to spend it on — so steer it sideways. Without this, a narrow desktop
+        // window with an ordinary mouse could strand the far end of the song out of reach.
+        staffScroll.addEventListener('wheel', (e) => {
+            if (!staffScrollable || e.ctrlKey) return;  // ctrl+wheel is the zoom gesture
+            const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+            if (!delta) return;
+            staffScroll.scrollLeft += delta;
+            userScrolledAtMs = Date.now();
+            e.preventDefault();
+        }, { passive: false });
 
         /**
          * 8. INTERACTION & EVENTS
@@ -2285,10 +2603,16 @@
         let lastPaintedKey = null;
 
         function hitTestGrid(clientX, clientY) {
+            // The canvas scrolls, so its own rect already carries the scroll offset:
+            // clientX - rect.left is a staff coordinate with no scrollLeft maths needed.
             const rect = canvas.getBoundingClientRect();
             const x = clientX - rect.left;
             const y = clientY - rect.top;
             if (x < staffPaddingLeft) return null;
+            // Reject taps landing on the pinned gutter. Once scrolled there are real
+            // columns hidden underneath it, and painting into a cell the user can't see
+            // would be a nasty surprise.
+            if (clientX - staffScroll.getBoundingClientRect().left < staffPaddingLeft) return null;
             const gridX = Math.floor((x - staffPaddingLeft) / stepX);
             const rawY = (y - 40) / stepY;
             const gridY = Math.round(rawY);
