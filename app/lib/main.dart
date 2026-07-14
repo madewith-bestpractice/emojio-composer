@@ -1405,7 +1405,7 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
                         final op = (off / 16).clamp(0.0, 1.0);
                         return Opacity(
                           opacity: op,
-                          child: const CustomPaint(painter: TornEdgePainter()),
+                          child: CustomPaint(painter: TornEdgePainter(rows: _rows)),
                         );
                       },
                     ),

@@ -208,8 +208,6 @@ class StaffGutterPainter extends CustomPainter {
       this.isPlaying = false,
       this.tMs = 0});
 
-  static const _mainLines = {1, 3, 5, 7, 9, 11, 13};
-
   @override
   void paint(Canvas canvas, Size size) {
     if (size.width <= 0 || size.height <= 0 || rows < 2) return;
@@ -218,20 +216,7 @@ class StaffGutterPainter extends CustomPainter {
     canvas.drawRect(Offset.zero & size, Paint()..color = Colors.white);
 
     // Line stubs (odd rows) that meet the scrolling grid flush at the right edge.
-    for (var i = 0; i < rows; i++) {
-      if (i.isOdd) {
-        final y = marginY + i * stepY;
-        final main = _mainLines.contains(i);
-        canvas.drawLine(
-          Offset(20, y),
-          Offset(size.width, y),
-          Paint()
-            ..color = main ? const Color(0xFF90A4AE) : const Color(0xFFECEFF1)
-            ..strokeWidth = main ? 4 : 2
-            ..strokeCap = StrokeCap.round,
-        );
-      }
-    }
+    paintStaffLines(canvas, 20, size.width, stepY, rows);
     if (showClef) {
       _paintClef(canvas, stepY * 11,
           Offset(size.width / 2 - stepY * 2.4, marginY + stepY * 2.5),
@@ -256,13 +241,40 @@ class StaffGutterPainter extends CustomPainter {
       old.rowLabels != rowLabels;
 }
 
+/// The staff's ruled lines: odd rows only, with the seven "main" ones heavy.
+/// Shared so the pinned gutter and the torn edge that continues it can't drift
+/// apart.
+const _kMainLines = {1, 3, 5, 7, 9, 11, 13};
+
+void paintStaffLines(
+    Canvas canvas, double x0, double x1, double stepY, int rows) {
+  const marginY = 40.0;
+  for (var i = 0; i < rows; i++) {
+    if (!i.isOdd) continue;
+    final y = marginY + i * stepY;
+    final main = _kMainLines.contains(i);
+    canvas.drawLine(
+      Offset(x0, y),
+      Offset(x1, y),
+      Paint()
+        ..color = main ? const Color(0xFF90A4AE) : const Color(0xFFECEFF1)
+        ..strokeWidth = main ? 4 : 2
+        ..strokeCap = StrokeCap.round,
+    );
+  }
+}
+
 /// A torn-paper right edge for the pinned clef gutter, so the notes read as
 /// scrolling *under* the ripped edge of the staff paper. The paper fills the
 /// left; the right edge is a ragged tear that casts a soft shadow onto the
 /// notes sliding beneath it.
 class TornEdgePainter extends CustomPainter {
   final Color paper;
-  const TornEdgePainter({this.paper = Colors.white});
+
+  /// Row count, so the staff lines can be carried across the torn paper and
+  /// cut off by the rip itself.
+  final int rows;
+  const TornEdgePainter({required this.rows, this.paper = Colors.white});
 
   // Deterministic ragged silhouette (0 = tear pulled in, 1 = paper reaches far).
   static const _jag = <double>[
@@ -298,10 +310,22 @@ class TornEdgePainter extends CustomPainter {
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
     );
     canvas.drawPath(path, Paint()..color = paper);
+
+    // The staff lines are printed on the paper, so carry them across the torn
+    // strip and let the rip cut them off. Without this the tear reads as a blank
+    // white margin tacked onto the end of the staff. Shares the gutter's row
+    // geometry (same height, same marginY) so the lines meet it exactly.
+    if (rows < 2 || size.height <= 0) return;
+    canvas.save();
+    canvas.clipPath(path);
+    paintStaffLines(
+        canvas, 0, size.width, (size.height - 80) / (rows - 1), rows);
+    canvas.restore();
   }
 
   @override
-  bool shouldRepaint(covariant TornEdgePainter old) => old.paper != paper;
+  bool shouldRepaint(covariant TornEdgePainter old) =>
+      old.paper != paper || old.rows != rows;
 }
 
 // Soft rainbow that slowly rotates over the treble clef while a song plays.
