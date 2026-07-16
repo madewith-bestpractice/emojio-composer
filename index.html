@@ -721,6 +721,12 @@
             display: block;
             height: 100%;
             image-rendering: pixelated;
+            /* A touch on a scrolling staff isn't ours to swallow (it may be a pan), so
+               the pointerdown handler leaves the default alone — which means iOS is
+               free to offer a selection callout on a long press unless we say otherwise. */
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
         }
 
         /* The clef gutter: pinned outside the scroller so the staff slides under it. */
@@ -2129,9 +2135,9 @@
             clefGutter.height = viewH;
             clefGutter.style.width = clefGutter.width + 'px';
 
-            // When the staff overflows, a horizontal drag belongs to the scroller and
-            // only vertical drags paint; when it all fits there is nothing to scroll,
-            // so every drag paints (the existing desktop behaviour).
+            // When the staff overflows, a finger drag belongs to the scroller and a tap
+            // is what places a note (see the pointerdown handler); when it all fits there
+            // is nothing to scroll, so a drag paints a run of notes as it always has.
             canvas.style.touchAction = staffScrollable ? 'pan-x' : 'none';
             if (!staffScrollable) staffScroll.scrollLeft = 0;
 
@@ -2822,12 +2828,11 @@
             return true;
         }
 
-        canvas.addEventListener('pointerdown', async (e) => {
-            e.preventDefault();
-            await initAudio();
-
-            const hit = hitTestGrid(e.clientX, e.clientY);
-            if (!hit) return;
+        // Place or remove the note under the pointer. Shared by the mouse's
+        // press-to-paint and by touch's commit-on-lift tap.
+        function toggleNoteAt(clientX, clientY) {
+            const hit = hitTestGrid(clientX, clientY);
+            if (!hit) return false;
 
             // Snapshot for undo before any mutation in this gesture
             snapshotForUndo();
@@ -2846,11 +2851,43 @@
                 announce(`Note placed at column ${hit.gridX + 1}`);
             }
 
+            persist();
+            markDirty();
+            return true;
+        }
+
+        // A finger landing on a scrolling staff is ambiguous: it could be aiming at a
+        // note, or starting a scroll. Committing on pointerdown answered that the wrong
+        // way — every swipe left a stray note behind wherever the finger touched down,
+        // which made the staff feel like it couldn't be moved without damaging the song.
+        // So on touch we wait for the lift and only place if the finger stayed put; the
+        // drag itself goes to the scroller (see touch-action in resizeCanvas). That is
+        // the trade the app makes too: a drag scrolls, a tap places.
+        //
+        // Mouse and pen keep press-and-drag painting — neither pans the staff, so
+        // nothing is competing for the gesture — as does touch on a staff that fits,
+        // where there is no scroll to protect.
+        const TAP_SLOP = 12;  // px of finger wobble still read as a tap, not a swipe
+        let pendingTap = null;
+
+        canvas.addEventListener('pointerdown', async (e) => {
+            const deferToScroll = e.pointerType === 'touch' && staffScrollable;
+            // Only swallow the default when we intend to own the gesture: on touch the
+            // browser needs it to pan.
+            if (!deferToScroll) e.preventDefault();
+            // Record where the finger landed before anything async: the first touch of
+            // the session is the one that boots the audio, and the lift must not be able
+            // to beat that await and find no tap in progress.
+            if (deferToScroll) pendingTap = { id: e.pointerId, x: e.clientX, y: e.clientY };
+
+            await initAudio();
+            if (deferToScroll) return;
+
+            if (!toggleNoteAt(e.clientX, e.clientY)) return;
+
             isDragging = true;
             // Capture the pointer so we keep getting move events even if the cursor leaves
             try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
-            persist();
-            markDirty();
         });
 
         canvas.addEventListener('pointermove', (e) => {
@@ -2864,6 +2901,14 @@
         });
 
         const endDrag = (e) => {
+            if (pendingTap && e.pointerId === pendingTap.id) {
+                const moved = Math.hypot(e.clientX - pendingTap.x, e.clientY - pendingTap.y);
+                pendingTap = null;
+                // Only a finger that stayed put was aiming at a note. Anything else was a
+                // scroll — including a pointercancel, which is the browser telling us it
+                // has taken the gesture to pan the staff.
+                if (e.type === 'pointerup' && moved <= TAP_SLOP) toggleNoteAt(e.clientX, e.clientY);
+            }
             if (!isDragging) return;
             isDragging = false;
             lastPaintedKey = null;
