@@ -732,6 +732,79 @@
             pointer-events: none;
         }
 
+        /* The staff's grab bar. When the song is wider than the screen, the impulse is
+           to grab the sheet and slide it — but a drag on the sheet paints notes, so the
+           scroll gesture gets its own strip spanning the whole sheet, above the clef and
+           big enough to hit without aiming. Only rendered when the staff scrolls at all;
+           it costs the staff ~40px of height, which is only worth it when there is
+           something to scroll to. */
+        .staff-grab {
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 5px 14px;
+            background: linear-gradient(to bottom, #e1f5fe, #b3e5fc);
+            border-bottom: var(--border-width) solid var(--text-color);
+            position: relative;
+            z-index: 14;
+            cursor: grab;
+            user-select: none;
+            -webkit-user-select: none;
+            /* We drive scrollLeft from the pointer ourselves, so keep the browser from
+               claiming the drag as a pan/zoom first. */
+            touch-action: none;
+        }
+        .staff-grab.dragging { cursor: grabbing; }
+
+        .staff-grab-hint {
+            font-size: 0.45rem;
+            line-height: 1;
+            letter-spacing: 1px;
+            white-space: nowrap;
+            opacity: 0.75;
+        }
+
+        .staff-grab-track {
+            position: relative;
+            flex: 1 1 auto;
+            height: 26px;
+            background: rgba(0, 0, 0, 0.08);
+            border-radius: 999px;
+        }
+
+        .staff-grab-thumb {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            min-width: 72px;
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            background: linear-gradient(to bottom, #fff59d, #ffca28);
+            border: 3px solid var(--text-color);
+            border-radius: 999px;
+            box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.18);
+        }
+        .staff-grab.dragging .staff-grab-thumb {
+            background: linear-gradient(to bottom, #ffe082, #ffb300);
+        }
+        /* Grip lines — the bit that says "this is a handle, pull it". */
+        .staff-grab-grip {
+            width: 3px;
+            height: 11px;
+            border-radius: 2px;
+            background: var(--text-color);
+            opacity: 0.5;
+        }
+        .staff-grab:focus-visible {
+            outline: 3px solid var(--accent-color);
+            outline-offset: -3px;
+        }
+
         .hidden { display: none !important; }
 
         /* Danger button (e.g. modal close) */
@@ -996,6 +1069,23 @@
         </div>
     </div>
 
+    <!-- Drag anywhere on this to slide the staff sideways. Shown only when the song is
+         wider than the screen (see resizeCanvas). -->
+    <div class="staff-grab hidden" id="staffGrab"
+         role="scrollbar" tabindex="0"
+         aria-controls="staffScroll" aria-orientation="horizontal"
+         aria-label="Drag to scroll the staff sideways"
+         aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <span class="staff-grab-hint" aria-hidden="true">⇄ Drag to scroll</span>
+        <div class="staff-grab-track" id="staffGrabTrack">
+            <div class="staff-grab-thumb" id="staffGrabThumb" aria-hidden="true">
+                <span class="staff-grab-grip"></span>
+                <span class="staff-grab-grip"></span>
+                <span class="staff-grab-grip"></span>
+            </div>
+        </div>
+    </div>
+
     <div class="canvas-wrapper" id="canvasContainer">
         <div class="staff-scroll" id="staffScroll">
             <canvas id="musicCanvas" aria-label="Music canvas. Click or tap to place emoji notes on the staff."></canvas>
@@ -1080,6 +1170,10 @@
         const staffScroll = document.getElementById('staffScroll');
         const clefGutter = document.getElementById('clefGutter');
         const gutterCtx = clefGutter.getContext('2d');
+
+        const staffGrab = document.getElementById('staffGrab');
+        const staffGrabTrack = document.getElementById('staffGrabTrack');
+        const staffGrabThumb = document.getElementById('staffGrabThumb');
 
         const playToggle = document.getElementById('playToggle');
         const playIcon = document.getElementById('playIcon');
@@ -2006,9 +2100,7 @@
 
         function resizeCanvas() {
             const container = document.getElementById('canvasContainer');
-            const rect = container.getBoundingClientRect();
-            const viewW = Math.max(1, rect.width);
-            const viewH = Math.max(1, rect.height);
+            const viewW = Math.max(1, container.getBoundingClientRect().width);
 
             // Wide screens still fit all 16 columns exactly as before. Narrow ones
             // pin the columns at MIN_STEP_X and let the staff overflow, which is what
@@ -2016,6 +2108,13 @@
             stepX = Math.max(MIN_STEP_X, (viewW - staffPaddingLeft) / GRID_COLS);
             contentWidth = Math.round(staffPaddingLeft + stepX * GRID_COLS);
             staffScrollable = contentWidth > viewW + 1;
+
+            // The grab bar only exists while there is something to scroll to, and it
+            // takes its height out of the staff's — so show it before measuring the
+            // height below. It can't feed back into staffScrollable, which is a
+            // width-only question.
+            staffGrab.classList.toggle('hidden', !staffScrollable);
+            const viewH = Math.max(1, container.getBoundingClientRect().height);
 
             // The staff canvas is the full song wide and scrolls natively inside
             // #staffScroll; the gutter canvas is pinned over its left edge.
@@ -2039,6 +2138,7 @@
             const marginY = 40;
             stepY = (viewH - (marginY * 2)) / (GRID_ROWS - 1);
 
+            syncGrabBar();
             bgDirty = true;
             markDirty();
         }
@@ -2391,6 +2491,7 @@
             if (Math.abs(staffScroll.scrollLeft - autoScrollLeft) > 1.5) {
                 userScrolledAtMs = Date.now();
             }
+            syncGrabBar();
             markDirty();  // repaint the torn edge at its new opacity
         }, { passive: true });
 
@@ -2405,6 +2506,88 @@
             userScrolledAtMs = Date.now();
             e.preventDefault();
         }, { passive: false });
+
+        /* ---- Grab bar: slide the staff without painting on it ----
+           Dragging the sheet itself is the obvious impulse, but that gesture is spoken
+           for — it paints notes — so the scroll gets its own handle above the staff. */
+
+        // Keep the thumb an easy target on a long song, where a strictly proportional
+        // one would shrink to a sliver.
+        const GRAB_MIN_THUMB = 72;
+
+        function grabMaxScroll() {
+            return Math.max(0, contentWidth - staffScroll.clientWidth);
+        }
+
+        // Mirror the scroller into the bar: the thumb's width is how much of the song
+        // is on screen, its position is where in the song you are.
+        function syncGrabBar() {
+            if (!staffScrollable) return;
+            const trackW = staffGrabTrack.clientWidth;
+            if (!trackW) return;
+            const w = Math.max(GRAB_MIN_THUMB, trackW * (staffScroll.clientWidth / contentWidth));
+            const max = grabMaxScroll();
+            const frac = max > 0 ? Math.min(1, Math.max(0, staffScroll.scrollLeft / max)) : 0;
+            staffGrabThumb.style.width = w + 'px';
+            staffGrabThumb.style.transform = `translateX(${(trackW - w) * frac}px)`;
+            staffGrab.setAttribute('aria-valuenow', Math.round(frac * 100));
+        }
+
+        // Where in the thumb the finger landed, so the thumb doesn't jump out from under it.
+        let grabOffset = 0;
+
+        function grabScrollTo(clientX) {
+            const track = staffGrabTrack.getBoundingClientRect();
+            const travel = Math.max(1, track.width - staffGrabThumb.offsetWidth);
+            const frac = Math.min(1, Math.max(0, (clientX - track.left - grabOffset) / travel));
+            staffScroll.scrollLeft = frac * grabMaxScroll();
+            userScrolledAtMs = Date.now();  // auto-follow must not fight the finger
+            // Sync here rather than leaving it to the scroll event: that one is async and
+            // coalesced, which would let the thumb lag behind the finger holding it.
+            syncGrabBar();
+        }
+
+        staffGrab.addEventListener('pointerdown', (e) => {
+            if (!staffScrollable) return;
+            const thumb = staffGrabThumb.getBoundingClientRect();
+            // Land on the thumb and it stays put under your finger; land on the bare
+            // track and it gets picked up by its middle and brought to you.
+            grabOffset = (e.clientX >= thumb.left && e.clientX <= thumb.right)
+                ? e.clientX - thumb.left
+                : thumb.width / 2;
+            staffGrab.classList.add('dragging');
+            try { staffGrab.setPointerCapture(e.pointerId); } catch (_) {}
+            grabScrollTo(e.clientX);
+            e.preventDefault();
+        });
+
+        staffGrab.addEventListener('pointermove', (e) => {
+            // The capture doubles as the "is dragging" flag — a hover never holds one.
+            if (!staffGrab.hasPointerCapture(e.pointerId)) return;
+            grabScrollTo(e.clientX);
+        });
+
+        const endGrab = (e) => {
+            staffGrab.classList.remove('dragging');
+            try { staffGrab.releasePointerCapture(e.pointerId); } catch (_) {}
+        };
+        staffGrab.addEventListener('pointerup', endGrab);
+        staffGrab.addEventListener('pointercancel', endGrab);
+
+        // It reports itself as a scrollbar, so it has to answer the scrollbar keys too.
+        staffGrab.addEventListener('keydown', (e) => {
+            const page = staffScroll.clientWidth * 0.8;
+            const by = { ArrowLeft: -stepX, ArrowRight: stepX, PageUp: -page, PageDown: page }[e.key];
+            let target = null;
+            if (by !== undefined) target = staffScroll.scrollLeft + by;
+            else if (e.key === 'Home') target = 0;
+            else if (e.key === 'End') target = grabMaxScroll();
+            if (target === null) return;
+            staffScroll.scrollLeft = Math.min(grabMaxScroll(), Math.max(0, target));
+            userScrolledAtMs = Date.now();
+            syncGrabBar();
+            e.preventDefault();
+        });
 
         /**
          * 8. INTERACTION & EVENTS
@@ -2489,7 +2672,7 @@
 
         // Hide the emoji stamp cursor over UI chrome (buttons, dialogs, picker, header)
         // so the underlying OS pointer ("cute hand") shows through instead.
-        const UI_SELECTOR = 'button, input, textarea, a, .emoji-btn, .picker-item, .picker-tab, .picker-popover, .modal-overlay, header';
+        const UI_SELECTOR = 'button, input, textarea, a, .emoji-btn, .picker-item, .picker-tab, .picker-popover, .modal-overlay, header, .staff-grab';
         document.addEventListener('pointerover', (e) => {
             const overUI = e.target && e.target.closest && e.target.closest(UI_SELECTOR);
             customCursor.style.opacity = overUI ? '0' : '1';
