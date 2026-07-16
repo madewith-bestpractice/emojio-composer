@@ -27,6 +27,7 @@ import 'song.dart';
 import 'song_library.dart';
 import 'splash.dart';
 import 'staff_painter.dart';
+import 'tempo_sheet.dart';
 import 'theme.dart';
 import 'voice_engine.dart';
 
@@ -1007,6 +1008,9 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   Widget _header({double topInset = 0}) {
     final landscape =
         MediaQuery.of(context).orientation == Orientation.landscape;
+    // Same split as the staff: a handset hands the slider to a sheet, a tablet has
+    // the room to keep it inline.
+    final handset = MediaQuery.of(context).size.shortestSide < 600;
     if (landscape) {
       // One tidy blue row: brand · Play · actions · tempo.
       return Container(
@@ -1020,7 +1024,7 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
             const SizedBox(width: 12),
             Expanded(child: _buttonRow(_actionButtons())),
             const SizedBox(width: 10),
-            _tempo(width: 104),
+            handset ? _tempoButton() : _tempo(width: 104),
           ],
         ),
       );
@@ -1040,7 +1044,7 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
               children: [
                 _brandTitle(),
                 const Spacer(),
-                _tempo(width: 120),
+                handset ? _tempoButton() : _tempo(width: 120),
               ],
             ),
           ),
@@ -1064,6 +1068,42 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
     );
   }
 
+  void _setBpm(double v) {
+    setState(() => _bpm = v);
+    if (_clockOut?.isRunning ?? false) _clockOut!.setBpm(v);
+  }
+
+  // Dismissal comes free with the sheet: drag it down, tap outside, or press back.
+  void _openTempo() => showModalBottomSheet<void>(
+        context: context,
+        showDragHandle: true,
+        backgroundColor: Colors.white,
+        shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        builder: (_) => StatefulBuilder(
+          // The sheet reads _bpm off the page state, so it has to rebuild on the
+          // same drag that rebuilds the header behind it.
+          builder: (ctx, setSheet) => TempoSheet(
+            bpm: _bpm,
+            onChanged: (v) {
+              setSheet(() {});
+              _setBpm(v);
+            },
+          ),
+        ),
+      );
+
+  // Stands in for the pill on a handset. It keeps the BPM on show, so the header
+  // gives up nothing by handing the slider to the sheet.
+  Widget _tempoButton() => _barButton(
+        label: '${_bpm.round()}',
+        emoji: '🎛️',
+        color: Colors.white,
+        textColor: Toy.text,
+        tooltip: 'Tempo, ${_bpm.round()} beats per minute',
+        onPressed: _openTempo,
+      );
+
   Widget _tempo({double width = 130}) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
         decoration: BoxDecoration(
@@ -1084,10 +1124,7 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
                 divisions: 120,
                 label: '${_bpm.round()} BPM',
                 semanticFormatterCallback: (v) => '${v.round()} beats per minute',
-                onChanged: (v) {
-                  setState(() => _bpm = v);
-                  if (_clockOut?.isRunning ?? false) _clockOut!.setBpm(v);
-                },
+                onChanged: _setBpm,
               ),
             ),
             const ExcludeSemantics(child: Text('🐇', style: TextStyle(fontSize: 16))),
