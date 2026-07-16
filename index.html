@@ -256,7 +256,27 @@
             color: white;
         }
 
-        /* Tempo */
+        /* Tempo. The slot holds the row's layout steady whichever of the two the
+           breakpoint is showing: the inline pill, or the button that opens it as a panel. */
+        .tempo-slot {
+            display: flex;
+            align-items: center;
+        }
+        /* Wide screens have room for the pill itself, so the button stays out of the way. */
+        .tempo-btn {
+            display: none;
+            gap: 6px;
+            padding: 8px 12px;
+            font-size: 0.55rem;
+        }
+        .tempo-btn .tempo-icon { width: 18px; height: 18px; }
+
+        .tempo-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 55;
+        }
+
         .tempo-control {
             display: flex;
             align-items: center;
@@ -278,6 +298,16 @@
         .tempo-icon img {
             width: 100%;
             height: 100%;
+        }
+
+        /* The BPM you're dialling in. Only earns its space inside the panel — on the
+           inline pill the turtle and the hare say enough. */
+        .tempo-value {
+            display: none;
+            font-size: 0.5rem;
+            min-width: 3ch;
+            text-align: right;
+            line-height: 1;
         }
 
         input[type=range] {
@@ -907,7 +937,7 @@
             }
             .controls > .play-btn { flex: 0 0 auto; }
             /* Tempo hugs the right edge, with the actions filling the gap between. */
-            .controls > .tempo-control { flex: 0 0 auto; margin-left: auto; }
+            .controls > .tempo-slot { flex: 0 0 auto; margin-left: auto; }
 
             .actions-scroll {
                 flex: 0 1 auto;
@@ -926,6 +956,42 @@
             .tempo-control { padding: 5px 8px; gap: 4px; }
             .tempo-control input[type=range] { width: 56px; }
             .tempo-icon { width: 16px; height: 16px; }
+
+            /* 56px of track spans 60-180 BPM — about two beats a pixel, which is a guess
+               rather than a control. Narrow screens get the button instead, and the
+               slider moves into a panel wide enough to aim with. */
+            .tempo-btn { display: flex; }
+            .tempo-control { display: none; }
+
+            .tempo-slot.open .tempo-control {
+                display: flex;
+                position: fixed;
+                left: 8px;
+                right: 8px;
+                /* top is set on open, from the header's height */
+                z-index: 60;
+                background: #fff;
+                border-width: var(--border-width);
+                padding: 12px 14px;
+                gap: 10px;
+                box-shadow: 6px 6px 0 rgba(0,0,0,0.2);
+            }
+            /* The whole point of the panel: a track the width of the screen. */
+            .tempo-slot.open .tempo-control input[type=range] {
+                flex: 1 1 auto;
+                width: auto;
+                min-width: 0;
+            }
+            .tempo-slot.open .tempo-control input[type=range]::-webkit-slider-runnable-track {
+                height: 10px;
+            }
+            .tempo-slot.open .tempo-control input[type=range]::-webkit-slider-thumb {
+                height: 28px;
+                width: 28px;
+                margin-top: -11px;   /* centre the fatter thumb on the fatter track */
+            }
+            .tempo-slot.open .tempo-icon { width: 22px; height: 22px; }
+            .tempo-slot.open .tempo-value { display: block; font-size: 0.6rem; }
         }
 
         /* Narrowest phones: the labels are what stop the transport row from fitting,
@@ -976,16 +1042,32 @@
                 </button>
             </div>
 
-            <div class="tempo-control">
-                <!-- Programmatically filled with emoji icons -->
-                <div id="tempoIconSlow" class="tempo-icon" aria-hidden="true"></div>
-                <label for="tempo" class="sr-only">Tempo in beats per minute</label>
-                <input type="range" id="tempo" min="60" max="180" value="100"
-                       aria-label="Tempo" aria-valuemin="60" aria-valuemax="180" aria-valuenow="100">
-                <div id="tempoIconFast" class="tempo-icon" aria-hidden="true"></div>
+            <!-- Wide screens show the pill inline. Narrow ones show the button, which
+                 opens the same pill as a panel with a full-width track. -->
+            <div class="tempo-slot" id="tempoSlot">
+                <button id="tempoBtn" class="tempo-btn action-btn" aria-expanded="false"
+                        aria-controls="tempo" aria-label="Tempo in beats per minute">
+                    <div id="tempoBtnIcon" class="tempo-icon" aria-hidden="true"></div>
+                    <span id="tempoBtnValue">100</span>
+                </button>
+
+                <div class="tempo-control">
+                    <!-- Programmatically filled with emoji icons -->
+                    <div id="tempoIconSlow" class="tempo-icon" aria-hidden="true"></div>
+                    <label for="tempo" class="sr-only">Tempo in beats per minute</label>
+                    <input type="range" id="tempo" min="60" max="180" value="100"
+                           aria-label="Tempo" aria-valuemin="60" aria-valuemax="180" aria-valuenow="100">
+                    <div id="tempoIconFast" class="tempo-icon" aria-hidden="true"></div>
+                    <!-- Shown only in the panel; a screen reader reads the input's
+                         aria-valuenow, so this is decoration. -->
+                    <span id="tempoValue" class="tempo-value" aria-hidden="true">100</span>
+                </div>
             </div>
         </div>
     </header>
+
+    <!-- Swallows the tap that dismisses the tempo panel, so it can't land on the staff. -->
+    <div id="tempoBackdrop" class="tempo-backdrop hidden"></div>
 
     <div class="palette-bar">
         <div class="current-emoji-wrapper" id="currentEmojiContainer">
@@ -1188,6 +1270,27 @@
         const clearBtn = document.getElementById('clearBtn');
         const shareBtn = document.getElementById('shareBtn');
         const tempoInput = document.getElementById('tempo');
+        // Declared here with the other refs rather than beside their handlers: the tempo
+        // is restored during init, which runs before those would have initialised.
+        const tempoControl = document.querySelector('.tempo-control');
+        const tempoSlot = document.getElementById('tempoSlot');
+        const tempoBtn = document.getElementById('tempoBtn');
+        const tempoBackdrop = document.getElementById('tempoBackdrop');
+        const tempoValueOut = document.getElementById('tempoValue');
+        const tempoBtnValue = document.getElementById('tempoBtnValue');
+        const TEMPO_MIN = Number(tempoInput.min);
+        const TEMPO_MAX = Number(tempoInput.max);
+
+        // Push state.bpm out to everywhere the tempo is shown: the slider, its accessible
+        // value, the panel's readout and the button's. Anything that changes the tempo
+        // without the slider (undo, loading a song, restoring on boot) goes through here.
+        function syncTempoUI() {
+            tempoInput.value = String(state.bpm);
+            tempoInput.setAttribute('aria-valuenow', String(state.bpm));
+            tempoValueOut.textContent = String(state.bpm);
+            tempoBtnValue.textContent = String(state.bpm);
+        }
+
         const paletteContainer = document.getElementById('emojiPalette');
         const openPickerBtn = document.getElementById('openPickerBtn');
         const pickerPopover = document.getElementById('pickerPopover');
@@ -1294,7 +1397,7 @@
             state.bpm = prev.bpm;
             state.palette = prev.palette;
             state.notes = prev.notes.map(n => ({ ...n, createdAt: Date.now() }));
-            tempoInput.value = state.bpm;
+            syncTempoUI();
             if (typeof Tone !== "undefined" && Tone.Transport) {
                 Tone.Transport.bpm.value = state.bpm;
             }
@@ -1420,7 +1523,7 @@
             });
 
             // Sync UI
-            tempoInput.value = state.bpm;
+            syncTempoUI();
             if (typeof Tone !== "undefined" && Tone.Transport) {
                 Tone.Transport.bpm.value = state.bpm;
             }
@@ -2617,6 +2720,10 @@
         const tempoIconFast = document.getElementById('tempoIconFast');
         const slowImg = document.createElement('img'); slowImg.src = getEmojiUrl('🐢'); tempoIconSlow.appendChild(slowImg);
         const fastImg = document.createElement('img'); fastImg.src = getEmojiUrl('🐇'); tempoIconFast.appendChild(fastImg);
+        // The button that stands in for the pill on a phone — a metronome reads as
+        // "tempo" without implying which end of the range you're at.
+        const btnImg = document.createElement('img'); btnImg.src = getEmojiUrl('🎛️');
+        document.getElementById('tempoBtnIcon').appendChild(btnImg);
 
         let pendingAction = null;
         let lastMouseX = 0, lastMouseY = 0, lastMouseTime = 0;
@@ -3015,9 +3122,9 @@
                 return;
             }
         });
-        tempoInput.oninput = (e) => {
-            state.bpm = Number(e.target.value);
-            tempoInput.setAttribute('aria-valuenow', String(state.bpm));
+        function applyBpm(bpm) {
+            state.bpm = Math.min(TEMPO_MAX, Math.max(TEMPO_MIN, Math.round(bpm)));
+            syncTempoUI();
             if (typeof Tone !== "undefined" && Tone.Transport) {
                 if (Tone.Transport.state !== "stopped") {
                     Tone.Transport.bpm.rampTo(state.bpm, 0.05);
@@ -3025,8 +3132,57 @@
                     Tone.Transport.bpm.value = state.bpm;
                 }
             }
+        }
+
+        tempoInput.oninput = (e) => {
+            applyBpm(Number(e.target.value));
             persist();
         };
+
+        /* ---- Tempo panel (narrow layouts) ----
+           The phone's inline track is 56px for the whole 60-180 range: touching it
+           snapped the tempo to wherever the finger landed, and left ~2 BPM per pixel to
+           correct with. The pill is replaced on narrow screens by a button showing the
+           BPM, which opens a panel with a track the width of the screen.
+
+           The panel is why this works and an expanding pill didn't: the slider is at its
+           full size *before* the finger arrives, so the native absolute mapping is
+           intact — grab the thumb and it is already under your finger, no jump — and the
+           whole range is reachable in one stroke, which a pill anchored to the right
+           edge of the screen could never offer. */
+        function openTempoPanel() {
+            // Park the panel under the header rather than over it, so the row that
+            // launched it stays readable.
+            const header = document.querySelector('header');
+            tempoControl.style.top = (header.getBoundingClientRect().bottom + 8) + 'px';
+            tempoSlot.classList.add('open');
+            tempoBackdrop.classList.remove('hidden');
+            tempoBtn.setAttribute('aria-expanded', 'true');
+            tempoInput.focus({ preventScroll: true });
+        }
+
+        function closeTempoPanel() {
+            if (!tempoSlot.classList.contains('open')) return;
+            tempoSlot.classList.remove('open');
+            tempoBackdrop.classList.add('hidden');
+            tempoBtn.setAttribute('aria-expanded', 'false');
+            persist();  // live while adjusting, written once the panel is dismissed
+        }
+
+        tempoBtn.addEventListener('click', () => {
+            if (tempoSlot.classList.contains('open')) closeTempoPanel();
+            else openTempoPanel();
+        });
+        // The backdrop exists to swallow the dismissing tap — without it, closing the
+        // panel by tapping the staff would also stamp a note there.
+        tempoBackdrop.addEventListener('click', closeTempoPanel);
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeTempoPanel();
+        });
+        // A layout wide enough for the inline pill has no business holding the panel open.
+        window.matchMedia('(max-width: 800px)').addEventListener('change', (e) => {
+            if (!e.matches) closeTempoPanel();
+        });
 
         // --- PICKER GENERATION ---
         function buildPicker() {
@@ -3212,8 +3368,7 @@
             const persisted = loadPersisted();
             if (persisted) {
                 state.bpm = persisted.bpm || 100;
-                tempoInput.value = state.bpm;
-                tempoInput.setAttribute('aria-valuenow', String(state.bpm));
+                syncTempoUI();
                 if (typeof Tone !== "undefined" && Tone.Transport) {
                     Tone.Transport.bpm.value = state.bpm;
                 }
