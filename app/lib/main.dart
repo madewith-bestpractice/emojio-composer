@@ -140,9 +140,11 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
 
   Future<void> _boot() async {
     try {
-      // Music-app audio session: plays through the silent/ringer switch and at
-      // screen-lock; stop cleanly on interruptions (calls/Siri) and when
-      // headphones are unplugged. Guarded so unsupported platforms don't break boot.
+      // Music-app audio session: plays through the silent/ringer switch; stop
+      // cleanly on interruptions (calls/Siri) and when headphones are unplugged.
+      // Playback does not survive backgrounding or screen-lock: the transport is
+      // driven by a Ticker, and iOS stops delivering frames. Guarded so
+      // unsupported platforms don't break boot.
       try {
         final session = await AudioSession.instance;
         await session.configure(const AudioSessionConfiguration.music());
