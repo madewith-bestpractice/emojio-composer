@@ -40,6 +40,20 @@ class PurchaseManager extends ChangeNotifier {
 
   String get priceLabel => product?.storeProduct.priceString ?? '';
 
+  /// True once we hold a package the store will actually sell. False means the
+  /// offering never loaded — no agreement, no network, product not yet live —
+  /// and every purchase surface must say so rather than render empty.
+  bool get canBuy => product != null;
+
+  /// Re-fetches the current offering, so a transient load failure isn't
+  /// permanent and the unlock sheet can offer a retry.
+  Future<void> reload() async {
+    error = null;
+    if (!available) return;
+    await _loadOffering();
+    notifyListeners();
+  }
+
   Future<void> init() async {
     try {
       if (kDebugMode) await Purchases.setLogLevel(LogLevel.debug);

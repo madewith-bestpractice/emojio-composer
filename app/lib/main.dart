@@ -158,7 +158,16 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
       } catch (e) {
         debugPrint('audio session config failed: $e');
       }
-      await _trial.ensureStarted();
+      // Keychain reads can fail (-34018 when entitlements are missing). Let it:
+      // an unwritable trial start leaves the trial reading as active, which
+      // opens the app with the purchase reachable. Letting it throw here would
+      // abort the rest of boot and strand the user on the error screen with no
+      // way to buy anything.
+      try {
+        await _trial.ensureStarted();
+      } catch (e) {
+        debugPrint('trial storage unavailable: $e');
+      }
       _purchases.addListener(_onMonetizationChange);
       await _purchases.init();
       _midi.onNote = _onMidiNote;
@@ -872,14 +881,15 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
     super.dispose();
   }
 
-  // Dismissible RevenueCat paywall (from the trial banner). Fire-and-forget:
-  // the purchase manager's customer-info listener updates state on completion.
+  // Dismissible paywall (from the header Unlock button or the trial banner).
+  // Fire-and-forget: the purchase manager's customer-info listener updates
+  // state on completion.
   void _openPaywall() {
-    presentEmojioPaywall();
+    presentEmojioPaywall(context, _purchases);
   }
 
   void _openCustomerCenter() {
-    presentEmojioCustomerCenter();
+    presentEmojioCustomerCenter(context, _purchases);
   }
 
   @override
@@ -887,7 +897,7 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
     if (_bootError != null) return _errorScreen(_bootError!);
     if (_manifest == null) return const SplashScreen();
     // Hard wall once the 3-day trial ends and the app isn't unlocked.
-    if (!_hasAccess) return const RcPaywall();
+    if (!_hasAccess) return RcPaywall(purchases: _purchases);
     // Edge-to-edge: the coloured bars run to every screen edge. The blue header
     // owns the top (including the status-bar inset), so the top of the screen is
     // always blue; the trial ribbon, if any, sits just beneath it.
@@ -985,6 +995,12 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   // for colour. (_exportKey anchors the export share-sheet on iPad; _shareKey
   // anchors Share's.)
   List<Widget> _actionButtons() => [
+        // Purchase entry point, first so it survives the row scrolling on a
+        // handset. The trial ribbon alone wasn't findable — App Review rejected
+        // 1.0 for it — so the unlock also lives here, shaped like every other
+        // button in the app.
+        if (!_purchases.unlocked)
+          _barButton(label: 'Unlock', emoji: '🔓', color: Toy.accent, onPressed: _openPaywall),
         _barButton(label: 'New', emoji: '✨', color: Colors.white, textColor: Toy.text, onPressed: _newSong),
         _barButton(label: 'Random', emoji: '🎲', color: Colors.white, textColor: Toy.text, onPressed: _randomize),
         _barButton(label: 'Save', emoji: '💾', color: Toy.highlight, textColor: Toy.text, onPressed: _saveFlow),
