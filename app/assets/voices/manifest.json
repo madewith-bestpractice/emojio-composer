@@ -33,6 +33,36 @@
       "volumeDb": -6,
       "zones": [
         {
+          "midi": 33,
+          "note": "A1",
+          "file": "alien_033.ogg",
+          "durSec": 0.56
+        },
+        {
+          "midi": 36,
+          "note": "C2",
+          "file": "alien_036.ogg",
+          "durSec": 0.558
+        },
+        {
+          "midi": 39,
+          "note": "D#2",
+          "file": "alien_039.ogg",
+          "durSec": 0.556
+        },
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "alien_042.ogg",
+          "durSec": 0.557
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "alien_045.ogg",
+          "durSec": 0.559
+        },
+        {
           "midi": 48,
           "note": "C3",
           "file": "alien_048.ogg",
@@ -109,6 +139,24 @@
           "note": "C6",
           "file": "alien_084.ogg",
           "durSec": 0.56
+        },
+        {
+          "midi": 87,
+          "note": "D#6",
+          "file": "alien_087.ogg",
+          "durSec": 0.56
+        },
+        {
+          "midi": 90,
+          "note": "F#6",
+          "file": "alien_090.ogg",
+          "durSec": 0.56
+        },
+        {
+          "midi": 93,
+          "note": "A6",
+          "file": "alien_093.ogg",
+          "durSec": 0.56
         }
       ]
     },
@@ -117,82 +165,106 @@
       "volumeDb": -10,
       "zones": [
         {
+          "midi": 36,
+          "note": "C2",
+          "file": "angel_036.ogg",
+          "durSec": 3.056
+        },
+        {
+          "midi": 39,
+          "note": "D#2",
+          "file": "angel_039.ogg",
+          "durSec": 2.984
+        },
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "angel_042.ogg",
+          "durSec": 3.255
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "angel_045.ogg",
+          "durSec": 3.117
+        },
+        {
           "midi": 48,
           "note": "C3",
           "file": "angel_048.ogg",
-          "durSec": 3.275
+          "durSec": 3.131
         },
         {
           "midi": 51,
           "note": "D#3",
           "file": "angel_051.ogg",
-          "durSec": 3.4
+          "durSec": 2.932
         },
         {
           "midi": 54,
           "note": "F#3",
           "file": "angel_054.ogg",
-          "durSec": 3.211
+          "durSec": 3.031
         },
         {
           "midi": 57,
           "note": "A3",
           "file": "angel_057.ogg",
-          "durSec": 3.233
+          "durSec": 3.103
         },
         {
           "midi": 60,
           "note": "C4",
           "file": "angel_060.ogg",
-          "durSec": 3.265
+          "durSec": 3.236
         },
         {
           "midi": 63,
           "note": "D#4",
           "file": "angel_063.ogg",
-          "durSec": 3.219
+          "durSec": 3.074
         },
         {
           "midi": 66,
           "note": "F#4",
           "file": "angel_066.ogg",
-          "durSec": 3.229
+          "durSec": 3.316
         },
         {
           "midi": 69,
           "note": "A4",
           "file": "angel_069.ogg",
-          "durSec": 3.4
+          "durSec": 3.348
         },
         {
           "midi": 72,
           "note": "C5",
           "file": "angel_072.ogg",
-          "durSec": 3.4
+          "durSec": 3.112
         },
         {
           "midi": 75,
           "note": "D#5",
           "file": "angel_075.ogg",
-          "durSec": 2.998
+          "durSec": 3.4
         },
         {
           "midi": 78,
           "note": "F#5",
           "file": "angel_078.ogg",
-          "durSec": 3.285
+          "durSec": 3.155
         },
         {
           "midi": 81,
           "note": "A5",
           "file": "angel_081.ogg",
-          "durSec": 3.013
+          "durSec": 3.033
         },
         {
           "midi": 84,
           "note": "C6",
           "file": "angel_084.ogg",
-          "durSec": 3.233
+          "durSec": 3.331
         }
       ],
       "loop": {
@@ -204,6 +276,18 @@
       "type": "oneshot",
       "volumeDb": -8,
       "zones": [
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "baby_042.ogg",
+          "durSec": 0.499
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "baby_045.ogg",
+          "durSec": 0.499
+        },
         {
           "midi": 48,
           "note": "C3",
@@ -289,6 +373,42 @@
       "volumeDb": -3,
       "zones": [
         {
+          "midi": 30,
+          "note": "F#1",
+          "file": "ball_030.ogg",
+          "durSec": 0.235
+        },
+        {
+          "midi": 33,
+          "note": "A1",
+          "file": "ball_033.ogg",
+          "durSec": 0.236
+        },
+        {
+          "midi": 36,
+          "note": "C2",
+          "file": "ball_036.ogg",
+          "durSec": 0.235
+        },
+        {
+          "midi": 39,
+          "note": "D#2",
+          "file": "ball_039.ogg",
+          "durSec": 0.235
+        },
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "ball_042.ogg",
+          "durSec": 0.235
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "ball_045.ogg",
+          "durSec": 0.237
+        },
+        {
           "midi": 48,
           "note": "C3",
           "file": "ball_048.ogg",
@@ -365,6 +485,30 @@
           "note": "C6",
           "file": "ball_084.ogg",
           "durSec": 0.236
+        },
+        {
+          "midi": 87,
+          "note": "D#6",
+          "file": "ball_087.ogg",
+          "durSec": 0.236
+        },
+        {
+          "midi": 90,
+          "note": "F#6",
+          "file": "ball_090.ogg",
+          "durSec": 0.236
+        },
+        {
+          "midi": 93,
+          "note": "A6",
+          "file": "ball_093.ogg",
+          "durSec": 0.236
+        },
+        {
+          "midi": 96,
+          "note": "C7",
+          "file": "ball_096.ogg",
+          "durSec": 0.236
         }
       ]
     },
@@ -372,6 +516,18 @@
       "type": "oneshot",
       "volumeDb": -5,
       "zones": [
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "bell_042.ogg",
+          "durSec": 1.032
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "bell_045.ogg",
+          "durSec": 1.036
+        },
         {
           "midi": 48,
           "note": "C3",
@@ -449,6 +605,60 @@
           "note": "C6",
           "file": "bell_084.ogg",
           "durSec": 1.036
+        },
+        {
+          "midi": 87,
+          "note": "D#6",
+          "file": "bell_087.ogg",
+          "durSec": 1.036
+        },
+        {
+          "midi": 90,
+          "note": "F#6",
+          "file": "bell_090.ogg",
+          "durSec": 1.036
+        },
+        {
+          "midi": 93,
+          "note": "A6",
+          "file": "bell_093.ogg",
+          "durSec": 1.036
+        },
+        {
+          "midi": 96,
+          "note": "C7",
+          "file": "bell_096.ogg",
+          "durSec": 1.036
+        },
+        {
+          "midi": 99,
+          "note": "D#7",
+          "file": "bell_099.ogg",
+          "durSec": 1.035
+        },
+        {
+          "midi": 102,
+          "note": "F#7",
+          "file": "bell_102.ogg",
+          "durSec": 1.036
+        },
+        {
+          "midi": 105,
+          "note": "A7",
+          "file": "bell_105.ogg",
+          "durSec": 1.036
+        },
+        {
+          "midi": 108,
+          "note": "C8",
+          "file": "bell_108.ogg",
+          "durSec": 1.036
+        },
+        {
+          "midi": 111,
+          "note": "D#8",
+          "file": "bell_111.ogg",
+          "durSec": 1.036
         }
       ]
     },
@@ -456,6 +666,18 @@
       "type": "oneshot",
       "volumeDb": -10,
       "zones": [
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "boat_042.ogg",
+          "durSec": 0.503
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "boat_045.ogg",
+          "durSec": 0.503
+        },
         {
           "midi": 48,
           "note": "C3",
@@ -533,6 +755,30 @@
           "note": "C6",
           "file": "boat_084.ogg",
           "durSec": 0.504
+        },
+        {
+          "midi": 87,
+          "note": "D#6",
+          "file": "boat_087.ogg",
+          "durSec": 0.503
+        },
+        {
+          "midi": 90,
+          "note": "F#6",
+          "file": "boat_090.ogg",
+          "durSec": 0.503
+        },
+        {
+          "midi": 93,
+          "note": "A6",
+          "file": "boat_093.ogg",
+          "durSec": 0.503
+        },
+        {
+          "midi": 96,
+          "note": "C7",
+          "file": "boat_096.ogg",
+          "durSec": 0.504
         }
       ]
     },
@@ -540,6 +786,18 @@
       "type": "oneshot",
       "volumeDb": -16,
       "zones": [
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "bones_042.ogg",
+          "durSec": 0.357
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "bones_045.ogg",
+          "durSec": 0.357
+        },
         {
           "midi": 48,
           "note": "C3",
@@ -617,6 +875,24 @@
           "note": "C6",
           "file": "bones_084.ogg",
           "durSec": 0.357
+        },
+        {
+          "midi": 87,
+          "note": "D#6",
+          "file": "bones_087.ogg",
+          "durSec": 0.357
+        },
+        {
+          "midi": 90,
+          "note": "F#6",
+          "file": "bones_090.ogg",
+          "durSec": 0.357
+        },
+        {
+          "midi": 93,
+          "note": "A6",
+          "file": "bones_093.ogg",
+          "durSec": 0.357
         }
       ]
     },
@@ -624,6 +900,42 @@
       "type": "oneshot",
       "volumeDb": -8,
       "zones": [
+        {
+          "midi": 30,
+          "note": "F#1",
+          "file": "brass_030.ogg",
+          "durSec": 0.504
+        },
+        {
+          "midi": 33,
+          "note": "A1",
+          "file": "brass_033.ogg",
+          "durSec": 0.504
+        },
+        {
+          "midi": 36,
+          "note": "C2",
+          "file": "brass_036.ogg",
+          "durSec": 0.498
+        },
+        {
+          "midi": 39,
+          "note": "D#2",
+          "file": "brass_039.ogg",
+          "durSec": 0.503
+        },
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "brass_042.ogg",
+          "durSec": 0.504
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "brass_045.ogg",
+          "durSec": 0.5
+        },
         {
           "midi": 48,
           "note": "C3",
@@ -701,6 +1013,18 @@
           "note": "C6",
           "file": "brass_084.ogg",
           "durSec": 0.504
+        },
+        {
+          "midi": 87,
+          "note": "D#6",
+          "file": "brass_087.ogg",
+          "durSec": 0.504
+        },
+        {
+          "midi": 90,
+          "note": "F#6",
+          "file": "brass_090.ogg",
+          "durSec": 0.504
         }
       ]
     },
@@ -708,6 +1032,18 @@
       "type": "oneshot",
       "volumeDb": -16,
       "zones": [
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "buzz_042.ogg",
+          "durSec": 0.456
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "buzz_045.ogg",
+          "durSec": 0.453
+        },
         {
           "midi": 48,
           "note": "C3",
@@ -793,6 +1129,36 @@
       "volumeDb": -10,
       "zones": [
         {
+          "midi": 33,
+          "note": "A1",
+          "file": "car_033.ogg",
+          "durSec": 0.503
+        },
+        {
+          "midi": 36,
+          "note": "C2",
+          "file": "car_036.ogg",
+          "durSec": 0.497
+        },
+        {
+          "midi": 39,
+          "note": "D#2",
+          "file": "car_039.ogg",
+          "durSec": 0.502
+        },
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "car_042.ogg",
+          "durSec": 0.498
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "car_045.ogg",
+          "durSec": 0.5
+        },
+        {
           "midi": 48,
           "note": "C3",
           "file": "car_048.ogg",
@@ -869,6 +1235,18 @@
           "note": "C6",
           "file": "car_084.ogg",
           "durSec": 0.503
+        },
+        {
+          "midi": 87,
+          "note": "D#6",
+          "file": "car_087.ogg",
+          "durSec": 0.503
+        },
+        {
+          "midi": 90,
+          "note": "F#6",
+          "file": "car_090.ogg",
+          "durSec": 0.503
         }
       ]
     },
@@ -876,6 +1254,18 @@
       "type": "oneshot",
       "volumeDb": -6,
       "zones": [
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "cat_042.ogg",
+          "durSec": 0.576
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "cat_045.ogg",
+          "durSec": 0.585
+        },
         {
           "midi": 48,
           "note": "C3",
@@ -953,6 +1343,18 @@
           "note": "C6",
           "file": "cat_084.ogg",
           "durSec": 0.673
+        },
+        {
+          "midi": 87,
+          "note": "D#6",
+          "file": "cat_087.ogg",
+          "durSec": 0.652
+        },
+        {
+          "midi": 90,
+          "note": "F#6",
+          "file": "cat_090.ogg",
+          "durSec": 0.633
         }
       ]
     },
@@ -960,6 +1362,18 @@
       "type": "oneshot",
       "volumeDb": -5,
       "zones": [
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "chirp_042.ogg",
+          "durSec": 0.137
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "chirp_045.ogg",
+          "durSec": 0.138
+        },
         {
           "midi": 48,
           "note": "C3",
@@ -1037,6 +1451,30 @@
           "note": "C6",
           "file": "chirp_084.ogg",
           "durSec": 0.138
+        },
+        {
+          "midi": 87,
+          "note": "D#6",
+          "file": "chirp_087.ogg",
+          "durSec": 0.138
+        },
+        {
+          "midi": 90,
+          "note": "F#6",
+          "file": "chirp_090.ogg",
+          "durSec": 0.138
+        },
+        {
+          "midi": 93,
+          "note": "A6",
+          "file": "chirp_093.ogg",
+          "durSec": 0.138
+        },
+        {
+          "midi": 96,
+          "note": "C7",
+          "file": "chirp_096.ogg",
+          "durSec": 0.138
         }
       ]
     },
@@ -1044,6 +1482,18 @@
       "type": "oneshot",
       "volumeDb": -12,
       "zones": [
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "chopper_042.ogg",
+          "durSec": 0.263
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "chopper_045.ogg",
+          "durSec": 0.263
+        },
         {
           "midi": 48,
           "note": "C3",
@@ -1129,6 +1579,30 @@
       "volumeDb": -5,
       "zones": [
         {
+          "midi": 36,
+          "note": "C2",
+          "file": "cluck_036.ogg",
+          "durSec": 0.127
+        },
+        {
+          "midi": 39,
+          "note": "D#2",
+          "file": "cluck_039.ogg",
+          "durSec": 0.125
+        },
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "cluck_042.ogg",
+          "durSec": 0.127
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "cluck_045.ogg",
+          "durSec": 0.127
+        },
+        {
           "midi": 48,
           "note": "C3",
           "file": "cluck_048.ogg",
@@ -1205,6 +1679,30 @@
           "note": "C6",
           "file": "cluck_084.ogg",
           "durSec": 0.127
+        },
+        {
+          "midi": 87,
+          "note": "D#6",
+          "file": "cluck_087.ogg",
+          "durSec": 0.127
+        },
+        {
+          "midi": 90,
+          "note": "F#6",
+          "file": "cluck_090.ogg",
+          "durSec": 0.126
+        },
+        {
+          "midi": 93,
+          "note": "A6",
+          "file": "cluck_093.ogg",
+          "durSec": 0.126
+        },
+        {
+          "midi": 96,
+          "note": "C7",
+          "file": "cluck_096.ogg",
+          "durSec": 0.125
         }
       ]
     },
@@ -1212,6 +1710,18 @@
       "type": "oneshot",
       "volumeDb": -7,
       "zones": [
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "cry_042.ogg",
+          "durSec": 0.701
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "cry_045.ogg",
+          "durSec": 0.703
+        },
         {
           "midi": 48,
           "note": "C3",
@@ -1297,6 +1807,18 @@
       "volumeDb": -3,
       "zones": [
         {
+          "midi": 42,
+          "note": "F#2",
+          "file": "default_042.ogg",
+          "durSec": 0.401
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "default_045.ogg",
+          "durSec": 0.404
+        },
+        {
           "midi": 48,
           "note": "C3",
           "file": "default_048.ogg",
@@ -1381,6 +1903,18 @@
       "volumeDb": -4,
       "zones": [
         {
+          "midi": 42,
+          "note": "F#2",
+          "file": "dog_042.ogg",
+          "durSec": 0.149
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "dog_045.ogg",
+          "durSec": 0.149
+        },
+        {
           "midi": 48,
           "note": "C3",
           "file": "dog_048.ogg",
@@ -1457,6 +1991,18 @@
           "note": "C6",
           "file": "dog_084.ogg",
           "durSec": 0.094
+        },
+        {
+          "midi": 87,
+          "note": "D#6",
+          "file": "dog_087.ogg",
+          "durSec": 0.088
+        },
+        {
+          "midi": 90,
+          "note": "F#6",
+          "file": "dog_090.ogg",
+          "durSec": 0.084
         }
       ]
     },
@@ -1464,6 +2010,36 @@
       "type": "oneshot",
       "volumeDb": -2,
       "zones": [
+        {
+          "midi": 33,
+          "note": "A1",
+          "file": "drum_033.ogg",
+          "durSec": 0.451
+        },
+        {
+          "midi": 36,
+          "note": "C2",
+          "file": "drum_036.ogg",
+          "durSec": 0.455
+        },
+        {
+          "midi": 39,
+          "note": "D#2",
+          "file": "drum_039.ogg",
+          "durSec": 0.453
+        },
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "drum_042.ogg",
+          "durSec": 0.456
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "drum_045.ogg",
+          "durSec": 0.456
+        },
         {
           "midi": 48,
           "note": "C3",
@@ -1541,6 +2117,24 @@
           "note": "C6",
           "file": "drum_084.ogg",
           "durSec": 0.456
+        },
+        {
+          "midi": 87,
+          "note": "D#6",
+          "file": "drum_087.ogg",
+          "durSec": 0.456
+        },
+        {
+          "midi": 90,
+          "note": "F#6",
+          "file": "drum_090.ogg",
+          "durSec": 0.456
+        },
+        {
+          "midi": 93,
+          "note": "A6",
+          "file": "drum_093.ogg",
+          "durSec": 0.456
         }
       ]
     },
@@ -1548,6 +2142,18 @@
       "type": "oneshot",
       "volumeDb": -10,
       "zones": [
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "fire_042.ogg",
+          "durSec": 0.494
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "fire_045.ogg",
+          "durSec": 0.497
+        },
         {
           "midi": 48,
           "note": "C3",
@@ -1633,6 +2239,30 @@
       "volumeDb": -5,
       "zones": [
         {
+          "midi": 36,
+          "note": "C2",
+          "file": "flower_036.ogg",
+          "durSec": 0.519
+        },
+        {
+          "midi": 39,
+          "note": "D#2",
+          "file": "flower_039.ogg",
+          "durSec": 0.517
+        },
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "flower_042.ogg",
+          "durSec": 0.519
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "flower_045.ogg",
+          "durSec": 0.518
+        },
+        {
           "midi": 48,
           "note": "C3",
           "file": "flower_048.ogg",
@@ -1709,6 +2339,24 @@
           "note": "C6",
           "file": "flower_084.ogg",
           "durSec": 0.521
+        },
+        {
+          "midi": 87,
+          "note": "D#6",
+          "file": "flower_087.ogg",
+          "durSec": 0.521
+        },
+        {
+          "midi": 90,
+          "note": "F#6",
+          "file": "flower_090.ogg",
+          "durSec": 0.521
+        },
+        {
+          "midi": 93,
+          "note": "A6",
+          "file": "flower_093.ogg",
+          "durSec": 0.521
         }
       ]
     },
@@ -1716,6 +2364,30 @@
       "type": "oneshot",
       "volumeDb": -5,
       "zones": [
+        {
+          "midi": 36,
+          "note": "C2",
+          "file": "frog_036.ogg",
+          "durSec": 0.239
+        },
+        {
+          "midi": 39,
+          "note": "D#2",
+          "file": "frog_039.ogg",
+          "durSec": 0.238
+        },
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "frog_042.ogg",
+          "durSec": 0.236
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "frog_045.ogg",
+          "durSec": 0.239
+        },
         {
           "midi": 48,
           "note": "C3",
@@ -1801,6 +2473,18 @@
       "volumeDb": -8,
       "zones": [
         {
+          "midi": 42,
+          "note": "F#2",
+          "file": "gameboy_042.ogg",
+          "durSec": 0.111
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "gameboy_045.ogg",
+          "durSec": 0.112
+        },
+        {
           "midi": 48,
           "note": "C3",
           "file": "gameboy_048.ogg",
@@ -1885,6 +2569,42 @@
       "volumeDb": -8,
       "zones": [
         {
+          "midi": 30,
+          "note": "F#1",
+          "file": "ghost_030.ogg",
+          "durSec": 2.155
+        },
+        {
+          "midi": 33,
+          "note": "A1",
+          "file": "ghost_033.ogg",
+          "durSec": 2.156
+        },
+        {
+          "midi": 36,
+          "note": "C2",
+          "file": "ghost_036.ogg",
+          "durSec": 2.156
+        },
+        {
+          "midi": 39,
+          "note": "D#2",
+          "file": "ghost_039.ogg",
+          "durSec": 2.154
+        },
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "ghost_042.ogg",
+          "durSec": 2.156
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "ghost_045.ogg",
+          "durSec": 2.157
+        },
+        {
           "midi": 48,
           "note": "C3",
           "file": "ghost_048.ogg",
@@ -1961,6 +2681,30 @@
           "note": "C6",
           "file": "ghost_084.ogg",
           "durSec": 2.118
+        },
+        {
+          "midi": 87,
+          "note": "D#6",
+          "file": "ghost_087.ogg",
+          "durSec": 2.103
+        },
+        {
+          "midi": 90,
+          "note": "F#6",
+          "file": "ghost_090.ogg",
+          "durSec": 2.088
+        },
+        {
+          "midi": 93,
+          "note": "A6",
+          "file": "ghost_093.ogg",
+          "durSec": 2.073
+        },
+        {
+          "midi": 96,
+          "note": "C7",
+          "file": "ghost_096.ogg",
+          "durSec": 2.059
         }
       ],
       "loop": {
@@ -1972,6 +2716,18 @@
       "type": "oneshot",
       "volumeDb": -9,
       "zones": [
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "headphones_042.ogg",
+          "durSec": 0.471
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "headphones_045.ogg",
+          "durSec": 0.474
+        },
         {
           "midi": 48,
           "note": "C3",
@@ -2057,6 +2813,18 @@
       "volumeDb": -7,
       "zones": [
         {
+          "midi": 42,
+          "note": "F#2",
+          "file": "heart_042.ogg",
+          "durSec": 2.052
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "heart_045.ogg",
+          "durSec": 2.052
+        },
+        {
           "midi": 48,
           "note": "C3",
           "file": "heart_048.ogg",
@@ -2133,6 +2901,18 @@
           "note": "C6",
           "file": "heart_084.ogg",
           "durSec": 2.052
+        },
+        {
+          "midi": 87,
+          "note": "D#6",
+          "file": "heart_087.ogg",
+          "durSec": 2.052
+        },
+        {
+          "midi": 90,
+          "note": "F#6",
+          "file": "heart_090.ogg",
+          "durSec": 2.052
         }
       ],
       "loop": {
@@ -2144,6 +2924,18 @@
       "type": "oneshot",
       "volumeDb": -16,
       "zones": [
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "hiss_042.ogg",
+          "durSec": 0.451
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "hiss_045.ogg",
+          "durSec": 0.452
+        },
         {
           "midi": 48,
           "note": "C3",
@@ -2229,6 +3021,30 @@
       "volumeDb": -5,
       "zones": [
         {
+          "midi": 36,
+          "note": "C2",
+          "file": "honk_036.ogg",
+          "durSec": 0.498
+        },
+        {
+          "midi": 39,
+          "note": "D#2",
+          "file": "honk_039.ogg",
+          "durSec": 0.503
+        },
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "honk_042.ogg",
+          "durSec": 0.504
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "honk_045.ogg",
+          "durSec": 0.5
+        },
+        {
           "midi": 48,
           "note": "C3",
           "file": "honk_048.ogg",
@@ -2312,6 +3128,18 @@
       "type": "sustain",
       "volumeDb": -7,
       "zones": [
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "howl_042.ogg",
+          "durSec": 2.174
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "howl_045.ogg",
+          "durSec": 2.174
+        },
         {
           "midi": 48,
           "note": "C3",
@@ -2401,6 +3229,18 @@
       "volumeDb": -4,
       "zones": [
         {
+          "midi": 42,
+          "note": "F#2",
+          "file": "laugh_042.ogg",
+          "durSec": 0.128
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "laugh_045.ogg",
+          "durSec": 0.128
+        },
+        {
           "midi": 48,
           "note": "C3",
           "file": "laugh_048.ogg",
@@ -2485,6 +3325,36 @@
       "volumeDb": -5,
       "zones": [
         {
+          "midi": 33,
+          "note": "A1",
+          "file": "lion_033.ogg",
+          "durSec": 0.654
+        },
+        {
+          "midi": 36,
+          "note": "C2",
+          "file": "lion_036.ogg",
+          "durSec": 0.652
+        },
+        {
+          "midi": 39,
+          "note": "D#2",
+          "file": "lion_039.ogg",
+          "durSec": 0.643
+        },
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "lion_042.ogg",
+          "durSec": 0.636
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "lion_045.ogg",
+          "durSec": 0.599
+        },
+        {
           "midi": 48,
           "note": "C3",
           "file": "lion_048.ogg",
@@ -2561,6 +3431,12 @@
           "note": "C6",
           "file": "lion_084.ogg",
           "durSec": 0.349
+        },
+        {
+          "midi": 87,
+          "note": "D#6",
+          "file": "lion_087.ogg",
+          "durSec": 0.337
         }
       ]
     },
@@ -2568,6 +3444,18 @@
       "type": "oneshot",
       "volumeDb": -3,
       "zones": [
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "mario_042.ogg",
+          "durSec": 0.692
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "mario_045.ogg",
+          "durSec": 0.695
+        },
         {
           "midi": 48,
           "note": "C3",
@@ -2645,6 +3533,30 @@
           "note": "C6",
           "file": "mario_084.ogg",
           "durSec": 0.694
+        },
+        {
+          "midi": 87,
+          "note": "D#6",
+          "file": "mario_087.ogg",
+          "durSec": 0.695
+        },
+        {
+          "midi": 90,
+          "note": "F#6",
+          "file": "mario_090.ogg",
+          "durSec": 0.694
+        },
+        {
+          "midi": 93,
+          "note": "A6",
+          "file": "mario_093.ogg",
+          "durSec": 0.695
+        },
+        {
+          "midi": 96,
+          "note": "C7",
+          "file": "mario_096.ogg",
+          "durSec": 0.694
         }
       ]
     },
@@ -2652,6 +3564,18 @@
       "type": "oneshot",
       "volumeDb": -8,
       "zones": [
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "mic_042.ogg",
+          "durSec": 0.573
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "mic_045.ogg",
+          "durSec": 0.572
+        },
         {
           "midi": 48,
           "note": "C3",
@@ -2729,6 +3653,18 @@
           "note": "C6",
           "file": "mic_084.ogg",
           "durSec": 0.573
+        },
+        {
+          "midi": 87,
+          "note": "D#6",
+          "file": "mic_087.ogg",
+          "durSec": 0.573
+        },
+        {
+          "midi": 90,
+          "note": "F#6",
+          "file": "mic_090.ogg",
+          "durSec": 0.573
         }
       ]
     },
@@ -2736,6 +3672,18 @@
       "type": "sustain",
       "volumeDb": -5,
       "zones": [
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "moo_042.ogg",
+          "durSec": 1.85
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "moo_045.ogg",
+          "durSec": 1.848
+        },
         {
           "midi": 48,
           "note": "C3",
@@ -2813,6 +3761,24 @@
           "note": "C6",
           "file": "moo_084.ogg",
           "durSec": 1.663
+        },
+        {
+          "midi": 87,
+          "note": "D#6",
+          "file": "moo_087.ogg",
+          "durSec": 1.641
+        },
+        {
+          "midi": 90,
+          "note": "F#6",
+          "file": "moo_090.ogg",
+          "durSec": 1.618
+        },
+        {
+          "midi": 93,
+          "note": "A6",
+          "file": "moo_093.ogg",
+          "durSec": 1.596
         }
       ],
       "loop": {
@@ -2824,6 +3790,18 @@
       "type": "oneshot",
       "volumeDb": -4,
       "zones": [
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "mushroom_042.ogg",
+          "durSec": 0.239
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "mushroom_045.ogg",
+          "durSec": 0.24
+        },
         {
           "midi": 48,
           "note": "C3",
@@ -2909,6 +3887,36 @@
       "volumeDb": -5,
       "zones": [
         {
+          "midi": 33,
+          "note": "A1",
+          "file": "pig_033.ogg",
+          "durSec": 0.185
+        },
+        {
+          "midi": 36,
+          "note": "C2",
+          "file": "pig_036.ogg",
+          "durSec": 0.189
+        },
+        {
+          "midi": 39,
+          "note": "D#2",
+          "file": "pig_039.ogg",
+          "durSec": 0.188
+        },
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "pig_042.ogg",
+          "durSec": 0.188
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "pig_045.ogg",
+          "durSec": 0.186
+        },
+        {
           "midi": 48,
           "note": "C3",
           "file": "pig_048.ogg",
@@ -2993,6 +4001,18 @@
       "volumeDb": -12,
       "zones": [
         {
+          "midi": 42,
+          "note": "F#2",
+          "file": "plane_042.ogg",
+          "durSec": 0.402
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "plane_045.ogg",
+          "durSec": 0.402
+        },
+        {
           "midi": 48,
           "note": "C3",
           "file": "plane_048.ogg",
@@ -3069,6 +4089,18 @@
           "note": "C6",
           "file": "plane_084.ogg",
           "durSec": 0.402
+        },
+        {
+          "midi": 87,
+          "note": "D#6",
+          "file": "plane_087.ogg",
+          "durSec": 0.403
+        },
+        {
+          "midi": 90,
+          "note": "F#6",
+          "file": "plane_090.ogg",
+          "durSec": 0.402
         }
       ]
     },
@@ -3076,6 +4108,42 @@
       "type": "oneshot",
       "volumeDb": -3,
       "zones": [
+        {
+          "midi": 30,
+          "note": "F#1",
+          "file": "pluck_030.ogg",
+          "durSec": 0.607
+        },
+        {
+          "midi": 33,
+          "note": "A1",
+          "file": "pluck_033.ogg",
+          "durSec": 0.607
+        },
+        {
+          "midi": 36,
+          "note": "C2",
+          "file": "pluck_036.ogg",
+          "durSec": 0.606
+        },
+        {
+          "midi": 39,
+          "note": "D#2",
+          "file": "pluck_039.ogg",
+          "durSec": 0.607
+        },
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "pluck_042.ogg",
+          "durSec": 0.607
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "pluck_045.ogg",
+          "durSec": 0.607
+        },
         {
           "midi": 48,
           "note": "C3",
@@ -3161,6 +4229,18 @@
       "volumeDb": -6,
       "zones": [
         {
+          "midi": 42,
+          "note": "F#2",
+          "file": "quack_042.ogg",
+          "durSec": 0.441
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "quack_045.ogg",
+          "durSec": 0.443
+        },
+        {
           "midi": 48,
           "note": "C3",
           "file": "quack_048.ogg",
@@ -3237,6 +4317,18 @@
           "note": "C6",
           "file": "quack_084.ogg",
           "durSec": 0.425
+        },
+        {
+          "midi": 87,
+          "note": "D#6",
+          "file": "quack_087.ogg",
+          "durSec": 0.417
+        },
+        {
+          "midi": 90,
+          "note": "F#6",
+          "file": "quack_090.ogg",
+          "durSec": 0.41
         }
       ]
     },
@@ -3244,6 +4336,18 @@
       "type": "oneshot",
       "volumeDb": -7,
       "zones": [
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "robot_042.ogg",
+          "durSec": 0.311
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "robot_045.ogg",
+          "durSec": 0.312
+        },
         {
           "midi": 48,
           "note": "C3",
@@ -3329,6 +4433,18 @@
       "volumeDb": -11,
       "zones": [
         {
+          "midi": 42,
+          "note": "F#2",
+          "file": "rocket_042.ogg",
+          "durSec": 0.575
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "rocket_045.ogg",
+          "durSec": 0.55
+        },
+        {
           "midi": 48,
           "note": "C3",
           "file": "rocket_048.ogg",
@@ -3412,6 +4528,18 @@
       "type": "oneshot",
       "volumeDb": -7,
       "zones": [
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "sax_042.ogg",
+          "durSec": 0.497
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "sax_045.ogg",
+          "durSec": 0.5
+        },
         {
           "midi": 48,
           "note": "C3",
@@ -3497,6 +4625,24 @@
       "volumeDb": -10,
       "zones": [
         {
+          "midi": 39,
+          "note": "D#2",
+          "file": "siren_039.ogg",
+          "durSec": 0.606
+        },
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "siren_042.ogg",
+          "durSec": 0.606
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "siren_045.ogg",
+          "durSec": 0.603
+        },
+        {
           "midi": 48,
           "note": "C3",
           "file": "siren_048.ogg",
@@ -3573,6 +4719,30 @@
           "note": "C6",
           "file": "siren_084.ogg",
           "durSec": 0.606
+        },
+        {
+          "midi": 87,
+          "note": "D#6",
+          "file": "siren_087.ogg",
+          "durSec": 0.606
+        },
+        {
+          "midi": 90,
+          "note": "F#6",
+          "file": "siren_090.ogg",
+          "durSec": 0.605
+        },
+        {
+          "midi": 93,
+          "note": "A6",
+          "file": "siren_093.ogg",
+          "durSec": 0.606
+        },
+        {
+          "midi": 96,
+          "note": "C7",
+          "file": "siren_096.ogg",
+          "durSec": 0.605
         }
       ]
     },
@@ -3580,6 +4750,18 @@
       "type": "oneshot",
       "volumeDb": -5,
       "zones": [
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "splat_042.ogg",
+          "durSec": 0.24
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "splat_045.ogg",
+          "durSec": 0.24
+        },
         {
           "midi": 48,
           "note": "C3",
@@ -3657,6 +4839,30 @@
           "note": "C6",
           "file": "splat_084.ogg",
           "durSec": 0.24
+        },
+        {
+          "midi": 87,
+          "note": "D#6",
+          "file": "splat_087.ogg",
+          "durSec": 0.24
+        },
+        {
+          "midi": 90,
+          "note": "F#6",
+          "file": "splat_090.ogg",
+          "durSec": 0.24
+        },
+        {
+          "midi": 93,
+          "note": "A6",
+          "file": "splat_093.ogg",
+          "durSec": 0.239
+        },
+        {
+          "midi": 96,
+          "note": "C7",
+          "file": "splat_096.ogg",
+          "durSec": 0.238
         }
       ]
     },
@@ -3664,6 +4870,18 @@
       "type": "oneshot",
       "volumeDb": -8,
       "zones": [
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "star_042.ogg",
+          "durSec": 1
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "star_045.ogg",
+          "durSec": 1
+        },
         {
           "midi": 48,
           "note": "C3",
@@ -3741,6 +4959,24 @@
           "note": "C6",
           "file": "star_084.ogg",
           "durSec": 1
+        },
+        {
+          "midi": 87,
+          "note": "D#6",
+          "file": "star_087.ogg",
+          "durSec": 0.999
+        },
+        {
+          "midi": 90,
+          "note": "F#6",
+          "file": "star_090.ogg",
+          "durSec": 1
+        },
+        {
+          "midi": 93,
+          "note": "A6",
+          "file": "star_093.ogg",
+          "durSec": 0.999
         }
       ]
     },
@@ -3748,6 +4984,18 @@
       "type": "sustain",
       "volumeDb": -10,
       "zones": [
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "strings_042.ogg",
+          "durSec": 0.308
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "strings_045.ogg",
+          "durSec": 0.308
+        },
         {
           "midi": 48,
           "note": "C3",
@@ -3837,6 +5085,18 @@
       "volumeDb": -8,
       "zones": [
         {
+          "midi": 42,
+          "note": "F#2",
+          "file": "tractor_042.ogg",
+          "durSec": 0.501
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "tractor_045.ogg",
+          "durSec": 0.503
+        },
+        {
           "midi": 48,
           "note": "C3",
           "file": "tractor_048.ogg",
@@ -3920,6 +5180,18 @@
       "type": "oneshot",
       "volumeDb": -10,
       "zones": [
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "train_042.ogg",
+          "durSec": 0.595
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "train_045.ogg",
+          "durSec": 0.592
+        },
         {
           "midi": 48,
           "note": "C3",
@@ -4005,6 +5277,18 @@
       "volumeDb": -7,
       "zones": [
         {
+          "midi": 42,
+          "note": "F#2",
+          "file": "unicorn_042.ogg",
+          "durSec": 0.952
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "unicorn_045.ogg",
+          "durSec": 0.946
+        },
+        {
           "midi": 48,
           "note": "C3",
           "file": "unicorn_048.ogg",
@@ -4081,6 +5365,18 @@
           "note": "C6",
           "file": "unicorn_084.ogg",
           "durSec": 0.865
+        },
+        {
+          "midi": 87,
+          "note": "D#6",
+          "file": "unicorn_087.ogg",
+          "durSec": 0.956
+        },
+        {
+          "midi": 90,
+          "note": "F#6",
+          "file": "unicorn_090.ogg",
+          "durSec": 0.89
         }
       ]
     },
@@ -4088,6 +5384,18 @@
       "type": "oneshot",
       "volumeDb": -8,
       "zones": [
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "water_042.ogg",
+          "durSec": 0.466
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "water_045.ogg",
+          "durSec": 0.466
+        },
         {
           "midi": 48,
           "note": "C3",
@@ -4165,6 +5473,24 @@
           "note": "C6",
           "file": "water_084.ogg",
           "durSec": 0.466
+        },
+        {
+          "midi": 87,
+          "note": "D#6",
+          "file": "water_087.ogg",
+          "durSec": 0.466
+        },
+        {
+          "midi": 90,
+          "note": "F#6",
+          "file": "water_090.ogg",
+          "durSec": 0.466
+        },
+        {
+          "midi": 93,
+          "note": "A6",
+          "file": "water_093.ogg",
+          "durSec": 0.466
         }
       ]
     },
@@ -4172,6 +5498,18 @@
       "type": "oneshot",
       "volumeDb": -2,
       "zones": [
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "wood_042.ogg",
+          "durSec": 0.157
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "wood_045.ogg",
+          "durSec": 0.156
+        },
         {
           "midi": 48,
           "note": "C3",
@@ -4249,6 +5587,36 @@
           "note": "C6",
           "file": "wood_084.ogg",
           "durSec": 0.157
+        },
+        {
+          "midi": 87,
+          "note": "D#6",
+          "file": "wood_087.ogg",
+          "durSec": 0.157
+        },
+        {
+          "midi": 90,
+          "note": "F#6",
+          "file": "wood_090.ogg",
+          "durSec": 0.157
+        },
+        {
+          "midi": 93,
+          "note": "A6",
+          "file": "wood_093.ogg",
+          "durSec": 0.157
+        },
+        {
+          "midi": 96,
+          "note": "C7",
+          "file": "wood_096.ogg",
+          "durSec": 0.157
+        },
+        {
+          "midi": 99,
+          "note": "D#7",
+          "file": "wood_099.ogg",
+          "durSec": 0.157
         }
       ]
     },
@@ -4256,6 +5624,18 @@
       "type": "oneshot",
       "volumeDb": -8,
       "zones": [
+        {
+          "midi": 42,
+          "note": "F#2",
+          "file": "zap_042.ogg",
+          "durSec": 0.169
+        },
+        {
+          "midi": 45,
+          "note": "A2",
+          "file": "zap_045.ogg",
+          "durSec": 0.17
+        },
         {
           "midi": 48,
           "note": "C3",

@@ -72,8 +72,16 @@ class PurchaseManager extends ChangeNotifier {
     try {
       final current = (await Purchases.getOfferings()).current;
       if (current == null) return;
+      // Resolve in order of how specific the match is: the offering's own
+      // lifetime slot, then a package named [productId], then — only when the
+      // offering holds exactly one package — that package. Never fall back to
+      // `.first` on a multi-package offering: the store's ordering would then
+      // decide what the customer is charged.
       product = current.lifetime ??
-          (current.availablePackages.isNotEmpty
+          current.availablePackages
+              .where((p) => p.identifier == productId)
+              .firstOrNull ??
+          (current.availablePackages.length == 1
               ? current.availablePackages.first
               : null);
     } catch (e) {
