@@ -10,10 +10,10 @@ enum ScaleMode { free, majorPentatonic, minorPentatonic }
 
 extension ScaleModeLabel on ScaleMode {
   String get label => switch (this) {
-        ScaleMode.free => 'Free',
-        ScaleMode.majorPentatonic => 'Major 5',
-        ScaleMode.minorPentatonic => 'Minor 5',
-      };
+    ScaleMode.free => 'Free',
+    ScaleMode.majorPentatonic => 'Major 5',
+    ScaleMode.minorPentatonic => 'Minor 5',
+  };
 }
 
 /// Plays the baked multisamples through flutter_soloud, pitching each note to
@@ -27,7 +27,8 @@ class VoiceEngine {
   late VoiceManifest manifest;
 
   final Map<String, AudioSource> _sources = {}; // file -> loaded sample
-  final Map<String, Float32List> _pcmCache = {}; // file -> decoded mono PCM (for export)
+  final Map<String, Float32List> _pcmCache =
+      {}; // file -> decoded mono PCM (for export)
   bool ready = false;
   // SoLoud's default. A smaller buffer (was 1024) underruns on CPU spikes —
   // rebuilds, stamp-in animations, dialogs — and that's the crackle/grinding.
@@ -44,7 +45,9 @@ class VoiceEngine {
   // Ascending scale pitches (low..high), then reversed so row 0 (top of the
   // staff) is the highest — matching the free staff's high-to-low layout.
   List<int> _buildScaleRows(ScaleMode m) {
-    final pcs = m == ScaleMode.majorPentatonic ? const [0, 2, 4, 7, 9] : const [0, 3, 5, 7, 10];
+    final pcs = m == ScaleMode.majorPentatonic
+        ? const [0, 2, 4, 7, 9]
+        : const [0, 3, 5, 7, 10];
     final start = m == ScaleMode.majorPentatonic ? 48 : 45; // C3 / A2
     final asc = <int>[];
     for (var i = 0; asc.length < manifest.scale.length; i++) {
@@ -89,10 +92,14 @@ class VoiceEngine {
   Future<Float32List> decodePcm(String file) async {
     final cached = _pcmCache[file];
     if (cached != null) return cached;
-    final bytes = (await rootBundle.load('$kVoicesDir/$file')).buffer.asUint8List();
+    final bytes = (await rootBundle.load(
+      '$kVoicesDir/$file',
+    )).buffer.asUint8List();
     final src = _sources[file];
     final frames = src != null
-        ? (_soloud.getLength(src).inMicroseconds / 1e6 * manifest.sampleRate).ceil() + 64
+        ? (_soloud.getLength(src).inMicroseconds / 1e6 * manifest.sampleRate)
+                  .ceil() +
+              64
         : bytes.length;
     final pcm = await _soloud.readSamplesFromMem(bytes, frames, average: false);
     _pcmCache[file] = pcm;
@@ -132,7 +139,12 @@ class VoiceEngine {
   }
 
   /// Play [synth] at [targetMidi], optionally panned. Returns the handle.
-  SoundHandle? playSynth(String synth, int targetMidi, {double velocity = 1.0, double pan = 0}) {
+  SoundHandle? playSynth(
+    String synth,
+    int targetMidi, {
+    double velocity = 1.0,
+    double pan = 0,
+  }) {
     final v = manifest.voices[synth];
     if (v == null) return null;
     final z = v.nearestZone(targetMidi);
@@ -145,18 +157,31 @@ class VoiceEngine {
     // note-off — that's what made the app impossible to silence.)
     final h = _soloud.play(src, volume: velocity.clamp(0.0, 1.0), paused: true);
     _soloud.setRelativePlaySpeed(h, rate);
-    _soloud.setPan(h, pan.clamp(-1.0, 1.0)); // positioned before the first sample is heard
+    _soloud.setPan(
+      h,
+      pan.clamp(-1.0, 1.0),
+    ); // positioned before the first sample is heard
     _soloud.setPause(h, false);
     return h;
   }
 
   /// Play the voice mapped to [emoji] at staff row [gridY], panned to the
   /// emoji's fixed stereo position.
-  SoundHandle? playEmoji(String emoji, int gridY, {double velocity = 1.0}) {
+  SoundHandle? playEmoji(
+    String emoji,
+    int gridY, {
+    double velocity = 1.0,
+    int pitchOffset = 0,
+  }) {
     final ev = manifest.emojiVoices[emoji];
     if (ev == null) return null;
-    final targetMidi = midiForRow(gridY) + ev.semi;
-    return playSynth(ev.synth, targetMidi, velocity: velocity, pan: panForEmoji(emoji));
+    final targetMidi = midiForRow(gridY) + ev.semi + pitchOffset;
+    return playSynth(
+      ev.synth,
+      targetMidi,
+      velocity: velocity,
+      pan: panForEmoji(emoji),
+    );
   }
 
   /// Stop a (looping) voice with a short fade so held pads release cleanly.

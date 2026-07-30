@@ -86,7 +86,8 @@ const SCALE = [
 const CATEGORIES = {
             "Faces 😀": ["😀", "😂", "😍", "😎", "😢", "😱", "😴", "😡", "🤔", "😘", "🤯", "😈", "🤗", "🥺", "🥳", "😇"],
             "Animals 🐾": ["🐶", "🐱", "🐷", "🐸", "🐔", "🦆", "🦁", "🐮", "🐦", "🐺", "🐗", "🦄", "🐰", "🐭", "🐻", "🐨", "🐯", "🐵", "🐢", "🐍", "🐝", "🐠", "🐬", "🐳", "🦋", "🦊", "🐴", "🐘", "🦉", "🐧", "🦅", "🦈"],
-            "Music 🎵": ["🎹", "🥁", "🎸", "🎺", "🎻", "🎷", "🔔", "🎼", "🎤", "🎧", "🎵", "🎶", "📻"],
+            "Music 🎵": ["🎹", "🎸", "🎺", "🎻", "🎷", "🔔", "🎼", "🎤", "🎧", "🎵", "🎶", "📻"],
+            "Drum Kit 🥁": ["🥁", "💥", "🪇", "👏", "🪘", "🛎️"],
             "Vehicles 🚗": ["🚗", "✈️", "🚢", "🚓", "🚒", "🚑", "🚜", "🚁", "🚀", "🛸", "🤖", "👾", "🚂", "🚕", "🚌", "🏎️", "🏍️", "🚲", "⛵", "🚤"],
             "Characters 🧙": ["👶", "👻", "👽", "💩", "💀", "🤡", "👺", "👼", "🧛", "🧚", "🧜", "🧞", "🧟", "🦸", "🥷", "🎅", "👹"],
             "Food 🍕": ["🍕", "🍔", "🍎", "🍌", "🍓", "🍦", "🍩", "🍰", "🍪", "🍿", "🍉", "🍇", "☕", "🍣"],
@@ -170,6 +171,30 @@ function getInstrument(type) {
                 case 'drum':
                     instruments.drum = new Tone.PolySynth(Tone.MembraneSynth, { ...polyOptions, pitchDecay: 0.05, octaves: 4, oscillator: { type: "sine" }, envelope: { attack: 0.001, decay: 0.2, sustain: 0.01, release: 0.2 } }).connect(bus);
                     instruments.drum.volume.value = -2;
+                    break;
+                case 'kick':
+                    instruments.kick = new Tone.PolySynth(Tone.MembraneSynth, { ...polyOptions, pitchDecay: 0.08, octaves: 6, oscillator: { type: "sine" }, envelope: { attack: 0.001, decay: 0.28, sustain: 0, release: 0.08 } }).connect(bus);
+                    instruments.kick.volume.value = -1;
+                    break;
+                case 'snare':
+                    instruments.snare = new Tone.PolySynth(Tone.MetalSynth, { ...polyOptions, envelope: { attack: 0.001, decay: 0.16, sustain: 0, release: 0.04 }, harmonicity: 3.5, modulationIndex: 26, resonance: 2600, octaves: 0.6 }).connect(bus);
+                    instruments.snare.volume.value = -13;
+                    break;
+                case 'hat':
+                    instruments.hat = new Tone.PolySynth(Tone.MetalSynth, { ...polyOptions, envelope: { attack: 0.001, decay: 0.06, sustain: 0, release: 0.02 }, harmonicity: 5.1, modulationIndex: 12, resonance: 6000, octaves: 1.2 }).connect(bus);
+                    instruments.hat.volume.value = -17;
+                    break;
+                case 'clap':
+                    instruments.clap = new Tone.PolySynth(Tone.MetalSynth, { ...polyOptions, envelope: { attack: 0.001, decay: 0.11, sustain: 0, release: 0.03 }, harmonicity: 2.8, modulationIndex: 18, resonance: 1800, octaves: 0.5 }).connect(bus);
+                    instruments.clap.volume.value = -14;
+                    break;
+                case 'tom':
+                    instruments.tom = new Tone.PolySynth(Tone.MembraneSynth, { ...polyOptions, pitchDecay: 0.12, octaves: 3, oscillator: { type: "sine" }, envelope: { attack: 0.001, decay: 0.34, sustain: 0, release: 0.12 } }).connect(bus);
+                    instruments.tom.volume.value = -2;
+                    break;
+                case 'crash':
+                    instruments.crash = new Tone.PolySynth(Tone.MetalSynth, { ...polyOptions, envelope: { attack: 0.001, decay: 0.6, sustain: 0, release: 0.25 }, harmonicity: 8, modulationIndex: 24, resonance: 5000, octaves: 1.5 }).connect(bus);
+                    instruments.crash.volume.value = -18;
                     break;
                 case 'ghost':
                     const ghostVib = new Tone.Vibrato(6, 0.3).connect(bus);
@@ -477,7 +502,12 @@ const VOICES = {
 
             // --- Music ---
             '🎹': { synth: 'mario' },
-            '🥁': { synth: 'drum' },
+            '🥁': { synth: 'kick' },
+            '💥': { synth: 'snare' },
+            '🪇': { synth: 'hat' },
+            '👏': { synth: 'clap' },
+            '🪘': { synth: 'tom' },
+            '🛎️': { synth: 'crash' },
             '🎸': { synth: 'pluck' },
             '🎺': { synth: 'brass' },
             '🎻': { synth: 'strings' },
@@ -608,7 +638,7 @@ const VOICES = {
                  'angel', 'heart', 'headphones', 'mic', 'howl', 'lion',
                  'fire', 'rocket', 'train', 'tractor',
                  'cry', 'hiss', 'buzz'].includes(synth)) return '4n';
-            if (['dog', 'pig', 'frog', 'drum', 'gameboy', 'cluck', 'chirp', 'wood',
+            if (['dog', 'pig', 'frog', 'drum', 'kick', 'snare', 'hat', 'clap', 'tom', 'crash', 'gameboy', 'cluck', 'chirp', 'wood',
                  'chopper', 'mushroom', 'ball', 'splat', 'bones',
                  'laugh', 'zap'].includes(synth)) return '16n';
             return '8n';
@@ -717,6 +747,7 @@ function allSynths() {
   const s = new Set(Object.values(VOICES).map(v => v.synth));
   ['dog','lion','cat','cluck','quack','chirp','pig','moo','frog','baby','ghost','alien','wood',
    'honk','plane','chopper','boat','siren','car','brass','sax','strings','pluck','mario','drum',
+   'kick','snare','hat','clap','tom','crash',
    'bell','gameboy','star','flower','water','default'].forEach(x => s.add(x));
   return [...s].sort();
 }

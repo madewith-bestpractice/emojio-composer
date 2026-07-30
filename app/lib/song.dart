@@ -7,16 +7,32 @@ class SongNote {
   final int gridX;
   final int gridY;
   final double velocity;
-  const SongNote(this.emoji, this.gridX, this.gridY, {this.velocity = 1.0});
+  final int pitchOffset; // -1 flat, 0 natural, +1 sharp
+  final bool pitchEdited;
+  const SongNote(
+    this.emoji,
+    this.gridX,
+    this.gridY, {
+    this.velocity = 1.0,
+    this.pitchOffset = 0,
+    this.pitchEdited = false,
+  });
 
-  Map<String, dynamic> toJson() =>
-      {'e': emoji, 'x': gridX, 'y': gridY, if (velocity != 1.0) 'v': velocity};
+  Map<String, dynamic> toJson() => {
+    'e': emoji,
+    'x': gridX,
+    'y': gridY,
+    if (velocity != 1.0) 'v': velocity,
+    if (pitchOffset != 0 || pitchEdited) 'a': pitchOffset,
+  };
   factory SongNote.fromJson(Map<String, dynamic> j) => SongNote(
-        j['e'] as String,
-        (j['x'] as num).toInt(),
-        (j['y'] as num).toInt(),
-        velocity: (j['v'] as num?)?.toDouble() ?? 1.0,
-      );
+    j['e'] as String,
+    (j['x'] as num).toInt(),
+    (j['y'] as num).toInt(),
+    velocity: (j['v'] as num?)?.toDouble() ?? 1.0,
+    pitchOffset: _pitchOffset(j['a']),
+    pitchEdited: j.containsKey('a'),
+  );
 }
 
 /// A saved composition. Persisted as one JSON file per song in the app's
@@ -45,42 +61,42 @@ class Song {
     required double bpm,
     required List<String> palette,
     String? selectedEmoji,
-  }) =>
-      Song(
-        id: _newId(),
-        name: name,
-        bpm: bpm,
-        palette: List.of(palette),
-        selectedEmoji: selectedEmoji,
-        notes: [],
-        updatedAt: DateTime.now().millisecondsSinceEpoch,
-      );
+  }) => Song(
+    id: _newId(),
+    name: name,
+    bpm: bpm,
+    palette: List.of(palette),
+    selectedEmoji: selectedEmoji,
+    notes: [],
+    updatedAt: DateTime.now().millisecondsSinceEpoch,
+  );
 
   Map<String, dynamic> toJson() => {
-        'v': 1,
-        'id': id,
-        'name': name,
-        'bpm': bpm,
-        'palette': palette,
-        'selectedEmoji': selectedEmoji,
-        'notes': notes.map((n) => n.toJson()).toList(),
-        'updatedAt': updatedAt,
-      };
+    'v': 1,
+    'id': id,
+    'name': name,
+    'bpm': bpm,
+    'palette': palette,
+    'selectedEmoji': selectedEmoji,
+    'notes': notes.map((n) => n.toJson()).toList(),
+    'updatedAt': updatedAt,
+  };
 
   factory Song.fromJson(Map<String, dynamic> j) => Song(
-        id: j['id'] as String,
-        name: (j['name'] as String?) ?? 'Untitled',
-        bpm: (j['bpm'] as num?)?.toDouble() ?? 110,
-        palette: (j['palette'] as List?)?.cast<String>() ?? const [],
-        selectedEmoji: j['selectedEmoji'] as String?,
-        notes: (j['notes'] as List? ?? const [])
-            .map((n) => SongNote.fromJson(n as Map<String, dynamic>))
-            .toList(),
-        updatedAt: (j['updatedAt'] as num?)?.toInt() ?? 0,
-      );
+    id: j['id'] as String,
+    name: (j['name'] as String?) ?? 'Untitled',
+    bpm: (j['bpm'] as num?)?.toDouble() ?? 110,
+    palette: (j['palette'] as List?)?.cast<String>() ?? const [],
+    selectedEmoji: j['selectedEmoji'] as String?,
+    notes: (j['notes'] as List? ?? const [])
+        .map((n) => SongNote.fromJson(n as Map<String, dynamic>))
+        .toList(),
+    updatedAt: (j['updatedAt'] as num?)?.toInt() ?? 0,
+  );
 
   String encode() => jsonEncode(toJson());
-  static Song decode(String s) => Song.fromJson(jsonDecode(s) as Map<String, dynamic>);
+  static Song decode(String s) =>
+      Song.fromJson(jsonDecode(s) as Map<String, dynamic>);
 
   static String _newId() {
     final t = DateTime.now().microsecondsSinceEpoch;
@@ -92,12 +108,14 @@ class Song {
 /// Deployed web player. It loads a song straight from a `#s=<code>` URL fragment
 /// (see the web app's `tryRestoreSong`), so a single link lets anyone open,
 /// play, and remix the song in a browser — the app's "share a song" promise.
-const String kWebPlayerBase = 'https://emojio-composer.madewithbestpractice.com';
+const String kWebPlayerBase =
+    'https://emojio-composer.madewithbestpractice.com';
 
 /// Builds a web-player share link whose `#s=` payload is byte-compatible with
 /// the web app's encoder: `base64(utf8(json))` of
-/// `{v, bpm, palette, notes:[{p, x, y, e?}]}`, where `p` is the palette index
-/// and `e` carries the raw emoji only when it isn't in the palette.
+/// `{v, bpm, palette, notes:[{p, x, y, e?, a?}]}`, where `p` is the palette
+/// index, `e` carries the raw emoji only when it isn't in the palette, and `a`
+/// is an optional accidental semitone offset.
 String webShareUrl({
   required double bpm,
   required List<String> palette,
@@ -109,7 +127,13 @@ String webShareUrl({
     'palette': palette,
     'notes': notes.map((n) {
       final p = palette.indexOf(n.emoji);
-      return {'p': p, 'x': n.gridX, 'y': n.gridY, if (p < 0) 'e': n.emoji};
+      return {
+        'p': p,
+        'x': n.gridX,
+        'y': n.gridY,
+        if (p < 0) 'e': n.emoji,
+        if (n.pitchOffset != 0 || n.pitchEdited) 'a': n.pitchOffset,
+      };
     }).toList(),
   };
   final code = base64.encode(utf8.encode(jsonEncode(obj)));
@@ -123,7 +147,11 @@ class SharedSong {
   final double bpm;
   final List<String> palette;
   final List<SongNote> notes;
-  const SharedSong({required this.bpm, required this.palette, required this.notes});
+  const SharedSong({
+    required this.bpm,
+    required this.palette,
+    required this.notes,
+  });
 }
 
 /// Decodes an incoming share URL (universal link or pasted link) into a
@@ -145,18 +173,38 @@ SharedSong? sharedSongFromCode(String code) {
   try {
     final json = utf8.decode(base64.decode(base64.normalize(code)));
     final obj = jsonDecode(json) as Map<String, dynamic>;
-    final palette = (obj['palette'] as List?)?.cast<String>() ?? const <String>[];
+    final palette =
+        (obj['palette'] as List?)?.cast<String>() ?? const <String>[];
     final notes = <SongNote>[];
     for (final raw in (obj['notes'] as List? ?? const [])) {
       final n = raw as Map<String, dynamic>;
       final p = (n['p'] as num?)?.toInt() ?? -1;
-      final emoji = (p >= 0 && p < palette.length) ? palette[p] : n['e'] as String?;
+      final emoji = (p >= 0 && p < palette.length)
+          ? palette[p]
+          : n['e'] as String?;
       if (emoji == null) continue; // unknown emoji with no fallback — skip
-      notes.add(SongNote(emoji, (n['x'] as num).toInt(), (n['y'] as num).toInt()));
+      notes.add(
+        SongNote(
+          emoji,
+          (n['x'] as num).toInt(),
+          (n['y'] as num).toInt(),
+          pitchOffset: _pitchOffset(n['a']),
+          pitchEdited: n.containsKey('a'),
+        ),
+      );
     }
     if (notes.isEmpty) return null;
-    return SharedSong(bpm: (obj['bpm'] as num?)?.toDouble() ?? 110, palette: palette, notes: notes);
+    return SharedSong(
+      bpm: (obj['bpm'] as num?)?.toDouble() ?? 110,
+      palette: palette,
+      notes: notes,
+    );
   } catch (_) {
     return null;
   }
+}
+
+int _pitchOffset(Object? raw) {
+  final value = raw is num ? raw.toInt() : 0;
+  return value.clamp(-1, 1).toInt();
 }

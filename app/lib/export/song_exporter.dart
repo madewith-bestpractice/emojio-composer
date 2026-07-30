@@ -47,18 +47,28 @@ class SongExporter {
         if (ev == null) continue;
         final voice = m.voices[ev.synth];
         if (voice == null) continue;
-        final targetMidi = engine.midiForRow(n.gridY) + ev.semi;
+        final targetMidi = engine.midiForRow(n.gridY) + ev.semi + n.pitchOffset;
         final zone = voice.nearestZone(targetMidi);
         final pcm = await engine.decodePcm(zone.file);
         final rate = math.pow(2, (targetMidi - zone.midi) / 12).toDouble();
-        final onsetFrame = (onsetMs(loop * cols + n.gridX) / 1000 * sampleRate).round();
+        final onsetFrame = (onsetMs(loop * cols + n.gridX) / 1000 * sampleRate)
+            .round();
         maxEnd = math.max(maxEnd, onsetFrame + (pcm.length / rate).floor());
-        events.add(_Evt(pcm, rate, onsetFrame, engine.panForEmoji(n.emoji), n.velocity.clamp(0.0, 1.0)));
+        events.add(
+          _Evt(
+            pcm,
+            rate,
+            onsetFrame,
+            engine.panForEmoji(n.emoji),
+            n.velocity.clamp(0.0, 1.0),
+          ),
+        );
       }
     }
 
     final barEnd = (onsetMs(cols * loops) / 1000 * sampleRate).round();
-    final frames = math.max(barEnd, maxEnd) + sampleRate ~/ 4; // small tail for decay
+    final frames =
+        math.max(barEnd, maxEnd) + sampleRate ~/ 4; // small tail for decay
     final mix = Float32List(frames * 2);
 
     for (final e in events) {
@@ -72,7 +82,8 @@ class SongExporter {
         final i0 = srcPos.floor();
         if (i0 + 1 >= e.pcm.length) break;
         final frac = srcPos - i0;
-        final s = e.pcm[i0] * (1 - frac) + e.pcm[i0 + 1] * frac; // linear interp
+        final s =
+            e.pcm[i0] * (1 - frac) + e.pcm[i0 + 1] * frac; // linear interp
         final of = e.onsetFrame + j;
         if (of >= frames) break;
         mix[of * 2] += s * lg;

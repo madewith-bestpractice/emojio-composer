@@ -44,16 +44,16 @@ class EmojioApp extends StatelessWidget {
   const EmojioApp({super.key});
   @override
   Widget build(BuildContext context) => MaterialApp(
-        title: 'Emojio',
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          useMaterial3: true,
-          fontFamily: Toy.font,
-          colorSchemeSeed: Toy.header,
-          scaffoldBackgroundColor: Toy.bg,
-        ),
-        home: const HarnessPage(),
-      );
+    title: 'Emojio',
+    debugShowCheckedModeBanner: false,
+    theme: ThemeData(
+      useMaterial3: true,
+      fontFamily: Toy.font,
+      colorSchemeSeed: Toy.header,
+      scaffoldBackgroundColor: Toy.bg,
+    ),
+    home: const HarnessPage(),
+  );
 }
 
 const int kCols = 16;
@@ -64,13 +64,15 @@ class HarnessPage extends StatefulWidget {
   State<HarnessPage> createState() => _HarnessPageState();
 }
 
-class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStateMixin {
+class _HarnessPageState extends State<HarnessPage>
+    with SingleTickerProviderStateMixin {
   final _engine = VoiceEngine();
   final _library = SongLibrary();
   final _trial = TrialManager();
   final _purchases = PurchaseManager();
   final _midi = MidiManager();
-  MidiClockOut? _clockOut; // MIDI clock master (null if the host clock is unavailable)
+  MidiClockOut?
+  _clockOut; // MIDI clock master (null if the host clock is unavailable)
   final _appLinks = AppLinks();
   StreamSubscription<Uri>? _linkSub; // incoming universal/share links
   late final SongExporter _exporter = SongExporter(_engine);
@@ -87,8 +89,11 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   final _rng = math.Random();
   final _sw = Stopwatch();
   late final Ticker _ticker;
-  final ValueNotifier<int> _repaint = ValueNotifier<int>(0); // drives only the staff CustomPaint
-  int _midiDevices = 0; // tracked so device connect/disconnect rebuilds the page
+  final ValueNotifier<int> _repaint = ValueNotifier<int>(
+    0,
+  ); // drives only the staff CustomPaint
+  int _midiDevices =
+      0; // tracked so device connect/disconnect rebuilds the page
   int _cursorStep = 0; // MIDI shuttle scrub position (shown when stopped)
   int _extClock = 0; // MIDI-clock pulse counter (6 per 16th step)
 
@@ -99,6 +104,9 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   List<String> _palette = [];
   Set<String> _playable = {};
   String _selected = '🐶';
+  int _selectedPitchOffset = 0; // -1 flat, 0 natural, +1 sharp
+  bool _pitchPickerOpen = false;
+  bool _pitchManuallySet = false;
 
   final List<Note> _notes = [];
   double _bpm = 110;
@@ -108,7 +116,8 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   int _globalStep = 0; // ever-increasing step counter while playing
   int _playStartMs = 0; // stopwatch ms when play began
   (int, int)? _lastPainted;
-  double _lastPressure = 1.0; // latest Apple Pencil pressure (1.0 for finger/mouse)
+  double _lastPressure =
+      1.0; // latest Apple Pencil pressure (1.0 for finger/mouse)
 
   // Swing (delays every other 16th for a groovy feel) is fixed off — the header
   // toggle was removed. Transport and export still route through _swing.
@@ -216,7 +225,8 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
     _syncClockOut();
   }
 
-  bool get _clockOutShouldRun => _playing && _midi.sendClock && !_midi.externalSync;
+  bool get _clockOutShouldRun =>
+      _playing && _midi.sendClock && !_midi.externalSync;
 
   // Start/stop the clock master to match the transport + settings. Anchored at
   // the same play-press instant as _playStartMs, so the app's audio and the
@@ -233,7 +243,8 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
 
   // ---- transport ----
   // Swung onset (ms from play start) of global step k: offbeats pushed later.
-  double _onsetMs(int k, double stepMs) => (k + (k.isOdd ? _swing : 0.0)) * stepMs;
+  double _onsetMs(int k, double stepMs) =>
+      (k + (k.isOdd ? _swing : 0.0)) * stepMs;
 
   void _onTick(Duration _) {
     // Internal clock. When synced to external MIDI clock, the clock handlers
@@ -262,10 +273,17 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   void _playStep(int step) {
     for (final n in _notes) {
       if (n.gridX != step) continue;
-      _engine.playEmoji(n.emoji, n.gridY, velocity: n.velocity);
+      _engine.playEmoji(
+        n.emoji,
+        n.gridY,
+        velocity: n.velocity,
+        pitchOffset: n.pitchOffset,
+      );
       if (_midi.outEnabled && _manifest != null) {
         final ev = _manifest!.emojiVoices[n.emoji];
-        _midi.sendNote(_engine.midiForRow(n.gridY) + (ev?.semi ?? 0));
+        _midi.sendNote(
+          _engine.midiForRow(n.gridY) + (ev?.semi ?? 0) + n.pitchOffset,
+        );
       }
     }
   }
@@ -277,13 +295,43 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
     final ev = _manifest!.emojiVoices[_selected];
     if (ev == null) return;
     final note = (e.data1 + 12 * _midi.octaveShift).clamp(0, 127).toInt();
-    final vel = _midi.useVelocity ? (e.data2 / 127).clamp(0.15, 1.0).toDouble() : 1.0;
-    if (_midi.livePlay) _engine.playSynth(ev.synth, note, velocity: vel, pan: _engine.panForEmoji(_selected));
+    final vel = _midi.useVelocity
+        ? (e.data2 / 127).clamp(0.15, 1.0).toDouble()
+        : 1.0;
+    if (_midi.livePlay) {
+      _engine.playSynth(
+        ev.synth,
+        note,
+        velocity: vel,
+        pan: _engine.panForEmoji(_selected),
+      );
+    }
     if (_midi.recordArm && _playing && _currentStep >= 0) {
-      final gy = _rowForMidi(note, ev.semi);
-      if (!_notes.any((n) => n.gridX == _currentStep && n.gridY == gy)) {
-        setState(() => _notes.add(Note(_selected, _currentStep, gy, (_rng.nextDouble() - 0.5) * 0.3, _nowMs)));
-      }
+      final (gy, pitchOffset) = _placementForMidi(note, ev.semi);
+      final idx = _notes.indexWhere(
+        (n) => n.gridX == _currentStep && n.gridY == gy,
+      );
+      setState(() {
+        if (idx >= 0) {
+          _notes[idx]
+            ..pitchOffset = pitchOffset
+            ..pitchEdited = pitchOffset != 0
+            ..createdAtMs = _nowMs;
+        } else {
+          _notes.add(
+            Note(
+              _selected,
+              _currentStep,
+              gy,
+              (_rng.nextDouble() - 0.5) * 0.3,
+              _nowMs,
+              velocity: vel,
+              pitchOffset: pitchOffset,
+              pitchEdited: pitchOffset != 0,
+            ),
+          );
+        }
+      });
     }
   }
 
@@ -347,41 +395,74 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   void _cycleVoice(int dir) {
     if (_palette.isEmpty) return;
     final i = _palette.indexOf(_selected);
-    final idx = (((i < 0 ? 0 : i) + dir) % _palette.length + _palette.length) % _palette.length;
+    final idx =
+        (((i < 0 ? 0 : i) + dir) % _palette.length + _palette.length) %
+        _palette.length;
     _select(_palette[idx]);
   }
 
   void _shuttle(int delta) {
-    setState(() => _cursorStep = ((_cursorStep + delta) % kCols + kCols) % kCols);
+    setState(
+      () => _cursorStep = ((_cursorStep + delta) % kCols + kCols) % kCols,
+    );
     for (final n in _notes) {
-      if (n.gridX == _cursorStep) _engine.playEmoji(n.emoji, n.gridY);
+      if (n.gridX == _cursorStep) {
+        _engine.playEmoji(
+          n.emoji,
+          n.gridY,
+          velocity: n.velocity,
+          pitchOffset: n.pitchOffset,
+        );
+      }
     }
   }
 
-  static const _pcNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  static const _pcNames = [
+    'C',
+    'C#',
+    'D',
+    'D#',
+    'E',
+    'F',
+    'F#',
+    'G',
+    'G#',
+    'A',
+    'A#',
+    'B',
+  ];
   String _pcName(int midi) => _pcNames[midi % 12];
 
-  int _rowForMidi(int note, int semi) {
+  (int, int) _placementForMidi(int note, int semi) {
     final target = note - semi;
-    var best = 0, bestD = 1 << 30;
+    var bestRow = 0, bestOffset = 0, bestD = 1 << 30;
     for (var i = 0; i < _rows; i++) {
-      final dd = (_engine.midiForRow(i) - target).abs();
-      if (dd < bestD) {
-        bestD = dd;
-        best = i;
+      final base = _engine.midiForRow(i);
+      for (var offset = -1; offset <= 1; offset++) {
+        final dd = (base + offset - target).abs();
+        if (dd < bestD) {
+          bestD = dd;
+          bestRow = i;
+          bestOffset = offset;
+        }
       }
     }
-    return best;
+    return (bestRow, bestOffset);
   }
 
   void _openMidi() => showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        showDragHandle: true,
-        backgroundColor: Colors.white,
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-        builder: (_) => FractionallySizedBox(heightFactor: 0.88, child: MidiPanel(midi: _midi, palette: _palette)),
-      );
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (_) => FractionallySizedBox(
+      heightFactor: 0.88,
+      child: MidiPanel(midi: _midi, palette: _palette),
+    ),
+  );
 
   // ---- export ----
   Future<void> _openExport() async {
@@ -396,7 +477,10 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
           children: [
             Text('EXPORT', style: Toy.label(11)),
             const SizedBox(height: 6),
-            Text('~$_exportLoops loops of your song', style: const TextStyle(fontSize: 11, color: Colors.black54)),
+            Text(
+              '~$_exportLoops loops of your song',
+              style: const TextStyle(fontSize: 11, color: Colors.black54),
+            ),
             const SizedBox(height: 18),
             ToyButton(
               label: 'Audio (WAV)',
@@ -422,8 +506,10 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
               },
             ),
             const SizedBox(height: 10),
-            const Text('Video shows the staff on brand yellow — no app chrome.',
-                style: TextStyle(fontSize: 10, color: Colors.black45)),
+            const Text(
+              'Video shows the staff on brand yellow — no app chrome.',
+              style: TextStyle(fontSize: 10, color: Colors.black45),
+            ),
           ],
         ),
       ),
@@ -432,39 +518,63 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
 
   String _exportName() {
     final base = _currentName == 'Untitled' ? 'emojio-song' : _currentName;
-    final clean = base.replaceAll(RegExp(r'[^A-Za-z0-9 _-]'), '').trim().replaceAll(' ', '_');
+    final clean = base
+        .replaceAll(RegExp(r'[^A-Za-z0-9 _-]'), '')
+        .trim()
+        .replaceAll(' ', '_');
     return clean.isEmpty ? 'emojio-song' : clean;
   }
 
   void _showProgress(String msg) => showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => AlertDialog(
-          content: Row(children: [
-            const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2)),
-            const SizedBox(width: 16),
-            Expanded(child: Text(msg, style: const TextStyle(fontSize: 13))),
-          ]),
-        ),
-      );
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => AlertDialog(
+      content: Row(
+        children: [
+          const SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(width: 16),
+          Expanded(child: Text(msg, style: const TextStyle(fontSize: 13))),
+        ],
+      ),
+    ),
+  );
 
   void _dismissProgress() {
     if (mounted) Navigator.of(context, rootNavigator: true).pop();
   }
 
   void _snack(String m) {
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+    }
   }
 
   Future<void> _shareFile(String path, String mime) async {
     final box = _exportKey.currentContext?.findRenderObject() as RenderBox?;
-    final origin = box != null ? box.localToGlobal(Offset.zero) & box.size : null;
-    await SharePlus.instance.share(ShareParams(files: [XFile(path, mimeType: mime)], sharePositionOrigin: origin));
+    final origin = box != null
+        ? box.localToGlobal(Offset.zero) & box.size
+        : null;
+    await SharePlus.instance.share(
+      ShareParams(
+        files: [XFile(path, mimeType: mime)],
+        sharePositionOrigin: origin,
+      ),
+    );
   }
 
   // Render ~[_exportLoops] loops of the song to a shareable WAV in a temp file.
   Future<File> _renderWav() async {
-    final r = await _exporter.renderAudio(notes: _notes, bpm: _bpm, swing: _swing, cols: kCols, loops: _exportLoops);
+    final r = await _exporter.renderAudio(
+      notes: _notes,
+      bpm: _bpm,
+      swing: _swing,
+      cols: kCols,
+      loops: _exportLoops,
+    );
     final dir = await getTemporaryDirectory();
     final file = File('${dir.path}/${_exportName()}.wav');
     await file.writeAsBytes(encodeWav(r.stereo, sampleRate: r.sampleRate));
@@ -502,16 +612,31 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
       final url = webShareUrl(
         bpm: _bpm,
         palette: _palette,
-        notes: _notes.map((n) => SongNote(n.emoji, n.gridX, n.gridY, velocity: n.velocity)).toList(),
+        notes: _notes
+            .map(
+              (n) => SongNote(
+                n.emoji,
+                n.gridX,
+                n.gridY,
+                velocity: n.velocity,
+                pitchOffset: n.pitchOffset,
+                pitchEdited: n.pitchEdited,
+              ),
+            )
+            .toList(),
       );
       _dismissProgress();
       final box = _shareKey.currentContext?.findRenderObject() as RenderBox?;
-      final origin = box != null ? box.localToGlobal(Offset.zero) & box.size : null;
-      await SharePlus.instance.share(ShareParams(
-        text: '🎵 Check out my Emojio song!\n$url',
-        files: [XFile(file.path, mimeType: 'audio/wav')],
-        sharePositionOrigin: origin,
-      ));
+      final origin = box != null
+          ? box.localToGlobal(Offset.zero) & box.size
+          : null;
+      await SharePlus.instance.share(
+        ShareParams(
+          text: '🎵 Check out my Emojio song!\n$url',
+          files: [XFile(file.path, mimeType: 'audio/wav')],
+          sharePositionOrigin: origin,
+        ),
+      );
     } catch (e, st) {
       debugPrint('share failed: $e\n$st');
       _dismissProgress();
@@ -526,14 +651,32 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
     }
     _showProgress('Rendering video…');
     try {
-      final r = await _exporter.renderAudio(notes: _notes, bpm: _bpm, swing: _swing, cols: kCols, loops: _exportLoops);
+      final r = await _exporter.renderAudio(
+        notes: _notes,
+        bpm: _bpm,
+        swing: _swing,
+        cols: kCols,
+        loops: _exportLoops,
+      );
       const fps = 30, width = 1280, height = 720;
       final frameCount = (r.durationSec * fps).round();
       final stepMs = 60000 / _bpm / 4;
       final barMs = kCols * stepMs;
       // Static note copies (no stamp-in animation during export).
-      final frameNotes =
-          _notes.map((n) => Note(n.emoji, n.gridX, n.gridY, n.rotation, -1000000, velocity: n.velocity)).toList();
+      final frameNotes = _notes
+          .map(
+            (n) => Note(
+              n.emoji,
+              n.gridX,
+              n.gridY,
+              n.rotation,
+              -1000000,
+              velocity: n.velocity,
+              pitchOffset: n.pitchOffset,
+              pitchEdited: n.pitchEdited,
+            ),
+          )
+          .toList();
       final labels = _engine.scaleMode == ScaleMode.free
           ? null
           : List.generate(_rows, (i) => _pcName(_engine.midiForRow(i)));
@@ -553,7 +696,8 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
         filepath: path,
       );
 
-      final samplesPerFrame = (r.sampleRate / fps).round() * 2; // interleaved stereo
+      final samplesPerFrame =
+          (r.sampleRate / fps).round() * 2; // interleaved stereo
       var audioPos = 0;
       for (var f = 0; f < frameCount; f++) {
         final elapsedMs = f / fps * 1000;
@@ -570,12 +714,16 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
         await FlutterQuickVideoEncoder.appendVideoFrame(rgba);
         final end = math.min(audioPos + samplesPerFrame, r.stereo.length);
         if (end > audioPos) {
-          await FlutterQuickVideoEncoder.appendAudioFrame(pcm16Bytes(Float32List.sublistView(r.stereo, audioPos, end)));
+          await FlutterQuickVideoEncoder.appendAudioFrame(
+            pcm16Bytes(Float32List.sublistView(r.stereo, audioPos, end)),
+          );
           audioPos = end;
         }
       }
       if (audioPos < r.stereo.length) {
-        await FlutterQuickVideoEncoder.appendAudioFrame(pcm16Bytes(Float32List.sublistView(r.stereo, audioPos)));
+        await FlutterQuickVideoEncoder.appendAudioFrame(
+          pcm16Bytes(Float32List.sublistView(r.stereo, audioPos)),
+        );
       }
       await FlutterQuickVideoEncoder.finish();
       _dismissProgress();
@@ -637,21 +785,135 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   }
 
   // ---- editing ----
-  void _toggleAt(Offset p, Size size, {double padLeft = 88, double? fixedStepX}) {
-    final hit = StaffMetrics.of(size, kCols, _rows,
-            padLeft: padLeft, fixedStepX: fixedStepX)
-        .hitTest(p);
+  void _toggleAt(
+    Offset p,
+    Size size, {
+    double padLeft = 88,
+    double? fixedStepX,
+    Offset? globalPosition,
+  }) {
+    final pitchNote = _pitchBadgeNoteAt(
+      p,
+      size,
+      padLeft: padLeft,
+      fixedStepX: fixedStepX,
+    );
+    if (pitchNote != null) {
+      _openNotePitchMenu(pitchNote, globalPosition);
+      return;
+    }
+
+    final hit = StaffMetrics.of(
+      size,
+      kCols,
+      _rows,
+      padLeft: padLeft,
+      fixedStepX: fixedStepX,
+    ).hitTest(p);
     if (hit == null) return;
     final (gx, gy) = hit;
     final idx = _notes.indexWhere((n) => n.gridX == gx && n.gridY == gy);
-    setState(() => idx >= 0 ? _notes.removeAt(idx) : _addNote(gx, gy));
+    if (idx < 0) {
+      setState(() => _addNote(gx, gy));
+      return;
+    }
+    final n = _notes[idx];
+    final retune =
+        _pitchManuallySet &&
+        (n.pitchOffset != _selectedPitchOffset || !n.pitchEdited);
+    if (!retune) {
+      setState(() => _notes.removeAt(idx));
+      return;
+    }
+    setState(() {
+      n
+        ..pitchOffset = _selectedPitchOffset
+        ..pitchEdited = true
+        ..createdAtMs = _nowMs;
+    });
+    HapticFeedback.selectionClick();
+    _engine.playEmoji(
+      n.emoji,
+      n.gridY,
+      velocity: n.velocity,
+      pitchOffset: n.pitchOffset,
+    );
+  }
+
+  Note? _pitchBadgeNoteAt(
+    Offset p,
+    Size size, {
+    double padLeft = 88,
+    double? fixedStepX,
+  }) {
+    final m = StaffMetrics.of(
+      size,
+      kCols,
+      _rows,
+      padLeft: padLeft,
+      fixedStepX: fixedStepX,
+    );
+    final noteSize = m.stepY * 1.9;
+    final radius = (noteSize * 0.23).clamp(8.0, 15.0).toDouble();
+    for (final n in _notes.reversed) {
+      if (!n.pitchEdited) continue;
+      final c = m.cellCenter(n.gridX, n.gridY);
+      final badgeCenter = c + Offset(noteSize * 0.45, -noteSize * 0.45);
+      if ((p - badgeCenter).distance <= radius + 8) return n;
+    }
+    return null;
+  }
+
+  Future<void> _openNotePitchMenu(Note n, Offset? globalPosition) async {
+    HapticFeedback.selectionClick();
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
+    final global = globalPosition ?? Offset.zero;
+    final position = overlay == null
+        ? const RelativeRect.fromLTRB(0, 0, 0, 0)
+        : RelativeRect.fromRect(
+            Rect.fromCenter(center: global, width: 1, height: 1),
+            Offset.zero & overlay.size,
+          );
+    final picked = await showMenu<int>(
+      context: context,
+      position: position,
+      items: [
+        for (final offset in const [-1, 0, 1])
+          PopupMenuItem<int>(
+            value: offset,
+            child: Center(
+              child: Text(_pitchSymbol(offset), style: Toy.label(12)),
+            ),
+          ),
+      ],
+    );
+    if (picked == null) return;
+    setState(() {
+      n
+        ..pitchOffset = picked
+        ..pitchEdited = true
+        ..createdAtMs = _nowMs;
+    });
+    _engine.playEmoji(
+      n.emoji,
+      n.gridY,
+      velocity: n.velocity,
+      pitchOffset: n.pitchOffset,
+    );
   }
 
   // ---- drag a placed note to a new cell (long-press to grab) ----
   Note? _dragNote;
 
   StaffMetrics _metrics(Size size, double padLeft, double? fixedStepX) =>
-      StaffMetrics.of(size, kCols, _rows, padLeft: padLeft, fixedStepX: fixedStepX);
+      StaffMetrics.of(
+        size,
+        kCols,
+        _rows,
+        padLeft: padLeft,
+        fixedStepX: fixedStepX,
+      );
 
   void _grabAt(Offset p, Size size, {double padLeft = 88, double? fixedStepX}) {
     final hit = _metrics(size, padLeft, fixedStepX).hitTest(p);
@@ -671,7 +933,9 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
     final (gx, gy) = hit;
     if (n.gridX == gx && n.gridY == gy) return;
     // Don't stack onto a cell another note already holds.
-    if (_notes.any((o) => !identical(o, n) && o.gridX == gx && o.gridY == gy)) return;
+    if (_notes.any((o) => !identical(o, n) && o.gridX == gx && o.gridY == gy)) {
+      return;
+    }
     setState(() {
       n
         ..gridX = gx
@@ -685,10 +949,19 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
     setState(() => _dragNote = null);
   }
 
-  void _paintAt(Offset p, Size size, {double padLeft = 88, double? fixedStepX}) {
-    final hit = StaffMetrics.of(size, kCols, _rows,
-            padLeft: padLeft, fixedStepX: fixedStepX)
-        .hitTest(p);
+  void _paintAt(
+    Offset p,
+    Size size, {
+    double padLeft = 88,
+    double? fixedStepX,
+  }) {
+    final hit = StaffMetrics.of(
+      size,
+      kCols,
+      _rows,
+      padLeft: padLeft,
+      fixedStepX: fixedStepX,
+    ).hitTest(p);
     if (hit == null || hit == _lastPainted) return;
     _lastPainted = hit;
     final (gx, gy) = hit;
@@ -699,8 +972,24 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   void _addNote(int gx, int gy) {
     // Apple Pencil pressure -> velocity (kept above ~0.45 so light taps aren't silent).
     final v = (0.45 + 0.55 * _lastPressure).clamp(0.0, 1.0);
-    _notes.add(Note(_selected, gx, gy, (_rng.nextDouble() - 0.5) * 0.3, _nowMs, velocity: v));
-    _engine.playEmoji(_selected, gy, velocity: v);
+    _notes.add(
+      Note(
+        _selected,
+        gx,
+        gy,
+        (_rng.nextDouble() - 0.5) * 0.3,
+        _nowMs,
+        velocity: v,
+        pitchOffset: _selectedPitchOffset,
+        pitchEdited: _pitchManuallySet,
+      ),
+    );
+    _engine.playEmoji(
+      _selected,
+      gy,
+      velocity: v,
+      pitchOffset: _selectedPitchOffset,
+    );
   }
 
   // Generate a random song from the current palette (ported from the web app):
@@ -712,10 +1001,20 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
       const preferred = [0, 4, 8, 12];
       final count = 12 + _rng.nextInt(8);
       for (var i = 0; i < count; i++) {
-        final gx = _rng.nextDouble() < 0.6 ? preferred[_rng.nextInt(preferred.length)] : _rng.nextInt(kCols);
+        final gx = _rng.nextDouble() < 0.6
+            ? preferred[_rng.nextInt(preferred.length)]
+            : _rng.nextInt(kCols);
         final gy = _rng.nextInt(_rows);
         if (_notes.any((n) => n.gridX == gx && n.gridY == gy)) continue;
-        _notes.add(Note(_palette[_rng.nextInt(_palette.length)], gx, gy, (_rng.nextDouble() - 0.5) * 0.3, _nowMs));
+        _notes.add(
+          Note(
+            _palette[_rng.nextInt(_palette.length)],
+            gx,
+            gy,
+            (_rng.nextDouble() - 0.5) * 0.3,
+            _nowMs,
+          ),
+        );
       }
     });
   }
@@ -723,7 +1022,7 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   // ---- palette ----
   void _select(String e) {
     setState(() => _selected = e);
-    _engine.playEmoji(e, 7);
+    _engine.playEmoji(e, 7, pitchOffset: _selectedPitchOffset);
   }
 
   void _addToPalette(String c) {
@@ -733,7 +1032,7 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
       _palette.add(c);
       _selected = c;
     });
-    _engine.playEmoji(c, 7);
+    _engine.playEmoji(c, 7, pitchOffset: _selectedPitchOffset);
   }
 
   Future<void> _openPicker() async {
@@ -742,28 +1041,42 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
       playable: _playable,
       // Hear the sticker when it's chosen (or hovered with Apple Pencil), at a
       // middle pitch.
-      onPreview: (e) => _engine.playEmoji(e, _rows ~/ 2),
+      onPreview: (e) =>
+          _engine.playEmoji(e, _rows ~/ 2, pitchOffset: _selectedPitchOffset),
     );
     if (picked != null) _addToPalette(picked);
   }
 
   // ---- library ----
   void _newSong() => setState(() {
-        _currentId = null;
-        _currentName = 'Untitled';
-        _notes.clear();
-      });
+    _currentId = null;
+    _currentName = 'Untitled';
+    _notes.clear();
+  });
 
   // Playful song-name words paired with the emoji voices below.
   static const List<String> _songWords = [
-    'Jam', 'Tune', 'Groove', 'Beat', 'Bop', 'Anthem', 'Riff',
-    'Melody', 'Ditty', 'Jingle', 'Remix', 'Medley', 'Loop', 'Number',
+    'Jam',
+    'Tune',
+    'Groove',
+    'Beat',
+    'Bop',
+    'Anthem',
+    'Riff',
+    'Melody',
+    'Ditty',
+    'Jingle',
+    'Remix',
+    'Medley',
+    'Loop',
+    'Number',
   ];
 
   // A fun default name built from two of the song's emoji voices (lion, rocket,
   // unicorn, ...) plus a synonym for "song" — e.g. "Lion Rocket Jam".
   String _suggestSongName() {
-    String cap(String s) => s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';
+    String cap(String s) =>
+        s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';
     final source = _notes.isNotEmpty ? _notes.map((n) => n.emoji) : _palette;
     final words = <String>[];
     for (final e in source) {
@@ -785,34 +1098,67 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
     // pre-filled with a generated name the user can keep or edit.
     final name = await _promptName(initial: _suggestSongName());
     if (name == null) return;
-    final notes = _notes.map((n) => SongNote(n.emoji, n.gridX, n.gridY, velocity: n.velocity)).toList();
-    final s = Song.fresh(name: name, bpm: _bpm, palette: _palette, selectedEmoji: _selected)
-      ..notes = notes;
+    final notes = _notes
+        .map(
+          (n) => SongNote(
+            n.emoji,
+            n.gridX,
+            n.gridY,
+            velocity: n.velocity,
+            pitchOffset: n.pitchOffset,
+            pitchEdited: n.pitchEdited,
+          ),
+        )
+        .toList();
+    final s = Song.fresh(
+      name: name,
+      bpm: _bpm,
+      palette: _palette,
+      selectedEmoji: _selected,
+    )..notes = notes;
     _currentId = s.id;
     await _library.save(s);
     if (!mounted) return;
     setState(() => _currentName = name);
     ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Saved "$name"'), duration: const Duration(seconds: 1)));
+      SnackBar(
+        content: Text('Saved "$name"'),
+        duration: const Duration(seconds: 1),
+      ),
+    );
   }
 
   Future<String?> _promptName({required String initial}) => showDialog<String>(
-        context: context,
-        barrierDismissible: false, // must use Cancel/Save — avoids stray-tap dismissal
-        builder: (ctx) => _NameDialog(initial: initial),
-      );
+    context: context,
+    barrierDismissible:
+        false, // must use Cancel/Save — avoids stray-tap dismissal
+    builder: (ctx) => _NameDialog(initial: initial),
+  );
 
   void _loadSong(Song s) => setState(() {
-        _currentId = s.id;
-        _currentName = s.name;
-        _bpm = s.bpm.clamp(60, 180);
-        if (s.palette.isNotEmpty) _palette = s.palette;
-        _selected = s.selectedEmoji ?? (_palette.isNotEmpty ? _palette.first : _selected);
-        _notes
-          ..clear()
-          ..addAll(s.notes.map((n) =>
-              Note(n.emoji, n.gridX, n.gridY, (_rng.nextDouble() - 0.5) * 0.3, _nowMs, velocity: n.velocity)));
-      });
+    _currentId = s.id;
+    _currentName = s.name;
+    _bpm = s.bpm.clamp(60, 180);
+    if (s.palette.isNotEmpty) _palette = s.palette;
+    _selected =
+        s.selectedEmoji ?? (_palette.isNotEmpty ? _palette.first : _selected);
+    _notes
+      ..clear()
+      ..addAll(
+        s.notes.map(
+          (n) => Note(
+            n.emoji,
+            n.gridX,
+            n.gridY,
+            (_rng.nextDouble() - 0.5) * 0.3,
+            _nowMs,
+            velocity: n.velocity,
+            pitchOffset: n.pitchOffset,
+            pitchEdited: n.pitchEdited,
+          ),
+        ),
+      );
+  });
 
   // ---- deep links ----
   // A shared link (universal link, or one pasted/opened) that carries a song in
@@ -837,16 +1183,28 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   // Like _loadSong but for an incoming link: no id/name, so it behaves as a
   // fresh unsaved song the recipient can tweak and Save under their own name.
   void _loadShared(SharedSong s) => setState(() {
-        _currentId = null;
-        _currentName = 'Untitled';
-        _bpm = s.bpm.clamp(60, 180);
-        if (s.palette.isNotEmpty) _palette = List.of(s.palette);
-        if (_palette.isNotEmpty) _selected = _palette.first;
-        _notes
-          ..clear()
-          ..addAll(s.notes.map((n) =>
-              Note(n.emoji, n.gridX, n.gridY, (_rng.nextDouble() - 0.5) * 0.3, _nowMs, velocity: n.velocity)));
-      });
+    _currentId = null;
+    _currentName = 'Untitled';
+    _bpm = s.bpm.clamp(60, 180);
+    if (s.palette.isNotEmpty) _palette = List.of(s.palette);
+    if (_palette.isNotEmpty) _selected = _palette.first;
+    _notes
+      ..clear()
+      ..addAll(
+        s.notes.map(
+          (n) => Note(
+            n.emoji,
+            n.gridX,
+            n.gridY,
+            (_rng.nextDouble() - 0.5) * 0.3,
+            _nowMs,
+            velocity: n.velocity,
+            pitchOffset: n.pitchOffset,
+            pitchEdited: n.pitchEdited,
+          ),
+        ),
+      );
+  });
 
   Future<void> _openLibrary() async {
     if (_playing) _togglePlay();
@@ -925,31 +1283,38 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   // Brand mark — the rounded app icon + wordmark. Always the top-left title
   // (never the song name).
   Widget _brandTitle() => Semantics(
-        button: true,
-        label: 'Emojio. Long-press to manage your purchase',
-        child: GestureDetector(
-          // Long-press the brand to open the RevenueCat Customer Center
-          // (restore / manage / support) — reachable even after unlocking.
-          behavior: HitTestBehavior.opaque,
-          onLongPress: _openCustomerCenter,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.asset('assets/branding/app_icon.png',
-                    width: 34, height: 34, fit: BoxFit.cover, filterQuality: FilterQuality.medium),
-              ),
-              const SizedBox(width: 8),
-              Text('Emojio',
-                  style: Toy.label(14, Colors.white).copyWith(
-                    shadows: const [Shadow(color: Toy.text, offset: Offset(2, 2))],
-                  )),
-              const SizedBox(width: 4),
-            ],
+    button: true,
+    label: 'Emojio. Long-press to manage your purchase',
+    child: GestureDetector(
+      // Long-press the brand to open the RevenueCat Customer Center
+      // (restore / manage / support) — reachable even after unlocking.
+      behavior: HitTestBehavior.opaque,
+      onLongPress: _openCustomerCenter,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.asset(
+              'assets/branding/app_icon.png',
+              width: 34,
+              height: 34,
+              fit: BoxFit.cover,
+              filterQuality: FilterQuality.medium,
+            ),
           ),
-        ),
-      );
+          const SizedBox(width: 8),
+          Text(
+            'Emojio',
+            style: Toy.label(14, Colors.white).copyWith(
+              shadows: const [Shadow(color: Toy.text, offset: Offset(2, 2))],
+            ),
+          ),
+          const SizedBox(width: 4),
+        ],
+      ),
+    ),
+  );
 
   // Every top-bar button shares Play's size, padding, radius and style — only
   // the colour (and label/emoji) changes.
@@ -968,60 +1333,104 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
     Color textColor = Colors.white,
     String? tooltip,
     required VoidCallback onPressed,
-  }) =>
-      ToyButton(
-        key: key,
-        label: label,
-        emoji: emoji,
-        color: color,
-        textColor: textColor,
-        tooltip: tooltip,
-        fontSize: _barFont,
-        radius: _barRadius,
-        padding: _barPad,
-        onPressed: onPressed,
-      );
+  }) => ToyButton(
+    key: key,
+    label: label,
+    emoji: emoji,
+    color: color,
+    textColor: textColor,
+    tooltip: tooltip,
+    fontSize: _barFont,
+    radius: _barRadius,
+    padding: _barPad,
+    onPressed: onPressed,
+  );
 
   // The primary target.
   Widget _playButton() => _barButton(
-        label: _playing ? 'Stop' : 'Play',
-        emoji: _playing ? '⏹️' : '▶️',
-        color: _playing ? Toy.red : Toy.green,
-        onPressed: _togglePlay,
-      );
+    label: _playing ? 'Stop' : 'Play',
+    emoji: _playing ? '⏹️' : '▶️',
+    color: _playing ? Toy.red : Toy.green,
+    onPressed: _togglePlay,
+  );
 
   // Creative + utility actions, in the order the user set: Play (prepended)
   // New, Random, Save, Songs, Export, Share, MIDI. All identical to Play but
   // for colour. (_exportKey anchors the export share-sheet on iPad; _shareKey
   // anchors Share's.)
   List<Widget> _actionButtons() => [
-        // Purchase entry point, first so it survives the row scrolling on a
-        // handset. The trial ribbon alone wasn't findable — App Review rejected
-        // 1.0 for it — so the unlock also lives here, shaped like every other
-        // button in the app.
-        if (!_purchases.unlocked)
-          _barButton(label: 'Unlock', emoji: '🔓', color: Toy.accent, onPressed: _openPaywall),
-        _barButton(label: 'New', emoji: '✨', color: Colors.white, textColor: Toy.text, onPressed: _newSong),
-        _barButton(label: 'Random', emoji: '🎲', color: Colors.white, textColor: Toy.text, onPressed: _randomize),
-        _barButton(label: 'Save', emoji: '💾', color: Toy.highlight, textColor: Toy.text, onPressed: _saveFlow),
-        _barButton(label: 'Songs', emoji: '📂', color: Toy.purple, onPressed: _openLibrary),
-        _barButton(key: _exportKey, label: 'Export', emoji: '📤', color: Toy.purple, onPressed: _openExport),
-        _barButton(key: _shareKey, label: 'Share', emoji: '🔗', color: Toy.accent, onPressed: _shareSong),
-        _barButton(label: 'MIDI', emoji: '🎹', color: Toy.green, onPressed: _openMidi),
-      ];
+    // Purchase entry point, first so it survives the row scrolling on a
+    // handset. The trial ribbon alone wasn't findable — App Review rejected
+    // 1.0 for it — so the unlock also lives here, shaped like every other
+    // button in the app.
+    if (!_purchases.unlocked)
+      _barButton(
+        label: 'Unlock',
+        emoji: '🔓',
+        color: Toy.accent,
+        onPressed: _openPaywall,
+      ),
+    _barButton(
+      label: 'New',
+      emoji: '✨',
+      color: Colors.white,
+      textColor: Toy.text,
+      onPressed: _newSong,
+    ),
+    _barButton(
+      label: 'Random',
+      emoji: '🎲',
+      color: Colors.white,
+      textColor: Toy.text,
+      onPressed: _randomize,
+    ),
+    _barButton(
+      label: 'Save',
+      emoji: '💾',
+      color: Toy.highlight,
+      textColor: Toy.text,
+      onPressed: _saveFlow,
+    ),
+    _barButton(
+      label: 'Songs',
+      emoji: '📂',
+      color: Toy.purple,
+      onPressed: _openLibrary,
+    ),
+    _barButton(
+      key: _exportKey,
+      label: 'Export',
+      emoji: '📤',
+      color: Toy.purple,
+      onPressed: _openExport,
+    ),
+    _barButton(
+      key: _shareKey,
+      label: 'Share',
+      emoji: '🔗',
+      color: Toy.accent,
+      onPressed: _shareSong,
+    ),
+    _barButton(
+      label: 'MIDI',
+      emoji: '🎹',
+      color: Toy.green,
+      onPressed: _openMidi,
+    ),
+  ];
 
   // Buttons in a horizontal row that scrolls if it can't all fit, so the header
   // is always exactly one row, with even margins between every button.
   Widget _buttonRow(List<Widget> buttons) => SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        // Bottom room so the buttons' hard offset shadow isn't clipped.
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Row(
-          children: [
-            for (final b in buttons) ...[b, const SizedBox(width: _barGap)],
-          ],
-        ),
-      );
+    scrollDirection: Axis.horizontal,
+    // Bottom room so the buttons' hard offset shadow isn't clipped.
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Row(
+      children: [
+        for (final b in buttons) ...[b, const SizedBox(width: _barGap)],
+      ],
+    ),
+  );
 
   Widget _header({double topInset = 0}) {
     final landscape =
@@ -1093,64 +1502,69 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
 
   // Dismissal comes free with the sheet: drag it down, tap outside, or press back.
   void _openTempo() => showModalBottomSheet<void>(
-        context: context,
-        showDragHandle: true,
-        backgroundColor: Colors.white,
-        shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-        builder: (_) => StatefulBuilder(
-          // The sheet reads _bpm off the page state, so it has to rebuild on the
-          // same drag that rebuilds the header behind it.
-          builder: (ctx, setSheet) => TempoSheet(
-            bpm: _bpm,
-            onChanged: (v) {
-              setSheet(() {});
-              _setBpm(v);
-            },
-          ),
-        ),
-      );
+    context: context,
+    showDragHandle: true,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (_) => StatefulBuilder(
+      // The sheet reads _bpm off the page state, so it has to rebuild on the
+      // same drag that rebuilds the header behind it.
+      builder: (ctx, setSheet) => TempoSheet(
+        bpm: _bpm,
+        onChanged: (v) {
+          setSheet(() {});
+          _setBpm(v);
+        },
+      ),
+    ),
+  );
 
   // Stands in for the pill on a handset. It keeps the BPM on show, so the header
   // gives up nothing by handing the slider to the sheet.
   Widget _tempoButton() => _barButton(
-        label: '${_bpm.round()}',
-        emoji: '🎛️',
-        color: Colors.white,
-        textColor: Toy.text,
-        tooltip: 'Tempo, ${_bpm.round()} beats per minute',
-        onPressed: _openTempo,
-      );
+    label: '${_bpm.round()}',
+    emoji: '🎛️',
+    color: Colors.white,
+    textColor: Toy.text,
+    tooltip: 'Tempo, ${_bpm.round()} beats per minute',
+    onPressed: _openTempo,
+  );
 
   Widget _tempo({double width = 130}) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.4),
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: Toy.text, width: 2),
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+    decoration: BoxDecoration(
+      color: Colors.white.withValues(alpha: 0.4),
+      borderRadius: BorderRadius.circular(30),
+      border: Border.all(color: Toy.text, width: 2),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const ExcludeSemantics(
+          child: Text('🐢', style: TextStyle(fontSize: 16)),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const ExcludeSemantics(child: Text('🐢', style: TextStyle(fontSize: 16))),
-            SizedBox(
-              width: width,
-              child: Slider(
-                min: 60,
-                max: 180,
-                value: _bpm,
-                divisions: 120,
-                label: '${_bpm.round()} BPM',
-                semanticFormatterCallback: (v) => '${v.round()} beats per minute',
-                onChanged: _setBpm,
-              ),
-            ),
-            const ExcludeSemantics(child: Text('🐇', style: TextStyle(fontSize: 16))),
-            const SizedBox(width: 6),
-            ExcludeSemantics(child: Text('${_bpm.round()}', style: Toy.label(9))),
-          ],
+        SizedBox(
+          width: width,
+          child: Slider(
+            min: 60,
+            max: 180,
+            value: _bpm,
+            divisions: 120,
+            label: '${_bpm.round()} BPM',
+            semanticFormatterCallback: (v) => '${v.round()} beats per minute',
+            onChanged: _setBpm,
+          ),
         ),
-      );
+        const ExcludeSemantics(
+          child: Text('🐇', style: TextStyle(fontSize: 16)),
+        ),
+        const SizedBox(width: 6),
+        ExcludeSemantics(child: Text('${_bpm.round()}', style: Toy.label(9))),
+      ],
+    ),
+  );
 
   // Active swatch (left) and add button (right) are pinned; the palette set
   // scrolls in the strip between them and slides *behind* both as you swipe.
@@ -1158,112 +1572,261 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   static const double _activeLeadPad = 76.0; // active swatch width + gap
   static const double _addTrailPad = 70.0; // add button width + gap
 
+  String _pitchSymbol(int offset) => switch (offset) {
+    < 0 => 'b',
+    > 0 => '#',
+    _ => '♮',
+  };
+
+  String _pitchName(int offset) => switch (offset) {
+    < 0 => 'Flat',
+    > 0 => 'Sharp',
+    _ => 'Natural',
+  };
+
+  Color _pitchFill(int offset, {required bool selected}) {
+    if (selected) return Toy.highlight;
+    return switch (offset) {
+      < 0 => const Color(0xFFE1F5FE),
+      > 0 => const Color(0xFFFFEBEE),
+      _ => Colors.white,
+    };
+  }
+
+  void _togglePitchPicker() {
+    setState(() => _pitchPickerOpen = !_pitchPickerOpen);
+    HapticFeedback.selectionClick();
+  }
+
+  void _setPitchOffset(int offset) {
+    final next = offset.clamp(-1, 1).toInt();
+    setState(() {
+      _selectedPitchOffset = next;
+      _pitchPickerOpen = false;
+      _pitchManuallySet = true;
+    });
+    HapticFeedback.selectionClick();
+    _engine.playEmoji(_selected, 7, pitchOffset: next);
+  }
+
   Widget _paletteBar() => Container(
-        color: Toy.panel,
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
-        child: SizedBox(
-          height: _barH,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              // The scrolling set runs the full width but is inset so that, at
-              // rest, stickers sit between the two pinned controls; swiping
-              // slides them under the opaque active swatch / add button.
-              Positioned.fill(
-                child: SingleChildScrollView(
-                  controller: _paletteScroll,
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.only(left: _activeLeadPad, right: _addTrailPad),
-                  child: SizedBox(
-                    height: _barH,
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [for (final e in _palette) _paletteItem(e)],
-                    ),
+    color: Toy.panel,
+    padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+    child: AnimatedSize(
+      duration: const Duration(milliseconds: 140),
+      curve: Curves.easeOut,
+      alignment: Alignment.topLeft,
+      child: SizedBox(
+        height: _pitchPickerOpen ? _barH + 54 : _barH,
+        child: Stack(
+          clipBehavior: Clip.hardEdge,
+          children: [
+            // The scrolling set runs the full width but is inset so that, at
+            // rest, stickers sit between the two pinned controls; swiping
+            // slides them under the opaque active swatch / add button.
+            Positioned(
+              left: 0,
+              right: 0,
+              top: 0,
+              height: _barH,
+              child: SingleChildScrollView(
+                controller: _paletteScroll,
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.only(
+                  left: _activeLeadPad,
+                  right: _addTrailPad,
+                ),
+                child: SizedBox(
+                  height: _barH,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [for (final e in _palette) _paletteItem(e)],
                   ),
                 ),
               ),
-              // Soft shadow the active swatch casts over the strip — fades in
-              // over the first few pixels of swipe so stickers read as sliding
-              // under it.
-              Positioned(
-                left: _activeLeadPad - 14,
-                top: 0,
-                bottom: 0,
-                width: 16,
-                child: IgnorePointer(
-                  child: AnimatedBuilder(
-                    animation: _paletteScroll,
-                    builder: (context, _) {
-                      final off = _paletteScroll.hasClients ? _paletteScroll.offset : 0.0;
-                      final op = (off / 14).clamp(0.0, 1.0);
-                      return Opacity(
-                        opacity: op,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.centerLeft,
-                              end: Alignment.centerRight,
-                              colors: [
-                                Toy.text.withValues(alpha: 0.22),
-                                Toy.text.withValues(alpha: 0.0),
-                              ],
-                            ),
+            ),
+            // Soft shadow the active swatch casts over the strip — fades in
+            // over the first few pixels of swipe so stickers read as sliding
+            // under it.
+            Positioned(
+              left: _activeLeadPad - 14,
+              top: 0,
+              height: _barH,
+              width: 16,
+              child: IgnorePointer(
+                child: AnimatedBuilder(
+                  animation: _paletteScroll,
+                  builder: (context, _) {
+                    final off = _paletteScroll.hasClients
+                        ? _paletteScroll.offset
+                        : 0.0;
+                    final op = (off / 14).clamp(0.0, 1.0);
+                    return Opacity(
+                      opacity: op,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.centerLeft,
+                            end: Alignment.centerRight,
+                            colors: [
+                              Toy.text.withValues(alpha: 0.22),
+                              Toy.text.withValues(alpha: 0.0),
+                            ],
                           ),
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                    );
+                  },
                 ),
               ),
-              // Pinned active swatch (left), opaque so the set vanishes behind it.
-              Positioned(
-                left: 0,
-                top: 0,
-                bottom: 0,
-                child: Container(
-                  color: Toy.panel,
-                  alignment: Alignment.centerLeft,
-                  child: Semantics(
-                    label: 'Active sound',
-                    value: _selected,
-                    excludeSemantics: true,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text('ACTIVE', style: Toy.label(6)),
-                        const SizedBox(height: 4),
-                        Container(
-                          width: 58,
-                          height: 58,
-                          alignment: Alignment.center,
-                          decoration: toyBox(radius: 14),
-                          child: Text(_selected, style: const TextStyle(fontSize: 34)),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+            ),
+            // Pinned active swatch (left), opaque so the set vanishes behind it.
+            Positioned(
+              left: 0,
+              top: 0,
+              height: _barH,
+              child: Container(
+                width: _activeLeadPad - 8,
+                color: Toy.panel,
+                alignment: Alignment.centerLeft,
+                child: _activeSwatch(),
               ),
-              // Pinned add button (right), opaque mask on the far end.
-              Positioned(
-                right: 0,
-                top: 0,
-                bottom: 0,
-                child: Container(
-                  color: Toy.panel,
-                  alignment: Alignment.centerRight,
-                  child: _addButton(),
-                ),
+            ),
+            if (_pitchPickerOpen)
+              Positioned(left: 0, top: _barH + 2, child: _pitchPopover()),
+            // Pinned add button (right), opaque mask on the far end.
+            Positioned(
+              right: 0,
+              top: 0,
+              height: _barH,
+              child: Container(
+                color: Toy.panel,
+                alignment: Alignment.centerRight,
+                child: _addButton(),
               ),
-            ],
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  Widget _activeSwatch() => Semantics(
+    label: _pitchManuallySet
+        ? 'Active sound. Long press to change pitch'
+        : 'Active sound',
+    value: _selected,
+    excludeSemantics: true,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text('ACTIVE', style: Toy.label(6)),
+        const SizedBox(height: 4),
+        GestureDetector(
+          onLongPress: _togglePitchPicker,
+          child: Container(
+            width: 58,
+            height: 58,
+            alignment: Alignment.center,
+            decoration: toyBox(radius: 14),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Center(
+                  child: Text(_selected, style: const TextStyle(fontSize: 34)),
+                ),
+                if (_pitchManuallySet)
+                  Positioned(right: 0, top: 0, child: _pitchBadge()),
+              ],
+            ),
           ),
         ),
-      );
+      ],
+    ),
+  );
+
+  Widget _pitchBadge() {
+    final symbol = _pitchSymbol(_selectedPitchOffset);
+    return Semantics(
+      button: true,
+      label: 'Change pitch',
+      value: _pitchName(_selectedPitchOffset),
+      onTap: _togglePitchPicker,
+      child: ExcludeSemantics(
+        child: GestureDetector(
+          onTap: _togglePitchPicker,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 100),
+            width: 26,
+            height: 26,
+            alignment: Alignment.center,
+            decoration: toyBox(
+              fill: _pitchFill(_selectedPitchOffset, selected: true),
+              radius: 999,
+              border: 2,
+            ),
+            child: Text(symbol, style: Toy.label(9)),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _pitchPopover() => Material(
+    color: Colors.transparent,
+    child: Container(
+      padding: const EdgeInsets.all(6),
+      decoration: toyBox(fill: Colors.white, radius: 12),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _pitchOption(-1),
+          const SizedBox(width: 6),
+          _pitchOption(0),
+          const SizedBox(width: 6),
+          _pitchOption(1),
+        ],
+      ),
+    ),
+  );
+
+  Widget _pitchOption(int offset) {
+    final selected = offset == _selectedPitchOffset;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: _pitchName(offset),
+      onTap: () => _setPitchOffset(offset),
+      child: ExcludeSemantics(
+        child: GestureDetector(
+          onTap: () => _setPitchOffset(offset),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 90),
+            width: 36,
+            height: 36,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: _pitchFill(offset, selected: selected),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Toy.text, width: selected ? 3 : 2),
+              boxShadow: [
+                BoxShadow(
+                  color: Toy.text.withValues(alpha: selected ? 1 : 0.18),
+                  offset: const Offset(2, 2),
+                ),
+              ],
+            ),
+            child: Text(_pitchSymbol(offset), style: Toy.label(12)),
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _paletteItem(String e) {
     final on = e == _selected;
-    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 5),
       child: Semantics(
@@ -1275,15 +1838,25 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
           child: GestureDetector(
             onTap: () => _select(e),
             child: AnimatedContainer(
-              duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 100),
+              duration: reduceMotion
+                  ? Duration.zero
+                  : const Duration(milliseconds: 100),
               width: 52,
               height: 52,
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: on ? Toy.highlight : Colors.white,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: on ? Toy.text : Colors.transparent, width: 3),
-                boxShadow: [BoxShadow(color: Toy.text.withValues(alpha: on ? 1 : 0.1), offset: const Offset(3, 3))],
+                border: Border.all(
+                  color: on ? Toy.text : Colors.transparent,
+                  width: 3,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Toy.text.withValues(alpha: on ? 1 : 0.1),
+                    offset: const Offset(3, 3),
+                  ),
+                ],
               ),
               child: Text(e, style: const TextStyle(fontSize: 30)),
             ),
@@ -1294,33 +1867,39 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   }
 
   Widget _addButton() => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 5),
-        child: Semantics(
-          button: true,
-          label: 'Add a sound',
+    padding: const EdgeInsets.symmetric(horizontal: 5),
+    child: Semantics(
+      button: true,
+      label: 'Add a sound',
+      onTap: _openPicker,
+      child: ExcludeSemantics(
+        child: GestureDetector(
           onTap: _openPicker,
-          child: ExcludeSemantics(
-            child: GestureDetector(
-              onTap: _openPicker,
-              child: Container(
-                width: 52,
-                height: 52,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFECEFF1),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFB0BEC5), width: 3, style: BorderStyle.solid),
-                ),
-                child: const Text('➕', style: TextStyle(fontSize: 22)),
+          child: Container(
+            width: 52,
+            height: 52,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: const Color(0xFFECEFF1),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: const Color(0xFFB0BEC5),
+                width: 3,
+                style: BorderStyle.solid,
               ),
             ),
+            child: const Text('➕', style: TextStyle(fontSize: 22)),
           ),
         ),
-      );
+      ),
+    ),
+  );
 
   // Capture Apple Pencil pressure (finger/mouse report no useful pressure -> full).
   void _capturePressure(PointerEvent e) {
-    _lastPressure = e.kind == PointerDeviceKind.stylus ? e.pressure.clamp(0.0, 1.0) : 1.0;
+    _lastPressure = e.kind == PointerDeviceKind.stylus
+        ? e.pressure.clamp(0.0, 1.0)
+        : 1.0;
   }
 
   // Handset column width — big enough to tap and to keep the emoji from
@@ -1328,182 +1907,213 @@ class _HarnessPageState extends State<HarnessPage> with SingleTickerProviderStat
   static const double _handsetStepX = 64.0;
 
   Widget _staff() => LayoutBuilder(
-        builder: (context, constraints) {
-          final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-          final handset = MediaQuery.of(context).size.shortestSide < 600;
-          final labels = _engine.scaleMode == ScaleMode.free
-              ? null
-              : List.generate(_rows, (i) => _pcName(_engine.midiForRow(i)));
-          final showClef = _engine.scaleMode == ScaleMode.free;
+    builder: (context, constraints) {
+      final reduceMotion =
+          MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+      final handset = MediaQuery.of(context).size.shortestSide < 600;
+      final labels = _engine.scaleMode == ScaleMode.free
+          ? null
+          : List.generate(_rows, (i) => _pcName(_engine.midiForRow(i)));
+      final showClef = _engine.scaleMode == ScaleMode.free;
 
-          // The note grid. On handset the clef/labels live in a pinned gutter,
-          // so the grid draws with padLeft 0 and a fixed column width.
-          StaffPainter gridPainter({required bool withGutter, double? fixedStepX}) =>
-              StaffPainter(
-                notes: _notes,
-                cols: kCols,
-                rows: _rows,
-                isPlaying: _playing,
-                currentStep: _currentStep,
-                playheadFrac: _playheadFrac,
-                tMs: _nowMs,
-                cursorStep: _playing ? -1 : _cursorStep,
-                rowLabels: withGutter ? labels : null,
-                showClef: withGutter && showClef,
-                reduceMotion: reduceMotion,
-                padLeft: withGutter ? 88.0 : 0.0,
-                drawGutter: withGutter,
-                fixedStepX: fixedStepX,
-              );
-
-          Widget grid(Size size, {double? fixedStepX, required bool withGutter}) =>
-              RepaintBoundary(
-                child: ListenableBuilder(
-                  listenable: _repaint,
-                  builder: (context, _) => CustomPaint(
-                    size: size,
-                    painter: gridPainter(withGutter: withGutter, fixedStepX: fixedStepX),
-                  ),
-                ),
-              );
-
-          Widget body;
-          if (!handset) {
-            // Tablet / wide: the staff fills the width; drag paints a run of notes.
-            final size = Size(constraints.maxWidth, constraints.maxHeight);
-            body = Listener(
-              onPointerDown: _capturePressure,
-              onPointerMove: _capturePressure,
-              child: GestureDetector(
-                onTapUp: (d) => _toggleAt(d.localPosition, size),
-                onPanStart: (d) {
-                  _lastPainted = null;
-                  _paintAt(d.localPosition, size);
-                },
-                onPanUpdate: (d) => _paintAt(d.localPosition, size),
-                onPanEnd: (_) => _lastPainted = null,
-                // Hold a placed note to grab it, then drag to move.
-                onLongPressStart: (d) => _grabAt(d.localPosition, size),
-                onLongPressMoveUpdate: (d) => _dragTo(d.localPosition, size),
-                onLongPressEnd: (_) => _dropNote(),
-                child: grid(size, withGutter: true),
-              ),
-            );
-          } else {
-            // Handset: frozen clef/label gutter + a horizontally-scrolling grid.
-            // Drag scrolls; a tap places/removes a note (no drag-paint, so the
-            // scroll and the placement gestures never fight).
-            final h = constraints.maxHeight;
-            final gridSize = Size(kCols * _handsetStepX, h);
-            body = Stack(
-              children: [
-                Row(
-                  children: [
-                    SizedBox(
-                      width: StaffMetrics.gutter,
-                      height: h,
-                      // Repaint with the staff so the clef's play-time rainbow
-                      // animates (the ticker bumps _repaint each frame).
-                      child: RepaintBoundary(
-                        child: ListenableBuilder(
-                          listenable: _repaint,
-                          builder: (context, _) => CustomPaint(
-                            painter: StaffGutterPainter(
-                              rows: _rows,
-                              rowLabels: labels,
-                              showClef: showClef,
-                              isPlaying: _playing,
-                              tMs: _nowMs,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        controller: _handsetScroll,
-                        scrollDirection: Axis.horizontal,
-                        child: Listener(
-                          onPointerDown: _capturePressure,
-                          child: GestureDetector(
-                            onTapUp: (d) => _toggleAt(d.localPosition, gridSize,
-                                padLeft: 0, fixedStepX: _handsetStepX),
-                            // Hold a placed note to grab it, then drag to move
-                            // (holding still wins over the horizontal scroll).
-                            onLongPressStart: (d) => _grabAt(d.localPosition, gridSize,
-                                padLeft: 0, fixedStepX: _handsetStepX),
-                            onLongPressMoveUpdate: (d) => _dragTo(d.localPosition, gridSize,
-                                padLeft: 0, fixedStepX: _handsetStepX),
-                            onLongPressEnd: (_) => _dropNote(),
-                            child: grid(gridSize,
-                                withGutter: false, fixedStepX: _handsetStepX),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                // Torn-paper right edge of the clef gutter — the notes read as
-                // scrolling under the ripped edge of the staff paper. Hidden at
-                // rest (nothing has slid under yet); it fades in over the first
-                // few pixels of scroll.
-                Positioned(
-                  left: StaffMetrics.gutter - 8,
-                  top: 0,
-                  bottom: 0,
-                  width: 24,
-                  child: IgnorePointer(
-                    child: AnimatedBuilder(
-                      animation: _handsetScroll,
-                      builder: (context, _) {
-                        final off = _handsetScroll.hasClients ? _handsetScroll.offset : 0.0;
-                        final op = (off / 16).clamp(0.0, 1.0);
-                        return Opacity(
-                          opacity: op,
-                          child: CustomPaint(painter: TornEdgePainter(rows: _rows)),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-              ],
-            );
-          }
-
-          return Semantics(
-            container: true,
-            label: 'Music staff',
-            hint: 'Tap a spot to place or remove a sound',
-            value: '${_notes.length} sound${_notes.length == 1 ? '' : 's'} placed',
-            child: body,
-          );
-        },
+      // The note grid. On handset the clef/labels live in a pinned gutter,
+      // so the grid draws with padLeft 0 and a fixed column width.
+      StaffPainter gridPainter({
+        required bool withGutter,
+        double? fixedStepX,
+      }) => StaffPainter(
+        notes: _notes,
+        cols: kCols,
+        rows: _rows,
+        isPlaying: _playing,
+        currentStep: _currentStep,
+        playheadFrac: _playheadFrac,
+        tMs: _nowMs,
+        cursorStep: _playing ? -1 : _cursorStep,
+        rowLabels: withGutter ? labels : null,
+        showClef: withGutter && showClef,
+        reduceMotion: reduceMotion,
+        padLeft: withGutter ? 88.0 : 0.0,
+        drawGutter: withGutter,
+        fixedStepX: fixedStepX,
       );
 
-  Widget _errorScreen(String msg) => Scaffold(
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('🔇', style: TextStyle(fontSize: 48)),
-                const SizedBox(height: 12),
-                Text('No baked voices found.', style: Toy.label(12)),
-                const SizedBox(height: 10),
-                Text(
-                  'Run tools/bake-voices.html, then unzip the output into '
-                  'app/assets/voices/ (must contain manifest.json).',
-                  textAlign: TextAlign.center,
-                  style: Toy.label(8).copyWith(height: 1.6),
+      Widget grid(Size size, {double? fixedStepX, required bool withGutter}) =>
+          RepaintBoundary(
+            child: ListenableBuilder(
+              listenable: _repaint,
+              builder: (context, _) => CustomPaint(
+                size: size,
+                painter: gridPainter(
+                  withGutter: withGutter,
+                  fixedStepX: fixedStepX,
                 ),
-                const SizedBox(height: 16),
-                Text(msg, style: const TextStyle(fontSize: 11, color: Colors.black54)),
+              ),
+            ),
+          );
+
+      Widget body;
+      if (!handset) {
+        // Tablet / wide: the staff fills the width; drag paints a run of notes.
+        final size = Size(constraints.maxWidth, constraints.maxHeight);
+        body = Listener(
+          onPointerDown: _capturePressure,
+          onPointerMove: _capturePressure,
+          child: GestureDetector(
+            onTapUp: (d) => _toggleAt(
+              d.localPosition,
+              size,
+              globalPosition: d.globalPosition,
+            ),
+            onPanStart: (d) {
+              _lastPainted = null;
+              _paintAt(d.localPosition, size);
+            },
+            onPanUpdate: (d) => _paintAt(d.localPosition, size),
+            onPanEnd: (_) => _lastPainted = null,
+            // Hold a placed note to grab it, then drag to move.
+            onLongPressStart: (d) => _grabAt(d.localPosition, size),
+            onLongPressMoveUpdate: (d) => _dragTo(d.localPosition, size),
+            onLongPressEnd: (_) => _dropNote(),
+            child: grid(size, withGutter: true),
+          ),
+        );
+      } else {
+        // Handset: frozen clef/label gutter + a horizontally-scrolling grid.
+        // Drag scrolls; a tap places/removes a note (no drag-paint, so the
+        // scroll and the placement gestures never fight).
+        final h = constraints.maxHeight;
+        final gridSize = Size(kCols * _handsetStepX, h);
+        body = Stack(
+          children: [
+            Row(
+              children: [
+                SizedBox(
+                  width: StaffMetrics.gutter,
+                  height: h,
+                  // Repaint with the staff so the clef's play-time rainbow
+                  // animates (the ticker bumps _repaint each frame).
+                  child: RepaintBoundary(
+                    child: ListenableBuilder(
+                      listenable: _repaint,
+                      builder: (context, _) => CustomPaint(
+                        painter: StaffGutterPainter(
+                          rows: _rows,
+                          rowLabels: labels,
+                          showClef: showClef,
+                          isPlaying: _playing,
+                          tMs: _nowMs,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    controller: _handsetScroll,
+                    scrollDirection: Axis.horizontal,
+                    child: Listener(
+                      onPointerDown: _capturePressure,
+                      child: GestureDetector(
+                        onTapUp: (d) => _toggleAt(
+                          d.localPosition,
+                          gridSize,
+                          padLeft: 0,
+                          fixedStepX: _handsetStepX,
+                          globalPosition: d.globalPosition,
+                        ),
+                        // Hold a placed note to grab it, then drag to move
+                        // (holding still wins over the horizontal scroll).
+                        onLongPressStart: (d) => _grabAt(
+                          d.localPosition,
+                          gridSize,
+                          padLeft: 0,
+                          fixedStepX: _handsetStepX,
+                        ),
+                        onLongPressMoveUpdate: (d) => _dragTo(
+                          d.localPosition,
+                          gridSize,
+                          padLeft: 0,
+                          fixedStepX: _handsetStepX,
+                        ),
+                        onLongPressEnd: (_) => _dropNote(),
+                        child: grid(
+                          gridSize,
+                          withGutter: false,
+                          fixedStepX: _handsetStepX,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
-          ),
-        ),
+            // Torn-paper right edge of the clef gutter — the notes read as
+            // scrolling under the ripped edge of the staff paper. Hidden at
+            // rest (nothing has slid under yet); it fades in over the first
+            // few pixels of scroll.
+            Positioned(
+              left: StaffMetrics.gutter - 8,
+              top: 0,
+              bottom: 0,
+              width: 24,
+              child: IgnorePointer(
+                child: AnimatedBuilder(
+                  animation: _handsetScroll,
+                  builder: (context, _) {
+                    final off = _handsetScroll.hasClients
+                        ? _handsetScroll.offset
+                        : 0.0;
+                    final op = (off / 16).clamp(0.0, 1.0);
+                    return Opacity(
+                      opacity: op,
+                      child: CustomPaint(painter: TornEdgePainter(rows: _rows)),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        );
+      }
+
+      return Semantics(
+        container: true,
+        label: 'Music staff',
+        hint: 'Tap a spot to place or remove a sound',
+        value: '${_notes.length} sound${_notes.length == 1 ? '' : 's'} placed',
+        child: body,
       );
+    },
+  );
+
+  Widget _errorScreen(String msg) => Scaffold(
+    body: Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('🔇', style: TextStyle(fontSize: 48)),
+            const SizedBox(height: 12),
+            Text('No baked voices found.', style: Toy.label(12)),
+            const SizedBox(height: 10),
+            Text(
+              'Run tools/bake-voices.html, then unzip the output into '
+              'app/assets/voices/ (must contain manifest.json).',
+              textAlign: TextAlign.center,
+              style: Toy.label(8).copyWith(height: 1.6),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              msg,
+              style: const TextStyle(fontSize: 11, color: Colors.black54),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 /// "Name your song" dialog. Owns its [TextEditingController] as state so it's
@@ -1518,8 +2128,9 @@ class _NameDialog extends StatefulWidget {
 }
 
 class _NameDialogState extends State<_NameDialog> {
-  late final TextEditingController _ctrl =
-      TextEditingController(text: widget.initial);
+  late final TextEditingController _ctrl = TextEditingController(
+    text: widget.initial,
+  );
 
   @override
   void dispose() {
@@ -1531,24 +2142,25 @@ class _NameDialogState extends State<_NameDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-        title: const Text('Name your song', style: TextStyle(fontSize: 14)),
-        content: TextField(
-          controller: _ctrl,
-          autofocus: true,
-          style: const TextStyle(fontSize: 12),
-          decoration: const InputDecoration(hintText: 'e.g. Happy Robot'),
-          onSubmitted: (v) => Navigator.pop(context, _clean(v)),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, _clean(_ctrl.text)),
-            child: const Text('Save'),
-          ),
-        ],
-      );
+    title: const Text('Name your song', style: TextStyle(fontSize: 14)),
+    content: TextField(
+      controller: _ctrl,
+      autofocus: true,
+      style: const TextStyle(fontSize: 12),
+      decoration: const InputDecoration(hintText: 'e.g. Happy Robot'),
+      onSubmitted: (v) => Navigator.pop(context, _clean(v)),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed: () => Navigator.pop(context, _clean(_ctrl.text)),
+        child: const Text('Save'),
+      ),
+    ],
+  );
 }
 
 /// Bottom sheet listing saved songs with a mini staff preview.
@@ -1581,7 +2193,9 @@ class _LibrarySheetState extends State<_LibrarySheet> {
 
   String _ago(int ms) {
     if (ms == 0) return '';
-    final d = DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(ms));
+    final d = DateTime.now().difference(
+      DateTime.fromMillisecondsSinceEpoch(ms),
+    );
     if (d.inMinutes < 1) return 'just now';
     if (d.inHours < 1) return '${d.inMinutes}m ago';
     if (d.inDays < 1) return '${d.inHours}h ago';
@@ -1595,12 +2209,17 @@ class _LibrarySheetState extends State<_LibrarySheet> {
       child: FutureBuilder<List<Song>>(
         future: _future,
         builder: (context, snap) {
-          if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+          if (!snap.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
           final songs = snap.data!;
           if (songs.isEmpty) {
             return Center(
-              child: Text('No saved songs yet.\nTap Save to keep one.',
-                  textAlign: TextAlign.center, style: Toy.label(9).copyWith(height: 1.6)),
+              child: Text(
+                'No saved songs yet.\nTap Save to keep one.',
+                textAlign: TextAlign.center,
+                style: Toy.label(9).copyWith(height: 1.6),
+              ),
             );
           }
           return ListView.separated(
@@ -1614,7 +2233,10 @@ class _LibrarySheetState extends State<_LibrarySheet> {
               return InkWell(
                 onTap: () => widget.onLoad(s),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
                   child: Row(
                     children: [
                       // A colourful cover of the song's palette stickers.
@@ -1640,10 +2262,15 @@ class _LibrarySheetState extends State<_LibrarySheet> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(s.name.isEmpty ? 'Untitled' : s.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Toy.label(11, selected ? Toy.accent : Toy.text)),
+                            Text(
+                              s.name.isEmpty ? 'Untitled' : s.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Toy.label(
+                                11,
+                                selected ? Toy.accent : Toy.text,
+                              ),
+                            ),
                             const SizedBox(height: 7),
                             Text(
                               '${s.notes.length} notes · ${s.bpm.round()} BPM${ago.isEmpty ? '' : ' · $ago'}',

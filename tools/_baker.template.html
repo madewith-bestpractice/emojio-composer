@@ -126,6 +126,7 @@ function allSynths() {
   const s = new Set(Object.values(VOICES).map(v => v.synth));
   ['dog','lion','cat','cluck','quack','chirp','pig','moo','frog','baby','ghost','alien','wood',
    'honk','plane','chopper','boat','siren','car','brass','sax','strings','pluck','mario','drum',
+   'kick','snare','hat','clap','tom','crash',
    'bell','gameboy','star','flower','water','default'].forEach(x => s.add(x));
   return [...s].sort();
 }

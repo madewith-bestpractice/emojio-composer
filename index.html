@@ -397,6 +397,56 @@
             image-rendering: pixelated;
         }
 
+        .pitch-chip {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 26px;
+            height: 26px;
+            padding: 0;
+            border-width: 2px;
+            border-radius: 999px;
+            background: var(--highlight-color);
+            color: var(--text-color);
+            font-size: 0.46rem;
+            box-shadow: 2px 2px 0px var(--text-color);
+            z-index: 2;
+        }
+
+        .pitch-popover {
+            position: fixed;
+            left: 0;
+            top: 0;
+            display: none;
+            gap: 6px;
+            padding: 6px;
+            background: #fff;
+            border: 3px solid var(--text-color);
+            border-radius: 14px;
+            box-shadow: 4px 4px 0px var(--text-color);
+            z-index: 80;
+            touch-action: manipulation;
+        }
+        .pitch-popover.visible { display: flex; }
+        .pitch-option {
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            border-width: 2px;
+            border-radius: 10px;
+            background: #fff;
+            color: var(--text-color);
+            font-size: 0.66rem;
+            box-shadow: 2px 2px 0px rgba(55,71,79,0.18);
+        }
+        .pitch-option.flat { background: #e1f5fe; }
+        .pitch-option.sharp { background: #ffebee; }
+        .pitch-option.active {
+            background: var(--highlight-color);
+            border-width: 3px;
+            box-shadow: 2px 2px 0px var(--text-color);
+        }
+
         /* Palette Container */
         .palette-container {
             flex-grow: 1;
@@ -1075,6 +1125,12 @@
             <!-- Img injected by JS -->
         </div>
 
+        <div id="pitchPopover" class="pitch-popover" role="group" aria-label="Pitch">
+            <button class="pitch-option flat" data-pitch="-1" aria-label="Flat">b</button>
+            <button class="pitch-option natural" data-pitch="0" aria-label="Natural">♮</button>
+            <button class="pitch-option sharp" data-pitch="1" aria-label="Sharp">#</button>
+        </div>
+
         <div class="palette-container" id="emojiPalette">
             <!-- Dynamic Palette Buttons -->
             <button id="openPickerBtn" class="emoji-btn" aria-label="Open Sticker Picker">
@@ -1207,6 +1263,7 @@
             beatLine: '#eceff1', 
             barLine: '#cfd8dc', 
             playhead: '#ff4081',
+            highlight: '#ffd740',
             clef: '#37474f'
         };
 
@@ -1215,7 +1272,8 @@
         const CATEGORIES = {
             "Faces 😀": ["😀", "😂", "😍", "😎", "😢", "😱", "😴", "😡", "🤔", "😘", "🤯", "😈", "🤗", "🥺", "🥳", "😇"],
             "Animals 🐾": ["🐶", "🐱", "🐷", "🐸", "🐔", "🦆", "🦁", "🐮", "🐦", "🐺", "🐗", "🦄", "🐰", "🐭", "🐻", "🐨", "🐯", "🐵", "🐢", "🐍", "🐝", "🐠", "🐬", "🐳", "🦋", "🦊", "🐴", "🐘", "🦉", "🐧", "🦅", "🦈"],
-            "Music 🎵": ["🎹", "🥁", "🎸", "🎺", "🎻", "🎷", "🔔", "🎼", "🎤", "🎧", "🎵", "🎶", "📻"],
+            "Music 🎵": ["🎹", "🎸", "🎺", "🎻", "🎷", "🔔", "🎼", "🎤", "🎧", "🎵", "🎶", "📻"],
+            "Drum Kit 🥁": ["🥁", "💥", "🪇", "👏", "🪘", "🛎️"],
             "Vehicles 🚗": ["🚗", "✈️", "🚢", "🚓", "🚒", "🚑", "🚜", "🚁", "🚀", "🛸", "🤖", "👾", "🚂", "🚕", "🚌", "🏎️", "🏍️", "🚲", "⛵", "🚤"],
             "Characters 🧙": ["👶", "👻", "👽", "💩", "💀", "🤡", "👺", "👼", "🧛", "🧚", "🧜", "🧞", "🧟", "🦸", "🥷", "🎅", "👹"],
             "Food 🍕": ["🍕", "🍔", "🍎", "🍌", "🍓", "🍦", "🍩", "🍰", "🍪", "🍿", "🍉", "🍇", "☕", "🍣"],
@@ -1233,6 +1291,8 @@
             isPlaying: false,
             bpm: 100, 
             selectedEmoji: null, 
+            selectedPitchOffset: 0,
+            pitchManuallySet: false,
             palette: [], 
             notes: [], 
             audioContextStarted: false,
@@ -1293,10 +1353,13 @@
 
         const paletteContainer = document.getElementById('emojiPalette');
         const openPickerBtn = document.getElementById('openPickerBtn');
+        const pitchPopover = document.getElementById('pitchPopover');
         const pickerPopover = document.getElementById('pickerPopover');
         const pickerContent = document.getElementById('pickerContent');
         const pickerTabs = document.getElementById('pickerTabs');
         const currentEmojiContainer = document.getElementById('currentEmojiContainer');
+        const NOTE_PITCH_HIT_PAD = 8;
+        let pitchEditNote = null;
         
         // Modals
         const modalOverlay = document.getElementById('confirmModal');
@@ -1344,6 +1407,22 @@
             }, 2800);
         }
 
+        function normalizePitchOffset(value) {
+            const n = Number(value);
+            if (!Number.isFinite(n)) return 0;
+            return Math.max(-1, Math.min(1, Math.trunc(n)));
+        }
+
+        function pitchSymbol(offset) {
+            const n = normalizePitchOffset(offset);
+            return n < 0 ? 'b' : (n > 0 ? '#' : '♮');
+        }
+
+        function pitchName(offset) {
+            const n = normalizePitchOffset(offset);
+            return n < 0 ? 'Flat' : (n > 0 ? 'Sharp' : 'Natural');
+        }
+
         // localStorage persistence — saves song so refresh doesn't lose it
         const STORAGE_KEY = 'emojio-composer-v1';
         let persistTimer = null;
@@ -1356,8 +1435,12 @@
                         bpm: state.bpm,
                         palette: state.palette,
                         selectedEmoji: state.selectedEmoji,
+                        selectedPitchOffset: state.selectedPitchOffset,
+                        pitchManuallySet: state.pitchManuallySet,
                         notes: state.notes.map(n => ({
-                            emoji: n.emoji, gridX: n.gridX, gridY: n.gridY
+                            emoji: n.emoji, gridX: n.gridX, gridY: n.gridY,
+                            pitchOffset: normalizePitchOffset(n.pitchOffset),
+                            pitchEdited: !!n.pitchEdited
                         }))
                     };
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -1382,8 +1465,13 @@
                 bpm: state.bpm,
                 palette: state.palette.slice(),
                 selectedEmoji: state.selectedEmoji,
+                selectedPitchOffset: state.selectedPitchOffset,
+                pitchManuallySet: state.pitchManuallySet,
                 notes: state.notes.map(n => ({
-                    emoji: n.emoji, gridX: n.gridX, gridY: n.gridY, rotation: n.rotation
+                    emoji: n.emoji, gridX: n.gridX, gridY: n.gridY,
+                    pitchOffset: normalizePitchOffset(n.pitchOffset),
+                    pitchEdited: !!n.pitchEdited,
+                    rotation: n.rotation
                 }))
             });
             if (undoStack.length > UNDO_LIMIT) undoStack.shift();
@@ -1396,8 +1484,16 @@
             const prev = undoStack.pop();
             state.bpm = prev.bpm;
             state.palette = prev.palette;
-            state.notes = prev.notes.map(n => ({ ...n, createdAt: Date.now() }));
+            state.selectedPitchOffset = normalizePitchOffset(prev.selectedPitchOffset);
+            state.pitchManuallySet = !!prev.pitchManuallySet;
+            state.notes = prev.notes.map(n => ({
+                ...n,
+                pitchOffset: normalizePitchOffset(n.pitchOffset),
+                pitchEdited: !!n.pitchEdited,
+                createdAt: Date.now()
+            }));
             syncTempoUI();
+            updatePitchUI();
             if (typeof Tone !== "undefined" && Tone.Transport) {
                 Tone.Transport.bpm.value = state.bpm;
             }
@@ -1465,12 +1561,18 @@
                 v: 1,
                 bpm: state.bpm,
                 palette: state.palette.slice(), 
-                notes: state.notes.map(note => ({
-                    p: state.palette.indexOf(note.emoji),
-                    x: note.gridX,
-                    y: note.gridY,
-                    e: state.palette.indexOf(note.emoji) === -1 ? note.emoji : undefined
-                }))
+                notes: state.notes.map(note => {
+                    const paletteIndex = state.palette.indexOf(note.emoji);
+                    const accidental = normalizePitchOffset(note.pitchOffset);
+                    const out = {
+                        p: paletteIndex,
+                        x: note.gridX,
+                        y: note.gridY,
+                        e: paletteIndex === -1 ? note.emoji : undefined
+                    };
+                    if (note.pitchEdited || accidental) out.a = accidental;
+                    return out;
+                })
             };
         }
 
@@ -1500,6 +1602,8 @@
             state.palette = Array.isArray(data.palette) && data.palette.length
                 ? data.palette
                 : state.palette;
+            state.selectedPitchOffset = 0;
+            state.pitchManuallySet = false;
 
             state.notes = data.notes.map(n => {
                 let emoji = null;
@@ -1514,10 +1618,13 @@
                 // Preload image
                 loadEmojiImage(emoji);
 
+                const hasPitch = Object.prototype.hasOwnProperty.call(n, 'a');
                 return {
                     emoji,
                     gridX: n.x,
                     gridY: n.y,
+                    pitchOffset: normalizePitchOffset(n.a),
+                    pitchEdited: hasPitch,
                     createdAt: Date.now()
                 };
             });
@@ -1531,6 +1638,7 @@
             // Preserve current selection if it still exists in the new palette
             const keepSelection = state.selectedEmoji && state.palette.includes(state.selectedEmoji);
             selectEmoji(keepSelection ? state.selectedEmoji : (state.palette[0] || state.selectedEmoji));
+            updatePitchUI();
             renderPalette();
             persist();
             announce(`Loaded song with ${state.notes.length} notes`);
@@ -1633,6 +1741,30 @@
                 case 'drum':
                     instruments.drum = new Tone.PolySynth(Tone.MembraneSynth, { ...polyOptions, pitchDecay: 0.05, octaves: 4, oscillator: { type: "sine" }, envelope: { attack: 0.001, decay: 0.2, sustain: 0.01, release: 0.2 } }).connect(bus);
                     instruments.drum.volume.value = -2;
+                    break;
+                case 'kick':
+                    instruments.kick = new Tone.PolySynth(Tone.MembraneSynth, { ...polyOptions, pitchDecay: 0.08, octaves: 6, oscillator: { type: "sine" }, envelope: { attack: 0.001, decay: 0.28, sustain: 0, release: 0.08 } }).connect(bus);
+                    instruments.kick.volume.value = -1;
+                    break;
+                case 'snare':
+                    instruments.snare = new Tone.PolySynth(Tone.MetalSynth, { ...polyOptions, envelope: { attack: 0.001, decay: 0.16, sustain: 0, release: 0.04 }, harmonicity: 3.5, modulationIndex: 26, resonance: 2600, octaves: 0.6 }).connect(bus);
+                    instruments.snare.volume.value = -13;
+                    break;
+                case 'hat':
+                    instruments.hat = new Tone.PolySynth(Tone.MetalSynth, { ...polyOptions, envelope: { attack: 0.001, decay: 0.06, sustain: 0, release: 0.02 }, harmonicity: 5.1, modulationIndex: 12, resonance: 6000, octaves: 1.2 }).connect(bus);
+                    instruments.hat.volume.value = -17;
+                    break;
+                case 'clap':
+                    instruments.clap = new Tone.PolySynth(Tone.MetalSynth, { ...polyOptions, envelope: { attack: 0.001, decay: 0.11, sustain: 0, release: 0.03 }, harmonicity: 2.8, modulationIndex: 18, resonance: 1800, octaves: 0.5 }).connect(bus);
+                    instruments.clap.volume.value = -14;
+                    break;
+                case 'tom':
+                    instruments.tom = new Tone.PolySynth(Tone.MembraneSynth, { ...polyOptions, pitchDecay: 0.12, octaves: 3, oscillator: { type: "sine" }, envelope: { attack: 0.001, decay: 0.34, sustain: 0, release: 0.12 } }).connect(bus);
+                    instruments.tom.volume.value = -2;
+                    break;
+                case 'crash':
+                    instruments.crash = new Tone.PolySynth(Tone.MetalSynth, { ...polyOptions, envelope: { attack: 0.001, decay: 0.6, sustain: 0, release: 0.25 }, harmonicity: 8, modulationIndex: 24, resonance: 5000, octaves: 1.5 }).connect(bus);
+                    instruments.crash.volume.value = -18;
                     break;
                 case 'ghost':
                     const ghostVib = new Tone.Vibrato(6, 0.3).connect(bus);
@@ -1987,7 +2119,12 @@
 
             // --- Music ---
             '🎹': { synth: 'mario' },
-            '🥁': { synth: 'drum' },
+            '🥁': { synth: 'kick' },
+            '💥': { synth: 'snare' },
+            '🪇': { synth: 'hat' },
+            '👏': { synth: 'clap' },
+            '🪘': { synth: 'tom' },
+            '🛎️': { synth: 'crash' },
             '🎸': { synth: 'pluck' },
             '🎺': { synth: 'brass' },
             '🎻': { synth: 'strings' },
@@ -2118,7 +2255,7 @@
                  'angel', 'heart', 'headphones', 'mic', 'howl', 'lion',
                  'fire', 'rocket', 'train', 'tractor',
                  'cry', 'hiss', 'buzz'].includes(synth)) return '4n';
-            if (['dog', 'pig', 'frog', 'drum', 'gameboy', 'cluck', 'chirp', 'wood',
+            if (['dog', 'pig', 'frog', 'drum', 'kick', 'snare', 'hat', 'clap', 'tom', 'crash', 'gameboy', 'cluck', 'chirp', 'wood',
                  'chopper', 'mushroom', 'ball', 'splat', 'bones',
                  'laugh', 'zap'].includes(synth)) return '16n';
             return '8n';
@@ -2136,7 +2273,7 @@
         function playNote(noteObj, time) {
             const profile = getVoiceProfile(noteObj.emoji);
             const basePitch = SCALE[noteObj.gridY];
-            const pitch = transposePitch(basePitch, profile.semi || 0);
+            const pitch = transposePitch(basePitch, (profile.semi || 0) + normalizePitchOffset(noteObj.pitchOffset));
             const duration = profile.dur || getSequenceDuration(profile.synth);
             triggerSound(profile.synth, pitch, duration, time);
         }
@@ -2144,7 +2281,7 @@
         function playPreview(emoji) {
             if (typeof Tone === "undefined" || !Tone.context || Tone.context.state !== 'running') return;
             const profile = getVoiceProfile(emoji);
-            const pitch = transposePitch("C4", profile.semi || 0);
+            const pitch = transposePitch("C4", (profile.semi || 0) + state.selectedPitchOffset);
             const duration = profile.previewDur || getPreviewDuration(profile.synth);
             const vel = Math.min(1, 0.6 + (state.mouseSpeed * 0.02));
             triggerSound(profile.synth, pitch, duration, Tone.now(), vel);
@@ -2483,6 +2620,7 @@
                 const size = stepY * 1.9; 
                 const cx = x + stepX / 2;
                 const cy = y;
+                let badgeY = cy;
 
                 const img = imageCache[note.emoji];
                 
@@ -2498,6 +2636,7 @@
                     const bounceSpeed = 0.015;
                     const bounce = Math.abs(Math.sin(now * bounceSpeed)) * 15;
                     ctx.translate(0, -bounce);
+                    badgeY -= bounce;
                     ctx.scale(1.2, 1.2);
                     ctx.rotate(Math.sin(now * 0.02) * 0.2); 
                     ctx.shadowColor = "rgba(255, 64, 129, 0.6)"; ctx.shadowBlur = 20;
@@ -2545,6 +2684,10 @@
                     loadEmojiImage(note.emoji);
                 }
                 ctx.restore();
+
+                if (note.pitchEdited) {
+                    drawAccidentalBadge(normalizePitchOffset(note.pitchOffset), cx, badgeY, size);
+                }
             });
 
             drawGutter();
@@ -2557,6 +2700,33 @@
             // frame, so keep the loop awake for the whole song rather than only while
             // a note is bouncing. It still sleeps completely when stopped.
             if (state.isPlaying) needsRedraw = true;
+        }
+
+        function drawAccidentalBadge(offset, cx, cy, noteSize) {
+            const label = pitchSymbol(offset);
+            const radius = Math.max(8, Math.min(15, noteSize * 0.23));
+            const bx = cx + noteSize * 0.45;
+            const by = cy - noteSize * 0.45;
+            ctx.save();
+            ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            ctx.beginPath();
+            ctx.arc(bx + 2, by + 2, radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = COLORS.highlight || '#ffd740';
+            ctx.beginPath();
+            ctx.arc(bx, by, radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = COLORS.clef;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(bx, by, radius, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.fillStyle = COLORS.clef;
+            ctx.font = `${radius * 1.35}px "Press Start 2P", monospace`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(label, bx, by + 1);
+            ctx.restore();
         }
 
         /* ---- Auto-scroll: keep the playhead on screen while a scrolled song plays ---- */
@@ -2883,7 +3053,14 @@
                     const gy = Math.floor(Math.random() * GRID_ROWS);
                     const emoji = state.palette[Math.floor(Math.random() * state.palette.length)];
                     if (!state.notes.find(n => n.gridX === gx && n.gridY === gy)) {
-                        state.notes.push({ emoji, gridX: gx, gridY: gy, createdAt: Date.now() });
+                        state.notes.push({
+                            emoji,
+                            gridX: gx,
+                            gridY: gy,
+                            pitchOffset: 0,
+                            pitchEdited: false,
+                            createdAt: Date.now()
+                        });
                     }
                 }
                 persist();
@@ -2916,6 +3093,27 @@
             return { gridX, gridY };
         }
 
+        function hitTestPitchBadge(clientX, clientY) {
+            const rect = canvas.getBoundingClientRect();
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
+            if (x < staffPaddingLeft) return null;
+            if (clientX - staffScroll.getBoundingClientRect().left < staffPaddingLeft) return null;
+
+            const noteSize = stepY * 1.9;
+            const radius = Math.max(8, Math.min(15, noteSize * 0.23));
+            for (let i = state.notes.length - 1; i >= 0; i--) {
+                const note = state.notes[i];
+                if (!note.pitchEdited) continue;
+                const cx = staffPaddingLeft + note.gridX * stepX + stepX / 2;
+                const cy = 40 + note.gridY * stepY;
+                const bx = cx + noteSize * 0.45;
+                const by = cy - noteSize * 0.45;
+                if (Math.hypot(x - bx, y - by) <= radius + NOTE_PITCH_HIT_PAD) return note;
+            }
+            return null;
+        }
+
         function placeNote(gridX, gridY) {
             // Add only — used by drag painting
             const key = `${gridX},${gridY}`;
@@ -2926,11 +3124,13 @@
             state.notes.push({
                 emoji: state.selectedEmoji,
                 gridX, gridY,
+                pitchOffset: state.selectedPitchOffset,
+                pitchEdited: state.pitchManuallySet,
                 isPressed: true,
                 createdAt: 0
             });
             if (state.audioContextStarted && typeof Tone !== "undefined") {
-                playNote({ emoji: state.selectedEmoji, gridX, gridY }, Tone.now());
+                playNote({ emoji: state.selectedEmoji, gridX, gridY, pitchOffset: state.selectedPitchOffset }, Tone.now());
             }
             return true;
         }
@@ -2938,6 +3138,12 @@
         // Place or remove the note under the pointer. Shared by the mouse's
         // press-to-paint and by touch's commit-on-lift tap.
         function toggleNoteAt(clientX, clientY) {
+            const pitchNote = hitTestPitchBadge(clientX, clientY);
+            if (pitchNote) {
+                openPitchPopoverAt(clientX, clientY, pitchNote);
+                return false;
+            }
+
             const hit = hitTestGrid(clientX, clientY);
             if (!hit) return false;
 
@@ -2947,11 +3153,23 @@
             const existingIndex = state.notes.findIndex(n => n.gridX === hit.gridX && n.gridY === hit.gridY);
 
             if (existingIndex > -1) {
-                // Toggle delete on click
-                if (typeof Tone !== "undefined" && foley.foop) foley.foop.triggerAttackRelease("C2", "8n");
-                state.notes.splice(existingIndex, 1);
-                announce("Note removed");
-                lastPaintedKey = null;
+                const existing = state.notes[existingIndex];
+                if (state.pitchManuallySet &&
+                    (normalizePitchOffset(existing.pitchOffset) !== state.selectedPitchOffset || !existing.pitchEdited)) {
+                    existing.pitchOffset = state.selectedPitchOffset;
+                    existing.pitchEdited = true;
+                    existing.createdAt = Date.now();
+                    if (state.audioContextStarted && typeof Tone !== "undefined") {
+                        playNote(existing, Tone.now());
+                    }
+                    announce(`Note changed to ${pitchName(state.selectedPitchOffset)}`);
+                } else {
+                    // Toggle delete on click
+                    if (typeof Tone !== "undefined" && foley.foop) foley.foop.triggerAttackRelease("C2", "8n");
+                    state.notes.splice(existingIndex, 1);
+                    announce("Note removed");
+                    lastPaintedKey = null;
+                }
             } else {
                 lastPaintedKey = null; // reset so placeNote will place
                 placeNote(hit.gridX, hit.gridY);
@@ -3061,6 +3279,73 @@
             pickerPopover.classList.toggle('visible');
             if(pickerTabs.firstChild) pickerTabs.firstChild.focus();
         };
+
+        function placePitchPopover(clientX, clientY) {
+            const rect = pitchPopover.getBoundingClientRect();
+            const width = rect.width || 144;
+            const height = rect.height || 54;
+            const left = Math.min(window.innerWidth - width - 8, Math.max(8, clientX - width / 2));
+            const below = clientY + 8;
+            const above = clientY - height - 8;
+            const top = below + height <= window.innerHeight - 8
+                ? below
+                : Math.max(8, above);
+            pitchPopover.style.left = `${left}px`;
+            pitchPopover.style.top = `${top}px`;
+        }
+
+        function closePitchPopover() {
+            pitchPopover.classList.remove('visible');
+            pitchEditNote = null;
+            updatePitchUI();
+        }
+
+        function openPitchPopoverAt(clientX, clientY, note = null) {
+            pitchEditNote = note;
+            pitchPopover.setAttribute('aria-label', note ? 'Note pitch' : 'Active pitch');
+            pitchPopover.classList.add('visible');
+            placePitchPopover(clientX, clientY);
+            suppressPitchDismiss = true;
+            setTimeout(() => { suppressPitchDismiss = false; }, 350);
+            updatePitchUI();
+        }
+
+        function toggleActivePitchPopover(force) {
+            const visible = force === undefined ? !pitchPopover.classList.contains('visible') : !!force;
+            if (!visible && !pitchEditNote) {
+                closePitchPopover();
+                return;
+            }
+            const rect = currentEmojiContainer.getBoundingClientRect();
+            openPitchPopoverAt(rect.left + rect.width / 2, rect.bottom, null);
+        }
+
+        let pitchLongPressTimer = null;
+        let suppressPitchDismiss = false;
+        currentEmojiContainer.addEventListener('pointerdown', (e) => {
+            if (e.target.closest('#pitchChip')) return;
+            clearTimeout(pitchLongPressTimer);
+            pitchLongPressTimer = setTimeout(() => {
+                toggleActivePitchPopover(true);
+            }, 480);
+        });
+        ['pointerup', 'pointercancel', 'pointerleave'].forEach(type => {
+            currentEmojiContainer.addEventListener(type, () => {
+                clearTimeout(pitchLongPressTimer);
+                pitchLongPressTimer = null;
+            });
+        });
+        currentEmojiContainer.addEventListener('click', (e) => {
+            const badge = e.target.closest('#pitchChip');
+            if (!badge) return;
+            e.stopPropagation();
+            toggleActivePitchPopover();
+        });
+        pitchPopover.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const btn = e.target.closest('[data-pitch]');
+            if (btn) setPitchOffset(btn.dataset.pitch);
+        });
         
         // Add Plus icon to picker button
         const plusImg = document.createElement('img');
@@ -3070,6 +3355,10 @@
         
         document.body.addEventListener('click', (e) => {
             if (!pickerPopover.contains(e.target) && !openPickerBtn.contains(e.target)) pickerPopover.classList.remove('visible');
+            const pitchChip = document.getElementById('pitchChip');
+            if (!suppressPitchDismiss && !pitchPopover.contains(e.target) && !(pitchChip && pitchChip.contains(e.target))) {
+                closePitchPopover();
+            }
             if (e.target.classList.contains('modal-overlay')) {
                 shareModal.classList.add('hidden');
                 modalOverlay.classList.add('hidden');
@@ -3094,6 +3383,7 @@
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 pickerPopover.classList.remove('visible');
+                closePitchPopover();
                 hideModal();
                 closeShareModal();
                 return;
@@ -3269,6 +3559,51 @@
             renderPalette();
         }
 
+        function updatePitchUI() {
+            const popoverOffset = pitchEditNote
+                ? normalizePitchOffset(pitchEditNote.pitchOffset)
+                : state.selectedPitchOffset;
+            const symbol = pitchSymbol(state.selectedPitchOffset);
+            const pitchChip = document.getElementById('pitchChip');
+            if (pitchChip) {
+                pitchChip.textContent = symbol;
+                pitchChip.setAttribute('aria-label', `Pitch: ${pitchName(state.selectedPitchOffset)}`);
+                pitchChip.setAttribute('aria-expanded', pitchPopover.classList.contains('visible') ? 'true' : 'false');
+            }
+            pitchPopover.querySelectorAll('[data-pitch]').forEach(btn => {
+                const selected = normalizePitchOffset(btn.dataset.pitch) === popoverOffset;
+                btn.classList.toggle('active', selected);
+                btn.setAttribute('aria-pressed', selected ? 'true' : 'false');
+            });
+        }
+
+        async function setPitchOffset(offset) {
+            const next = normalizePitchOffset(offset);
+            if (pitchEditNote) {
+                const note = pitchEditNote;
+                snapshotForUndo();
+                note.pitchOffset = next;
+                note.pitchEdited = true;
+                note.createdAt = Date.now();
+                closePitchPopover();
+                persist();
+                markDirty();
+                announce(`Note changed to ${pitchName(next)}`);
+                await initAudio();
+                if (state.audioContextStarted && typeof Tone !== "undefined") playNote(note, Tone.now());
+                return;
+            }
+
+            state.selectedPitchOffset = next;
+            state.pitchManuallySet = true;
+            closePitchPopover();
+            updateCurrentEmojiDisplay(state.selectedEmoji);
+            updatePitchUI();
+            persist();
+            await initAudio();
+            playPreview(state.selectedEmoji);
+        }
+
         function addToPalette(char) {
             const idx = state.palette.indexOf(char);
             if (idx > -1) {
@@ -3335,11 +3670,30 @@
 
         function updateCurrentEmojiDisplay(char) {
             currentEmojiContainer.innerHTML = '';
+            const label = document.createElement('div');
+            label.className = 'current-label';
+            label.textContent = 'Active';
+            currentEmojiContainer.appendChild(label);
             const img = document.createElement('img');
             img.src = getEmojiUrl(char);
             img.className = 'current-emoji-img';
-            img.onerror = () => { currentEmojiContainer.textContent = char; };
+            img.onerror = () => {
+                img.remove();
+                const fallback = document.createElement('span');
+                fallback.textContent = char;
+                fallback.style.fontSize = '2rem';
+                currentEmojiContainer.appendChild(fallback);
+            };
             currentEmojiContainer.appendChild(img);
+            if (state.pitchManuallySet) {
+                const pitchChip = document.createElement('button');
+                pitchChip.type = 'button';
+                pitchChip.id = 'pitchChip';
+                pitchChip.className = 'pitch-chip';
+                pitchChip.setAttribute('aria-haspopup', 'true');
+                currentEmojiContainer.appendChild(pitchChip);
+                updatePitchUI();
+            }
         }
 
         // --- INIT ---
@@ -3350,6 +3704,7 @@
         }
         buildPicker();
         initPalette();
+        updatePitchUI();
 
         // Restore from URL hash > localStorage. URL hash wins because it's an explicit
         // share intent; localStorage is just "where you left off".
@@ -3368,7 +3723,10 @@
             const persisted = loadPersisted();
             if (persisted) {
                 state.bpm = persisted.bpm || 100;
+                state.selectedPitchOffset = normalizePitchOffset(persisted.selectedPitchOffset);
+                state.pitchManuallySet = !!persisted.pitchManuallySet;
                 syncTempoUI();
+                updatePitchUI();
                 if (typeof Tone !== "undefined" && Tone.Transport) {
                     Tone.Transport.bpm.value = state.bpm;
                 }
@@ -3381,7 +3739,14 @@
                 }
                 state.notes = (persisted.notes || []).map(n => {
                     loadEmojiImage(n.emoji);
-                    return { emoji: n.emoji, gridX: n.gridX, gridY: n.gridY, createdAt: Date.now() };
+                    return {
+                        emoji: n.emoji,
+                        gridX: n.gridX,
+                        gridY: n.gridY,
+                        pitchOffset: normalizePitchOffset(n.pitchOffset),
+                        pitchEdited: !!n.pitchEdited,
+                        createdAt: Date.now()
+                    };
                 });
                 markDirty();
                 return true;

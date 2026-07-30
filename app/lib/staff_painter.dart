@@ -6,30 +6,58 @@ class Note {
   final String emoji;
   int gridX; // mutable so a placed note can be dragged to a new cell
   int gridY;
+  int pitchOffset; // -1 flat, 0 natural, +1 sharp
+  bool pitchEdited; // true once the pitch was explicitly chosen
   final double rotation;
   int createdAtMs;
   final double velocity; // 0..1, from Apple Pencil pressure (1.0 = full)
-  Note(this.emoji, this.gridX, this.gridY, this.rotation, this.createdAtMs, {this.velocity = 1.0});
+  Note(
+    this.emoji,
+    this.gridX,
+    this.gridY,
+    this.rotation,
+    this.createdAtMs, {
+    this.velocity = 1.0,
+    this.pitchOffset = 0,
+    this.pitchEdited = false,
+  });
 }
 
 /// Geometry shared by the painter and hit-testing so taps line up with pixels.
 class StaffMetrics {
   final double width, height, padLeft, marginY, stepX, stepY;
   final int cols, rows;
-  StaffMetrics._(this.width, this.height, this.padLeft, this.marginY,
-      this.stepX, this.stepY, this.cols, this.rows);
+  StaffMetrics._(
+    this.width,
+    this.height,
+    this.padLeft,
+    this.marginY,
+    this.stepX,
+    this.stepY,
+    this.cols,
+    this.rows,
+  );
 
   /// [padLeft] is the frozen clef/label gutter (0 for the handset scrolling
   /// grid, which pins that gutter as a separate widget). [fixedStepX] pins a
   /// column width (handset horizontal scroll) instead of dividing the width.
-  factory StaffMetrics.of(Size size, int cols, int rows,
-      {double padLeft = 88.0, double? fixedStepX}) {
+  factory StaffMetrics.of(
+    Size size,
+    int cols,
+    int rows, {
+    double padLeft = 88.0,
+    double? fixedStepX,
+  }) {
     const marginY = 40.0;
     return StaffMetrics._(
-      size.width, size.height, padLeft, marginY,
+      size.width,
+      size.height,
+      padLeft,
+      marginY,
       fixedStepX ?? (size.width - padLeft) / cols,
       (size.height - marginY * 2) / (rows - 1),
-      cols, rows,
+      cols,
+      rows,
     );
   }
 
@@ -58,12 +86,15 @@ class StaffPainter extends CustomPainter {
   final double playheadFrac; // 0..1 across all columns
   final int tMs; // for animations
   final int cursorStep; // MIDI shuttle scrub column when stopped; -1 = none
-  final List<String>? rowLabels; // per-row pitch names (scale mode); null = free
+  final List<String>?
+  rowLabels; // per-row pitch names (scale mode); null = free
   final bool showClef;
   final Color bgColor;
   final bool reduceMotion; // iOS "Reduce Motion": drop the bounce + stamp-in
-  final double padLeft; // frozen clef/label gutter; 0 for the handset scroll grid
-  final bool drawGutter; // false = grid only (clef/labels live in a pinned gutter)
+  final double
+  padLeft; // frozen clef/label gutter; 0 for the handset scroll grid
+  final bool
+  drawGutter; // false = grid only (clef/labels live in a pinned gutter)
   final double? fixedStepX; // pin a column width (handset horizontal scroll)
 
   // Rows that get a bold staff line (matches the web app's MAIN_STAFF_LINES).
@@ -90,8 +121,13 @@ class StaffPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (size.width <= 0 || size.height <= 0) return;
-    final m = StaffMetrics.of(size, cols, rows,
-        padLeft: padLeft, fixedStepX: fixedStepX);
+    final m = StaffMetrics.of(
+      size,
+      cols,
+      rows,
+      padLeft: padLeft,
+      fixedStepX: fixedStepX,
+    );
     // The scrolling grid (no gutter) runs its staff lines edge-to-edge so they
     // meet the pinned gutter flush; the full staff insets them.
     final lineL = drawGutter ? 20.0 : 0.0;
@@ -123,39 +159,59 @@ class StaffPainter extends CustomPainter {
 
     // Treble clef (Free mode) or per-row pitch labels (scale mode).
     if (showClef) {
-      _paintClef(canvas, m.stepY * 11,
-          Offset(m.padLeft / 2 - m.stepY * 2.4, m.marginY + m.stepY * 2.5),
-          playing: isPlaying, tMs: tMs);
+      _paintClef(
+        canvas,
+        m.stepY * 11,
+        Offset(m.padLeft / 2 - m.stepY * 2.4, m.marginY + m.stepY * 2.5),
+        playing: isPlaying,
+        tMs: tMs,
+      );
     }
     final labels = rowLabels;
     if (labels != null) {
       final fs = (m.stepY * 0.6).clamp(10.0, 22.0).toDouble();
       for (var i = 0; i < rows && i < labels.length; i++) {
         final tp = _staffGlyph(labels[i], fs, const Color(0xFF78909C));
-        tp.paint(canvas, Offset((m.padLeft - tp.width) / 2, m.marginY + i * m.stepY - tp.height / 2));
+        tp.paint(
+          canvas,
+          Offset(
+            (m.padLeft - tp.width) / 2,
+            m.marginY + i * m.stepY - tp.height / 2,
+          ),
+        );
       }
     }
 
     // Shuttle cursor (when stopped) — a soft amber column marker
     if (!isPlaying && cursorStep >= 0 && cursorStep < cols) {
       final x = m.padLeft + cursorStep * m.stepX;
-      canvas.drawRect(Rect.fromLTWH(x, 0, m.stepX, size.height),
-          Paint()..color = const Color(0x33FFD740));
-      canvas.drawLine(Offset(x + m.stepX / 2, 0), Offset(x + m.stepX / 2, size.height),
-          Paint()
-            ..color = const Color(0xFFFFD740)
-            ..strokeWidth = 3);
+      canvas.drawRect(
+        Rect.fromLTWH(x, 0, m.stepX, size.height),
+        Paint()..color = const Color(0x33FFD740),
+      );
+      canvas.drawLine(
+        Offset(x + m.stepX / 2, 0),
+        Offset(x + m.stepX / 2, size.height),
+        Paint()
+          ..color = const Color(0xFFFFD740)
+          ..strokeWidth = 3,
+      );
     }
 
     // Playhead
     if (isPlaying) {
       final x = m.padLeft + (playheadFrac * cols) * m.stepX;
-      canvas.drawRect(Rect.fromLTWH(x, 0, m.stepX, size.height),
-          Paint()..color = const Color(0x1AFF4081));
-      canvas.drawLine(Offset(x + m.stepX / 2, 0), Offset(x + m.stepX / 2, size.height),
-          Paint()
-            ..color = const Color(0xFFFF4081)
-            ..strokeWidth = 4);
+      canvas.drawRect(
+        Rect.fromLTWH(x, 0, m.stepX, size.height),
+        Paint()..color = const Color(0x1AFF4081),
+      );
+      canvas.drawLine(
+        Offset(x + m.stepX / 2, 0),
+        Offset(x + m.stepX / 2, size.height),
+        Paint()
+          ..color = const Color(0xFFFF4081)
+          ..strokeWidth = 4,
+      );
     }
 
     // Notes
@@ -182,14 +238,52 @@ class StaffPainter extends CustomPainter {
       canvas.save();
       canvas.translate(c.dx, c.dy + dy);
       canvas.rotate(n.rotation);
-      _staffGlyph(n.emoji, fs, const Color(0x33000000)).paint(canvas, Offset(-fs / 2 + 2, -fs / 2 + 3));
+      _staffGlyph(
+        n.emoji,
+        fs,
+        const Color(0x33000000),
+      ).paint(canvas, Offset(-fs / 2 + 2, -fs / 2 + 3));
       _staffGlyph(n.emoji, fs, null).paint(canvas, Offset(-fs / 2, -fs / 2));
       canvas.restore();
+      if (n.pitchEdited) {
+        _paintAccidental(canvas, n.pitchOffset, Offset(c.dx, c.dy + dy), size0);
+      }
     }
   }
 
   @override
   bool shouldRepaint(covariant StaffPainter old) => true; // driven by a ticker
+}
+
+void _paintAccidental(
+  Canvas canvas,
+  int pitchOffset,
+  Offset center,
+  double noteSize,
+) {
+  final label = pitchOffset < 0
+      ? 'b'
+      : pitchOffset > 0
+      ? '#'
+      : '♮';
+  final badgeR = (noteSize * 0.23).clamp(8.0, 15.0).toDouble();
+  final badgeC = center + Offset(noteSize * 0.45, -noteSize * 0.45);
+  canvas.drawCircle(
+    badgeC + const Offset(2, 2),
+    badgeR,
+    Paint()..color = const Color(0x33000000),
+  );
+  canvas.drawCircle(badgeC, badgeR, Paint()..color = const Color(0xFFFFD740));
+  canvas.drawCircle(
+    badgeC,
+    badgeR,
+    Paint()
+      ..color = const Color(0xFF37474F)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2,
+  );
+  final tp = _staffGlyph(label, badgeR * 1.35, const Color(0xFF37474F));
+  tp.paint(canvas, badgeC - Offset(tp.width / 2, tp.height / 2));
 }
 
 /// The frozen clef + pitch-label gutter, drawn as its own widget on handsets so
@@ -201,12 +295,13 @@ class StaffGutterPainter extends CustomPainter {
   final bool showClef;
   final bool isPlaying;
   final int tMs;
-  StaffGutterPainter(
-      {required this.rows,
-      this.rowLabels,
-      this.showClef = true,
-      this.isPlaying = false,
-      this.tMs = 0});
+  StaffGutterPainter({
+    required this.rows,
+    this.rowLabels,
+    this.showClef = true,
+    this.isPlaying = false,
+    this.tMs = 0,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -218,16 +313,26 @@ class StaffGutterPainter extends CustomPainter {
     // Line stubs (odd rows) that meet the scrolling grid flush at the right edge.
     paintStaffLines(canvas, 20, size.width, stepY, rows);
     if (showClef) {
-      _paintClef(canvas, stepY * 11,
-          Offset(size.width / 2 - stepY * 2.4, marginY + stepY * 2.5),
-          playing: isPlaying, tMs: tMs);
+      _paintClef(
+        canvas,
+        stepY * 11,
+        Offset(size.width / 2 - stepY * 2.4, marginY + stepY * 2.5),
+        playing: isPlaying,
+        tMs: tMs,
+      );
     }
     final labels = rowLabels;
     if (labels != null) {
       final fs = (stepY * 0.6).clamp(10.0, 22.0).toDouble();
       for (var i = 0; i < rows && i < labels.length; i++) {
         final tp = _staffGlyph(labels[i], fs, const Color(0xFF78909C));
-        tp.paint(canvas, Offset((size.width - tp.width) / 2, marginY + i * stepY - tp.height / 2));
+        tp.paint(
+          canvas,
+          Offset(
+            (size.width - tp.width) / 2,
+            marginY + i * stepY - tp.height / 2,
+          ),
+        );
       }
     }
   }
@@ -247,7 +352,12 @@ class StaffGutterPainter extends CustomPainter {
 const _kMainLines = {1, 3, 5, 7, 9, 11, 13};
 
 void paintStaffLines(
-    Canvas canvas, double x0, double x1, double stepY, int rows) {
+  Canvas canvas,
+  double x0,
+  double x1,
+  double stepY,
+  int rows,
+) {
   const marginY = 40.0;
   for (var i = 0; i < rows; i++) {
     if (!i.isOdd) continue;
@@ -278,7 +388,22 @@ class TornEdgePainter extends CustomPainter {
 
   // Deterministic ragged silhouette (0 = tear pulled in, 1 = paper reaches far).
   static const _jag = <double>[
-    0.32, 0.86, 0.5, 1.0, 0.4, 0.72, 0.58, 0.94, 0.44, 0.8, 0.52, 0.9, 0.6, 1.0, 0.38, 0.7,
+    0.32,
+    0.86,
+    0.5,
+    1.0,
+    0.4,
+    0.72,
+    0.58,
+    0.94,
+    0.44,
+    0.8,
+    0.52,
+    0.9,
+    0.6,
+    1.0,
+    0.38,
+    0.7,
   ];
 
   Path _tear(Size size) {
@@ -319,7 +444,12 @@ class TornEdgePainter extends CustomPainter {
     canvas.save();
     canvas.clipPath(path);
     paintStaffLines(
-        canvas, 0, size.width, (size.height - 80) / (rows - 1), rows);
+      canvas,
+      0,
+      size.width,
+      (size.height - 80) / (rows - 1),
+      rows,
+    );
     canvas.restore();
   }
 
@@ -343,8 +473,13 @@ const List<Color> _clefRainbow = [
 
 /// Paints the treble clef. While [playing], tints it with a gentle, slowly
 /// rotating rainbow (a full turn every ~5s); otherwise draws it in solid ink.
-void _paintClef(Canvas canvas, double fontSize, Offset offset,
-    {required bool playing, required int tMs}) {
+void _paintClef(
+  Canvas canvas,
+  double fontSize,
+  Offset offset, {
+  required bool playing,
+  required int tMs,
+}) {
   final tp = _staffGlyph('𝄞', fontSize, const Color(0xFF37474F));
   if (!playing) {
     tp.paint(canvas, offset);
@@ -359,10 +494,11 @@ void _paintClef(Canvas canvas, double fontSize, Offset offset,
     transform: GradientRotation(phase),
   ).createShader(rect);
   canvas.drawRect(
-      rect,
-      Paint()
-        ..shader = shader
-        ..blendMode = BlendMode.srcATop);
+    rect,
+    Paint()
+      ..shader = shader
+      ..blendMode = BlendMode.srcATop,
+  );
   canvas.restore();
 }
 
@@ -373,7 +509,10 @@ TextPainter _staffGlyph(String s, double fontSize, Color? shadow) {
     final tp = TextPainter(
       text: TextSpan(
         text: s,
-        style: TextStyle(fontSize: fontSize, color: shadow), // null => full-color emoji
+        style: TextStyle(
+          fontSize: fontSize,
+          color: shadow,
+        ), // null => full-color emoji
       ),
       textDirection: TextDirection.ltr,
     )..layout();
