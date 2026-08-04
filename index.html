@@ -1255,7 +1255,15 @@
         const SCALE = [
             'G5', 'F5', 'E5', 'D5', 'C5', 'B4', 'A4', 'G4', 'F4', 'E4', 'D4', 'C4', 'B3', 'A3', 'G3'
         ];
-        const GRID_ROWS = SCALE.length; 
+        const GRID_ROWS = SCALE.length;
+
+        // A share code or a localStorage blob can be hand-edited or corrupted, so
+        // restore paths can't trust gridX/gridY the way in-app placement (hitTestGrid)
+        // can — an out-of-range gridY reads past SCALE and breaks playback.
+        function isValidGridPos(x, y) {
+            return Number.isInteger(x) && x >= 0 && x < GRID_COLS &&
+                   Number.isInteger(y) && y >= 0 && y < GRID_ROWS;
+        }
 
         const COLORS = {
             bg: '#ffffff',
@@ -1598,36 +1606,38 @@
             snapshotForUndo();
 
             // Apply to state
-            state.bpm = data.bpm || 100;
+            state.bpm = clampBpm(data.bpm || 100);
             state.palette = Array.isArray(data.palette) && data.palette.length
                 ? data.palette
                 : state.palette;
             state.selectedPitchOffset = 0;
             state.pitchManuallySet = false;
 
-            state.notes = data.notes.map(n => {
-                let emoji = null;
-                if (typeof n.p === 'number' && n.p >= 0 && n.p < state.palette.length) {
-                    emoji = state.palette[n.p];
-                } else if (n.e) {
-                    emoji = n.e;
-                } else {
-                    emoji = state.palette[0];
-                }
+            state.notes = data.notes
+                .filter(n => isValidGridPos(n.x, n.y))
+                .map(n => {
+                    let emoji = null;
+                    if (typeof n.p === 'number' && n.p >= 0 && n.p < state.palette.length) {
+                        emoji = state.palette[n.p];
+                    } else if (n.e) {
+                        emoji = n.e;
+                    } else {
+                        emoji = state.palette[0];
+                    }
 
-                // Preload image
-                loadEmojiImage(emoji);
+                    // Preload image
+                    loadEmojiImage(emoji);
 
-                const hasPitch = Object.prototype.hasOwnProperty.call(n, 'a');
-                return {
-                    emoji,
-                    gridX: n.x,
-                    gridY: n.y,
-                    pitchOffset: normalizePitchOffset(n.a),
-                    pitchEdited: hasPitch,
-                    createdAt: Date.now()
-                };
-            });
+                    const hasPitch = Object.prototype.hasOwnProperty.call(n, 'a');
+                    return {
+                        emoji,
+                        gridX: n.x,
+                        gridY: n.y,
+                        pitchOffset: normalizePitchOffset(n.a),
+                        pitchEdited: hasPitch,
+                        createdAt: Date.now()
+                    };
+                });
 
             // Sync UI
             syncTempoUI();
@@ -3194,6 +3204,14 @@
         // where there is no scroll to protect.
         const TAP_SLOP = 12;  // px of finger wobble still read as a tap, not a swipe
         let pendingTap = null;
+        // Mirrors pendingTap's race guard for mouse/pen, which don't defer to a
+        // scroller and so have no pendingTap of their own: if the button comes up
+        // before initAudio() resolves (most likely on the very first click of a
+        // session, while the audio context is still booting), the pointerdown
+        // continuation must not start a drag for a pointer that's already gone —
+        // otherwise isDragging gets stuck true and pointermove keeps painting with
+        // no button held, until some unrelated pointer next lifts off the canvas.
+        let liftedPointerId = null;
 
         canvas.addEventListener('pointerdown', async (e) => {
             const deferToScroll = e.pointerType === 'touch' && staffScrollable;
@@ -3205,8 +3223,10 @@
             // to beat that await and find no tap in progress.
             if (deferToScroll) pendingTap = { id: e.pointerId, x: e.clientX, y: e.clientY };
 
+            const pointerId = e.pointerId;
             await initAudio();
             if (deferToScroll) return;
+            if (liftedPointerId === pointerId) { liftedPointerId = null; return; }
 
             if (!toggleNoteAt(e.clientX, e.clientY)) return;
 
@@ -3234,9 +3254,16 @@
                 // has taken the gesture to pan the staff.
                 if (e.type === 'pointerup' && moved <= TAP_SLOP) toggleNoteAt(e.clientX, e.clientY);
             }
-            if (!isDragging) return;
+            if (!isDragging) {
+                // This pointer never got as far as isDragging=true — remember it in case
+                // its pointerdown is still awaiting initAudio() and would otherwise start
+                // a drag for a pointer that's already up (see liftedPointerId above).
+                liftedPointerId = e.pointerId;
+                return;
+            }
             isDragging = false;
             lastPaintedKey = null;
+            liftedPointerId = null;
             try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
         };
         canvas.addEventListener('pointerup', endDrag);
@@ -3412,8 +3439,15 @@
                 return;
             }
         });
+        // Shared by the slider and both restore paths (song code + localStorage) so a
+        // hand-edited or corrupted bpm can't set the real transport tempo out of range
+        // while the slider itself still shows a clamped value.
+        function clampBpm(bpm) {
+            return Math.min(TEMPO_MAX, Math.max(TEMPO_MIN, Math.round(bpm)));
+        }
+
         function applyBpm(bpm) {
-            state.bpm = Math.min(TEMPO_MAX, Math.max(TEMPO_MIN, Math.round(bpm)));
+            state.bpm = clampBpm(bpm);
             syncTempoUI();
             if (typeof Tone !== "undefined" && Tone.Transport) {
                 if (Tone.Transport.state !== "stopped") {
@@ -3722,7 +3756,7 @@
             // 2. Persisted state
             const persisted = loadPersisted();
             if (persisted) {
-                state.bpm = persisted.bpm || 100;
+                state.bpm = clampBpm(persisted.bpm || 100);
                 state.selectedPitchOffset = normalizePitchOffset(persisted.selectedPitchOffset);
                 state.pitchManuallySet = !!persisted.pitchManuallySet;
                 syncTempoUI();
@@ -3737,17 +3771,19 @@
                 if (persisted.selectedEmoji && state.palette.includes(persisted.selectedEmoji)) {
                     selectEmoji(persisted.selectedEmoji);
                 }
-                state.notes = (persisted.notes || []).map(n => {
-                    loadEmojiImage(n.emoji);
-                    return {
-                        emoji: n.emoji,
-                        gridX: n.gridX,
-                        gridY: n.gridY,
-                        pitchOffset: normalizePitchOffset(n.pitchOffset),
-                        pitchEdited: !!n.pitchEdited,
-                        createdAt: Date.now()
-                    };
-                });
+                state.notes = (persisted.notes || [])
+                    .filter(n => isValidGridPos(n.gridX, n.gridY))
+                    .map(n => {
+                        loadEmojiImage(n.emoji);
+                        return {
+                            emoji: n.emoji,
+                            gridX: n.gridX,
+                            gridY: n.gridY,
+                            pitchOffset: normalizePitchOffset(n.pitchOffset),
+                            pitchEdited: !!n.pitchEdited,
+                            createdAt: Date.now()
+                        };
+                    });
                 markDirty();
                 return true;
             }
