@@ -762,6 +762,74 @@
         .get-app-badge .ga-emoji { font-size: 0.7rem; }
         .get-app-badge .ga-short { display: none; }
 
+        /* Song library modal */
+        .songs-modal-box { max-width: 420px; text-align: left; }
+        .songs-save-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        .song-name-input {
+            flex: 1;
+            min-width: 0;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.55rem;
+            border: 2px solid var(--text-color);
+            border-radius: 8px;
+            padding: 10px;
+            background: #e0f7fa;
+            color: var(--text-color);
+        }
+        .song-name-input:focus { outline: 2px solid var(--accent-color); background: #fff; }
+        .songs-save-row .play-btn { padding: 8px 16px; font-size: 0.55rem; flex-shrink: 0; }
+        .songs-list {
+            max-height: 300px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .songs-empty {
+            display: none;
+            font-size: 0.55rem;
+            line-height: 1.6;
+            color: #777;
+            text-align: center;
+            padding: 10px 4px;
+        }
+        .songs-list:empty + .songs-empty { display: block; }
+        .song-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border: 2px solid var(--text-color);
+            border-radius: 10px;
+            padding: 8px 10px;
+            background: #fff;
+        }
+        .song-row.current { background: #fff9c4; border-width: 3px; }
+        .song-row-info { flex: 1; min-width: 0; }
+        .song-row-name {
+            font-size: 0.58rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .song-row-meta { font-size: 0.42rem; color: #777; margin-top: 3px; }
+        .song-row-actions { display: flex; gap: 4px; flex-shrink: 0; }
+        .song-row-actions button {
+            width: 30px;
+            height: 30px;
+            padding: 0;
+            border-width: 2px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            line-height: 1;
+            background: #fff;
+            box-shadow: 2px 2px 0px rgba(55,71,79,0.18);
+        }
+        .song-row-actions button.danger { background: #ffebee; }
+
         /* App Store upsell modal */
         .app-modal-box { max-width: 460px; text-align: left; }
         .app-modal-emoji { font-size: 2rem; text-align: center; margin-bottom: 4px; }
@@ -1122,6 +1190,10 @@
                      <img id="clearIcon" alt="clear">
                      <span class="btn-label">Clear</span>
                 </button>
+                <button id="songsBtn" class="action-btn" title="Song Library" aria-haspopup="dialog" aria-label="Song library">
+                     <img id="songsIcon" alt="songs">
+                     <span class="btn-label">Songs</span>
+                </button>
                 <button id="shareBtn" class="action-btn" title="Share Song" aria-label="Share song">
                      <img id="shareIcon" alt="share">
                      <span class="btn-label">Share</span>
@@ -1228,6 +1300,27 @@
             <button id="loadSongCodeBtn" class="action-btn" style="width:100%; margin-bottom:12px;">Load Song From Code</button>
 
             <button id="closeShareModalBtn" class="danger" style="width:100%;">Close</button>
+        </div>
+    </div>
+
+    <!-- Song Library Modal -->
+    <div id="songsModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="songsModalTitle">
+        <div class="modal-box songs-modal-box">
+            <div class="modal-title" id="songsModalTitle" style="margin-bottom:10px;">Your Songs</div>
+            <p style="font-size:0.6rem; line-height:1.5; margin-bottom:14px; color: #555;">
+              Save the song you're working on, or open one you saved before.
+            </p>
+
+            <div class="songs-save-row">
+                <label for="songNameInput" class="sr-only">Song name</label>
+                <input type="text" id="songNameInput" class="song-name-input" placeholder="Untitled Song" maxlength="60">
+                <button id="saveSongBtn" class="play-btn">Save</button>
+            </div>
+
+            <div id="songsList" class="songs-list" role="list" aria-label="Saved songs"></div>
+            <p id="songsEmpty" class="songs-empty">No saved songs yet — name this one above and hit Save.</p>
+
+            <button id="closeSongsModalBtn" class="danger" style="width:100%; margin-top:14px;">Close</button>
         </div>
     </div>
 
@@ -1470,6 +1563,13 @@
         const loadSongCodeBtn = document.getElementById('loadSongCodeBtn');
         const closeShareModalBtn = document.getElementById('closeShareModalBtn');
 
+        const songsBtn = document.getElementById('songsBtn');
+        const songsModal = document.getElementById('songsModal');
+        const songNameInput = document.getElementById('songNameInput');
+        const saveSongBtn = document.getElementById('saveSongBtn');
+        const songsList = document.getElementById('songsList');
+        const closeSongsModalBtn = document.getElementById('closeSongsModalBtn');
+
         const customCursor = document.getElementById('customCursor');
         const header = document.querySelector('header');
         const srLive = document.getElementById('srLive');
@@ -1519,6 +1619,24 @@
             return n < 0 ? 'Flat' : (n > 0 ? 'Sharp' : 'Natural');
         }
 
+        // The persisted-song shape used for both the autosaved "current work" blob
+        // and each named entry in the song library.
+        function snapshotSongData() {
+            return {
+                bpm: state.bpm,
+                palette: state.palette,
+                selectedEmoji: state.selectedEmoji,
+                selectedPitchOffset: state.selectedPitchOffset,
+                pitchManuallySet: state.pitchManuallySet,
+                scaleMode: state.scaleMode,
+                notes: state.notes.map(n => ({
+                    emoji: n.emoji, gridX: n.gridX, gridY: n.gridY,
+                    pitchOffset: normalizePitchOffset(n.pitchOffset),
+                    pitchEdited: !!n.pitchEdited
+                }))
+            };
+        }
+
         // localStorage persistence — saves song so refresh doesn't lose it
         const STORAGE_KEY = 'emojio-composer-v1';
         let persistTimer = null;
@@ -1527,20 +1645,7 @@
             clearTimeout(persistTimer);
             persistTimer = setTimeout(() => {
                 try {
-                    const data = {
-                        bpm: state.bpm,
-                        palette: state.palette,
-                        selectedEmoji: state.selectedEmoji,
-                        selectedPitchOffset: state.selectedPitchOffset,
-                        pitchManuallySet: state.pitchManuallySet,
-                        scaleMode: state.scaleMode,
-                        notes: state.notes.map(n => ({
-                            emoji: n.emoji, gridX: n.gridX, gridY: n.gridY,
-                            pitchOffset: normalizePitchOffset(n.pitchOffset),
-                            pitchEdited: !!n.pitchEdited
-                        }))
-                    };
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshotSongData()));
                 } catch (e) { /* private mode / full disk — ignore */ }
             }, 250);
         }
@@ -1552,6 +1657,33 @@
                 if (!data || !Array.isArray(data.notes)) return null;
                 return data;
             } catch (e) { return null; }
+        }
+
+        // Named song library — separate from the single "current work" autosave
+        // above. One JSON array in localStorage; each entry is a snapshotSongData()
+        // plus id/name/updatedAt. Loading a song points currentSongId at it so Save
+        // updates that entry in place instead of always creating a new one.
+        const SONGS_KEY = 'emojio-composer-songs-v1';
+        let currentSongId = null;
+
+        function loadSongLibrary() {
+            try {
+                const raw = localStorage.getItem(SONGS_KEY);
+                const list = raw ? JSON.parse(raw) : [];
+                return Array.isArray(list) ? list : [];
+            } catch (e) { return []; }
+        }
+        function saveSongLibrary(list) {
+            try {
+                localStorage.setItem(SONGS_KEY, JSON.stringify(list));
+            } catch (e) {
+                showToast("Couldn't save — storage might be full.", "error");
+            }
+        }
+        function newSongId() {
+            return (typeof crypto !== "undefined" && crypto.randomUUID)
+                ? crypto.randomUUID()
+                : `song-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         }
 
         // Simple undo stack (Cmd/Ctrl+Z)
@@ -2976,6 +3108,7 @@
             { id: 'randomIcon', emoji: '🎲' },
             { id: 'clearIcon', emoji: '🗑️' },
             { id: 'shareIcon', emoji: '✉️' },
+            { id: 'songsIcon', emoji: '💾' },
             { id: 'scaleIcon', emoji: '🎼' },
             { id: 'playIcon', emoji: '▶️' } // Initial state
         ];
@@ -3116,6 +3249,122 @@
             if (!code) return;
             loadSongFromCode(code);
             closeShareModal();
+        });
+
+        // --- SONG LIBRARY ---
+        function songLabel(entry) { return entry && entry.name ? entry.name : 'Untitled Song'; }
+        function formatSongMeta(entry) {
+            const count = Array.isArray(entry.notes) ? entry.notes.length : 0;
+            const when = entry.updatedAt ? new Date(entry.updatedAt).toLocaleDateString() : '';
+            return `${count} note${count === 1 ? '' : 's'} · ${when}`;
+        }
+        function renderSongsList() {
+            const list = loadSongLibrary().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+            songsList.innerHTML = '';
+            list.forEach(entry => {
+                const row = document.createElement('div');
+                row.className = 'song-row' + (entry.id === currentSongId ? ' current' : '');
+                row.setAttribute('role', 'listitem');
+
+                const info = document.createElement('div');
+                info.className = 'song-row-info';
+                const name = document.createElement('div');
+                name.className = 'song-row-name';
+                name.textContent = songLabel(entry);
+                const meta = document.createElement('div');
+                meta.className = 'song-row-meta';
+                meta.textContent = formatSongMeta(entry);
+                info.append(name, meta);
+
+                const actions = document.createElement('div');
+                actions.className = 'song-row-actions';
+                const mkBtn = (emoji, title, danger, onClick) => {
+                    const b = document.createElement('button');
+                    b.type = 'button';
+                    b.title = title;
+                    if (danger) b.className = 'danger';
+                    b.setAttribute('aria-label', `${title} ${songLabel(entry)}`);
+                    b.textContent = emoji;
+                    b.addEventListener('click', onClick);
+                    return b;
+                };
+                actions.append(
+                    mkBtn('📂', 'Open', false, () => loadSongLibraryEntry(entry.id)),
+                    mkBtn('📄', 'Duplicate', false, () => duplicateSongLibraryEntry(entry.id)),
+                    mkBtn('🗑️', 'Delete', true, () => deleteSongLibraryEntry(entry.id))
+                );
+
+                row.append(info, actions);
+                songsList.appendChild(row);
+            });
+        }
+        function openSongsModal() {
+            const current = currentSongId && loadSongLibrary().find(s => s.id === currentSongId);
+            songNameInput.value = current ? current.name : '';
+            renderSongsList();
+            songsModal.classList.remove('hidden');
+            songNameInput.focus();
+        }
+        function closeSongsModal() { songsModal.classList.add('hidden'); }
+        function saveCurrentSong() {
+            const name = songNameInput.value.trim() || 'Untitled Song';
+            const list = loadSongLibrary();
+            const existingIndex = currentSongId ? list.findIndex(s => s.id === currentSongId) : -1;
+            const entry = Object.assign(snapshotSongData(), {
+                id: currentSongId || newSongId(),
+                name,
+                updatedAt: Date.now()
+            });
+            if (existingIndex >= 0) list[existingIndex] = entry; else list.push(entry);
+            currentSongId = entry.id;
+            saveSongLibrary(list);
+            songNameInput.value = name;
+            renderSongsList();
+            announce(`Saved "${name}"`);
+            showToast(`Saved "${name}"`, 'success');
+        }
+        function loadSongLibraryEntry(id) {
+            const entry = loadSongLibrary().find(s => s.id === id);
+            if (!entry) return;
+            snapshotForUndo();
+            applySongSnapshot(entry);
+            currentSongId = entry.id;
+            persist();
+            closeSongsModal();
+            announce(`Opened "${songLabel(entry)}"`);
+            showToast(`Opened "${songLabel(entry)}"`, 'success');
+        }
+        function duplicateSongLibraryEntry(id) {
+            const list = loadSongLibrary();
+            const entry = list.find(s => s.id === id);
+            if (!entry) return;
+            const copy = Object.assign({}, entry, {
+                id: newSongId(),
+                name: `${songLabel(entry)} copy`,
+                updatedAt: Date.now()
+            });
+            list.push(copy);
+            saveSongLibrary(list);
+            renderSongsList();
+            showToast(`Duplicated "${songLabel(entry)}"`, 'success');
+        }
+        function deleteSongLibraryEntry(id) {
+            const list = loadSongLibrary();
+            const entry = list.find(s => s.id === id);
+            if (!entry) return;
+            showModal(`Delete "${songLabel(entry)}"?`, () => {
+                saveSongLibrary(list.filter(s => s.id !== id));
+                if (currentSongId === id) currentSongId = null;
+                renderSongsList();
+                showToast('Song deleted');
+            });
+        }
+        songsBtn.addEventListener('click', openSongsModal);
+        closeSongsModalBtn.addEventListener('click', closeSongsModal);
+        songsModal.addEventListener('click', (e) => { if (e.target === songsModal) closeSongsModal(); });
+        saveSongBtn.addEventListener('click', saveCurrentSong);
+        songNameInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); saveCurrentSong(); }
         });
 
         // --- APP STORE UPSELL ---
@@ -3395,9 +3644,6 @@
                 closeScalePopover();
             }
         });
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && scalePopover.classList.contains('visible')) closeScalePopover();
-        });
 
         // --- STANDARD WIRING ---
         clearBtn.onclick = () => showModal("Delete all notes?", () => {
@@ -3542,6 +3788,8 @@
                 closePitchPopover();
                 hideModal();
                 closeShareModal();
+                closeSongsModal();
+                closeScalePopover();
                 return;
             }
 
@@ -3869,6 +4117,44 @@
         initPalette();
         updatePitchUI();
 
+        // Applies a persisted-song-shaped object — {bpm, palette, selectedEmoji,
+        // selectedPitchOffset, pitchManuallySet, scaleMode, notes:[...]} — to live
+        // state and syncs the UI. Shared by the boot-time localStorage restore and
+        // by loading a song from the library.
+        function applySongSnapshot(data) {
+            state.bpm = clampBpm(data.bpm || 100);
+            state.selectedPitchOffset = normalizePitchOffset(data.selectedPitchOffset);
+            state.pitchManuallySet = !!data.pitchManuallySet;
+            state.scaleMode = SCALE_MODE_LABELS[data.scaleMode] ? data.scaleMode : 'free';
+            syncScaleModeUI();
+            syncTempoUI();
+            updatePitchUI();
+            if (typeof Tone !== "undefined" && Tone.Transport) {
+                Tone.Transport.bpm.value = state.bpm;
+            }
+            if (Array.isArray(data.palette) && data.palette.length) {
+                state.palette = data.palette;
+                renderPalette();
+            }
+            if (data.selectedEmoji && state.palette.includes(data.selectedEmoji)) {
+                selectEmoji(data.selectedEmoji);
+            }
+            state.notes = (data.notes || [])
+                .filter(n => isValidGridPos(n.gridX, n.gridY))
+                .map(n => {
+                    loadEmojiImage(n.emoji);
+                    return {
+                        emoji: n.emoji,
+                        gridX: n.gridX,
+                        gridY: n.gridY,
+                        pitchOffset: normalizePitchOffset(n.pitchOffset),
+                        pitchEdited: !!n.pitchEdited,
+                        createdAt: Date.now()
+                    };
+                });
+            markDirty();
+        }
+
         // Restore from URL hash > localStorage. URL hash wins because it's an explicit
         // share intent; localStorage is just "where you left off".
         function tryRestoreSong() {
@@ -3885,37 +4171,7 @@
             // 2. Persisted state
             const persisted = loadPersisted();
             if (persisted) {
-                state.bpm = clampBpm(persisted.bpm || 100);
-                state.selectedPitchOffset = normalizePitchOffset(persisted.selectedPitchOffset);
-                state.pitchManuallySet = !!persisted.pitchManuallySet;
-                if (SCALE_MODE_LABELS[persisted.scaleMode]) state.scaleMode = persisted.scaleMode;
-                syncScaleModeUI();
-                syncTempoUI();
-                updatePitchUI();
-                if (typeof Tone !== "undefined" && Tone.Transport) {
-                    Tone.Transport.bpm.value = state.bpm;
-                }
-                if (Array.isArray(persisted.palette) && persisted.palette.length) {
-                    state.palette = persisted.palette;
-                    renderPalette();
-                }
-                if (persisted.selectedEmoji && state.palette.includes(persisted.selectedEmoji)) {
-                    selectEmoji(persisted.selectedEmoji);
-                }
-                state.notes = (persisted.notes || [])
-                    .filter(n => isValidGridPos(n.gridX, n.gridY))
-                    .map(n => {
-                        loadEmojiImage(n.emoji);
-                        return {
-                            emoji: n.emoji,
-                            gridX: n.gridX,
-                            gridY: n.gridY,
-                            pitchOffset: normalizePitchOffset(n.pitchOffset),
-                            pitchEdited: !!n.pitchEdited,
-                            createdAt: Date.now()
-                        };
-                    });
-                markDirty();
+                applySongSnapshot(persisted);
                 return true;
             }
             return false;
