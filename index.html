@@ -447,6 +447,42 @@
             box-shadow: 2px 2px 0px var(--text-color);
         }
 
+        /* Scale lock — a dropdown anchored to its own header button, unlike the
+           pitch popover (which has to track an arbitrary note on the canvas). */
+        .scale-slot { position: relative; }
+        .scale-popover {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 8px;
+            display: none;
+            flex-direction: column;
+            gap: 6px;
+            padding: 8px;
+            background: #fff;
+            border: 3px solid var(--text-color);
+            border-radius: 14px;
+            box-shadow: 4px 4px 0px var(--text-color);
+            z-index: 80;
+            min-width: 110px;
+        }
+        .scale-popover.visible { display: flex; }
+        .scale-option {
+            padding: 8px 12px;
+            border-width: 2px;
+            border-radius: 10px;
+            background: #fff;
+            color: var(--text-color);
+            font-size: 0.6rem;
+            text-align: left;
+            box-shadow: 2px 2px 0px rgba(55,71,79,0.18);
+        }
+        .scale-option.active {
+            background: var(--highlight-color);
+            border-width: 3px;
+            box-shadow: 2px 2px 0px var(--text-color);
+        }
+
         /* Palette Container */
         .palette-container {
             flex-grow: 1;
@@ -1090,6 +1126,18 @@
                      <img id="shareIcon" alt="share">
                      <span class="btn-label">Share</span>
                 </button>
+                <div class="scale-slot" id="scaleSlot">
+                    <button id="scaleBtn" class="action-btn" title="Scale Lock" aria-haspopup="true"
+                            aria-expanded="false" aria-label="Scale lock: Free">
+                         <img id="scaleIcon" alt="scale">
+                         <span class="btn-label" id="scaleBtnLabel">Free</span>
+                    </button>
+                    <div id="scalePopover" class="scale-popover" role="group" aria-label="Scale lock">
+                        <button class="scale-option active" type="button" data-scale="free">Free</button>
+                        <button class="scale-option" type="button" data-scale="majorPentatonic">Major 5</button>
+                        <button class="scale-option" type="button" data-scale="minorPentatonic">Minor 5</button>
+                    </div>
+                </div>
             </div>
 
             <!-- Wide screens show the pill inline. Narrow ones show the button, which
@@ -1265,6 +1313,41 @@
                    Number.isInteger(y) && y >= 0 && y < GRID_ROWS;
         }
 
+        // Optional scale lock: remaps staff rows to a pentatonic scale so every note
+        // is consonant, for anyone who doesn't want to think about which rows clash.
+        // Ported from the app's VoiceEngine.buildScaleRows — same pitch classes, same
+        // C3/A2 roots, stacked ascending then reversed so row 0 (top of the staff) is
+        // the highest, matching the free staff's high-to-low layout.
+        const SCALE_MODE_PITCH_CLASSES = {
+            majorPentatonic: [0, 2, 4, 7, 9],
+            minorPentatonic: [0, 3, 5, 7, 10]
+        };
+        const SCALE_MODE_ROOT_MIDI = { majorPentatonic: 48, minorPentatonic: 45 }; // C3 / A2
+        const SCALE_MODE_LABELS = { free: 'Free', majorPentatonic: 'Major 5', minorPentatonic: 'Minor 5' };
+        const PITCH_CLASS_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+        function midiToNoteName(midi) {
+            return `${PITCH_CLASS_NAMES[((midi % 12) + 12) % 12]}${Math.floor(midi / 12) - 1}`;
+        }
+
+        function buildScaleRows(mode) {
+            const pcs = SCALE_MODE_PITCH_CLASSES[mode];
+            const root = SCALE_MODE_ROOT_MIDI[mode];
+            const asc = [];
+            for (let i = 0; asc.length < GRID_ROWS; i++) {
+                asc.push(root + pcs[i % pcs.length] + 12 * Math.floor(i / pcs.length));
+            }
+            return asc.reverse().map(midiToNoteName);
+        }
+
+        // Memoized per mode — built lazily the first time each is selected.
+        const scaleRowsCache = {};
+        function pitchForRow(gridY) {
+            if (state.scaleMode === 'free') return SCALE[gridY];
+            if (!scaleRowsCache[state.scaleMode]) scaleRowsCache[state.scaleMode] = buildScaleRows(state.scaleMode);
+            return scaleRowsCache[state.scaleMode][gridY];
+        }
+
         const COLORS = {
             bg: '#ffffff',
             staffLine: '#90a4ae', 
@@ -1297,15 +1380,16 @@
          */
         const state = {
             isPlaying: false,
-            bpm: 100, 
-            selectedEmoji: null, 
+            bpm: 100,
+            selectedEmoji: null,
             selectedPitchOffset: 0,
             pitchManuallySet: false,
-            palette: [], 
-            notes: [], 
+            palette: [],
+            notes: [],
             audioContextStarted: false,
             currentStep: -1,
-            mouseSpeed: 0 // Velocity tracking
+            mouseSpeed: 0, // Velocity tracking
+            scaleMode: 'free' // 'free' | 'majorPentatonic' | 'minorPentatonic'
         };
 
         const imageCache = {};
@@ -1337,6 +1421,10 @@
         const randomBtn = document.getElementById('randomBtn');
         const clearBtn = document.getElementById('clearBtn');
         const shareBtn = document.getElementById('shareBtn');
+        const scaleSlot = document.getElementById('scaleSlot');
+        const scaleBtn = document.getElementById('scaleBtn');
+        const scaleBtnLabel = document.getElementById('scaleBtnLabel');
+        const scalePopover = document.getElementById('scalePopover');
         const tempoInput = document.getElementById('tempo');
         // Declared here with the other refs rather than beside their handlers: the tempo
         // is restored during init, which runs before those would have initialised.
@@ -1445,6 +1533,7 @@
                         selectedEmoji: state.selectedEmoji,
                         selectedPitchOffset: state.selectedPitchOffset,
                         pitchManuallySet: state.pitchManuallySet,
+                        scaleMode: state.scaleMode,
                         notes: state.notes.map(n => ({
                             emoji: n.emoji, gridX: n.gridX, gridY: n.gridY,
                             pitchOffset: normalizePitchOffset(n.pitchOffset),
@@ -2282,7 +2371,7 @@
 
         function playNote(noteObj, time) {
             const profile = getVoiceProfile(noteObj.emoji);
-            const basePitch = SCALE[noteObj.gridY];
+            const basePitch = pitchForRow(noteObj.gridY);
             const pitch = transposePitch(basePitch, (profile.semi || 0) + normalizePitchOffset(noteObj.pitchOffset));
             const duration = profile.dur || getSequenceDuration(profile.synth);
             triggerSound(profile.synth, pitch, duration, time);
@@ -2887,6 +2976,7 @@
             { id: 'randomIcon', emoji: '🎲' },
             { id: 'clearIcon', emoji: '🗑️' },
             { id: 'shareIcon', emoji: '✉️' },
+            { id: 'scaleIcon', emoji: '🎼' },
             { id: 'playIcon', emoji: '▶️' } // Initial state
         ];
 
@@ -3269,6 +3359,45 @@
         canvas.addEventListener('pointerup', endDrag);
         canvas.addEventListener('pointercancel', endDrag);
         canvas.addEventListener('pointerleave', endDrag);
+
+        // --- SCALE LOCK ---
+        function syncScaleModeUI() {
+            const label = SCALE_MODE_LABELS[state.scaleMode];
+            scaleBtnLabel.textContent = label;
+            scaleBtn.setAttribute('aria-label', `Scale lock: ${label}`);
+            scalePopover.querySelectorAll('[data-scale]').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.scale === state.scaleMode);
+            });
+        }
+        function closeScalePopover() {
+            scalePopover.classList.remove('visible');
+            scaleBtn.setAttribute('aria-expanded', 'false');
+        }
+        function setScaleMode(mode) {
+            if (SCALE_MODE_LABELS[mode] && mode !== state.scaleMode) {
+                state.scaleMode = mode;
+                syncScaleModeUI();
+                persist();
+                announce(`Scale set to ${SCALE_MODE_LABELS[mode]}`);
+            }
+            closeScalePopover();
+        }
+        scaleBtn.addEventListener('click', () => {
+            const opening = !scalePopover.classList.contains('visible');
+            scalePopover.classList.toggle('visible', opening);
+            scaleBtn.setAttribute('aria-expanded', String(opening));
+        });
+        scalePopover.querySelectorAll('[data-scale]').forEach(btn => {
+            btn.addEventListener('click', () => setScaleMode(btn.dataset.scale));
+        });
+        document.addEventListener('click', (e) => {
+            if (scalePopover.classList.contains('visible') && !scaleSlot.contains(e.target)) {
+                closeScalePopover();
+            }
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && scalePopover.classList.contains('visible')) closeScalePopover();
+        });
 
         // --- STANDARD WIRING ---
         clearBtn.onclick = () => showModal("Delete all notes?", () => {
@@ -3759,6 +3888,8 @@
                 state.bpm = clampBpm(persisted.bpm || 100);
                 state.selectedPitchOffset = normalizePitchOffset(persisted.selectedPitchOffset);
                 state.pitchManuallySet = !!persisted.pitchManuallySet;
+                if (SCALE_MODE_LABELS[persisted.scaleMode]) state.scaleMode = persisted.scaleMode;
+                syncScaleModeUI();
                 syncTempoUI();
                 updatePitchUI();
                 if (typeof Tone !== "undefined" && Tone.Transport) {
