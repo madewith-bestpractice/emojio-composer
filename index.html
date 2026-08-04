@@ -250,6 +250,11 @@
         button.action-btn:hover {
             background-color: #f5f5f5;
         }
+        button.action-btn:disabled {
+            opacity: 0.55;
+            cursor: default;
+            transform: none;
+        }
         
         button.secondary {
             background-color: #ab47bc; /* Purple */
@@ -1194,6 +1199,10 @@
                      <img id="songsIcon" alt="songs">
                      <span class="btn-label">Songs</span>
                 </button>
+                <button id="exportBtn" class="action-btn" title="Export as WAV" aria-label="Export song as a WAV file">
+                     <img id="exportIcon" alt="export">
+                     <span class="btn-label" id="exportBtnLabel">Export</span>
+                </button>
                 <button id="shareBtn" class="action-btn" title="Share Song" aria-label="Share song">
                      <img id="shareIcon" alt="share">
                      <span class="btn-label">Share</span>
@@ -1569,6 +1578,8 @@
         const saveSongBtn = document.getElementById('saveSongBtn');
         const songsList = document.getElementById('songsList');
         const closeSongsModalBtn = document.getElementById('closeSongsModalBtn');
+        const exportBtn = document.getElementById('exportBtn');
+        const exportBtnLabel = document.getElementById('exportBtnLabel');
 
         const customCursor = document.getElementById('customCursor');
         const header = document.querySelector('header');
@@ -1885,6 +1896,7 @@
         const foley = {}; // UI Sounds
         let renderLoopRunning = false;
         let masterBus = null;
+        let masterBusOutput = null; // final node in the chain — tapped for WAV export
 
         function getMasterBus() {
             if (masterBus) return masterBus;
@@ -1896,6 +1908,7 @@
                 attack: 0.003,
                 release: 0.1
             }).connect(reverb);
+            masterBusOutput = limiter;
             return masterBus;
         }
 
@@ -3109,6 +3122,7 @@
             { id: 'clearIcon', emoji: '🗑️' },
             { id: 'shareIcon', emoji: '✉️' },
             { id: 'songsIcon', emoji: '💾' },
+            { id: 'exportIcon', emoji: '⬇️' },
             { id: 'scaleIcon', emoji: '🎼' },
             { id: 'playIcon', emoji: '▶️' } // Initial state
         ];
@@ -3366,6 +3380,151 @@
         songNameInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') { e.preventDefault(); saveCurrentSong(); }
         });
+
+        // --- EXPORT (WAV) ---
+        // No offline (Tone.Offline) render path — that would need a second copy of
+        // every getInstrument() case bound to an offline context. Instead this taps
+        // the real master-bus output through a MediaStreamDestination while the song
+        // actually plays for a fixed number of loops, so it's guaranteed to sound
+        // exactly like Play does. The captured audio comes back compressed (whatever
+        // MediaRecorder supports), so it's decoded and re-encoded to a real WAV.
+        const EXPORT_LOOPS = 4;
+        const EXPORT_TAIL_SEC = 1.5; // let reverb/release tails ring out before cutting
+        let exporting = false;
+
+        function pickRecorderMimeType() {
+            if (typeof MediaRecorder === "undefined") return null;
+            const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
+            for (const type of candidates) {
+                if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(type)) return type;
+            }
+            return ''; // let the browser pick a default
+        }
+
+        function encodeWav(audioBuffer) {
+            const numChannels = audioBuffer.numberOfChannels;
+            const sampleRate = audioBuffer.sampleRate;
+            const numFrames = audioBuffer.length;
+            const blockAlign = numChannels * 2;
+            const dataSize = numFrames * blockAlign;
+            const buf = new ArrayBuffer(44 + dataSize);
+            const view = new DataView(buf);
+            const writeStr = (offset, str) => { for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)); };
+            writeStr(0, 'RIFF');
+            view.setUint32(4, 36 + dataSize, true);
+            writeStr(8, 'WAVE');
+            writeStr(12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true); // PCM
+            view.setUint16(22, numChannels, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * blockAlign, true);
+            view.setUint16(32, blockAlign, true);
+            view.setUint16(34, 16, true);
+            writeStr(36, 'data');
+            view.setUint32(40, dataSize, true);
+
+            const channels = [];
+            for (let ch = 0; ch < numChannels; ch++) channels.push(audioBuffer.getChannelData(ch));
+            let offset = 44;
+            for (let i = 0; i < numFrames; i++) {
+                for (let ch = 0; ch < numChannels; ch++) {
+                    const s = Math.max(-1, Math.min(1, channels[ch][i]));
+                    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+                    offset += 2;
+                }
+            }
+            return new Blob([buf], { type: 'audio/wav' });
+        }
+
+        function sanitizeFileName(name) {
+            const base = (name || 'emojio-song').trim().replace(/[/\\?%*:|"<>]/g, '-').slice(0, 60);
+            return (base || 'emojio-song') + '.wav';
+        }
+
+        function setExportingUI(on) {
+            exporting = on;
+            exportBtn.disabled = on;
+            exportBtnLabel.textContent = on ? 'Exporting…' : 'Export';
+        }
+
+        async function exportWav() {
+            if (exporting) return;
+            if (!state.notes.length) {
+                showToast("Add some notes first!", "error");
+                return;
+            }
+            await initAudio();
+            if (typeof MediaRecorder === "undefined" || typeof AudioContext === "undefined") {
+                showToast("This browser can't export audio — try Chrome or Safari.", "error");
+                return;
+            }
+            if (state.isPlaying) stopPlayback();
+
+            setExportingUI(true);
+            getMasterBus(); // ensures masterBusOutput exists
+
+            const rawCtx = Tone.context.rawContext;
+            const dest = rawCtx.createMediaStreamDestination();
+            masterBusOutput.connect(dest);
+
+            const chunks = [];
+            const mimeType = pickRecorderMimeType();
+            const recorder = new MediaRecorder(dest.stream, mimeType ? { mimeType } : undefined);
+            recorder.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+
+            const finished = new Promise((resolve, reject) => {
+                recorder.onstop = () => resolve();
+                recorder.onerror = (e) => reject(e.error || new Error('Recording failed'));
+            });
+
+            recorder.start();
+            startPlayback();
+            const totalSteps = GRID_COLS * EXPORT_LOOPS;
+            const startedAtStep = transportStep;
+
+            await new Promise(resolve => {
+                const poll = setInterval(() => {
+                    if (transportStep - startedAtStep >= totalSteps) {
+                        clearInterval(poll);
+                        resolve();
+                    }
+                }, 50);
+            });
+            stopPlayback();
+
+            await new Promise(r => setTimeout(r, EXPORT_TAIL_SEC * 1000));
+            recorder.stop();
+
+            try {
+                await finished;
+                masterBusOutput.disconnect(dest);
+                const blob = new Blob(chunks, { type: mimeType || chunks[0]?.type || 'audio/webm' });
+                const arrayBuffer = await blob.arrayBuffer();
+                const decodeCtx = new AudioContext();
+                const audioBuffer = await decodeCtx.decodeAudioData(arrayBuffer);
+                await decodeCtx.close();
+                const wavBlob = encodeWav(audioBuffer);
+
+                const current = currentSongId && loadSongLibrary().find(s => s.id === currentSongId);
+                const url = URL.createObjectURL(wavBlob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = sanitizeFileName(current ? current.name : songNameInput.value);
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 4000);
+
+                showToast("Exported!", "success");
+            } catch (err) {
+                masterBusOutput.disconnect(dest);
+                showToast("Export failed — try again.", "error");
+            } finally {
+                setExportingUI(false);
+            }
+        }
+        exportBtn.addEventListener('click', exportWav);
 
         // --- APP STORE UPSELL ---
         const getAppBadge = document.getElementById('getAppBadge');
@@ -3653,27 +3812,29 @@
             announce("All notes cleared");
             markDirty();
         });
+        // Shared by the Play button and export (which drives the transport itself
+        // to bounce a fixed number of loops rather than toggling indefinitely).
+        function stopPlayback() {
+            state.isPlaying = false;
+            Tone.Transport.stop();
+            playIcon.src = getEmojiUrl('▶️');
+            playLabel.textContent = 'Play';
+            playToggle.classList.remove('playing');
+            state.currentStep = -1;
+            markDirty();
+        }
+        function startPlayback() {
+            state.isPlaying = true;
+            Tone.Transport.start();
+            playIcon.src = getEmojiUrl('⏹️');
+            playLabel.textContent = 'Stop';
+            playToggle.classList.add('playing');
+            transportStep = 0;
+            markDirty();
+        }
         playToggle.onclick = async () => {
             await initAudio();
-            if (state.isPlaying) {
-                state.isPlaying = false;
-                Tone.Transport.stop();
-                
-                playIcon.src = getEmojiUrl('▶️');
-                playLabel.textContent = 'Play';
-                playToggle.classList.remove('playing');
-                state.currentStep = -1;
-                markDirty(); 
-            } else {
-                state.isPlaying = true;
-                Tone.Transport.start();
-
-                playIcon.src = getEmojiUrl('⏹️');
-                playLabel.textContent = 'Stop';
-                playToggle.classList.add('playing');
-                transportStep = 0;
-                markDirty();
-            }
+            if (state.isPlaying) stopPlayback(); else startPlayback();
         };
         openPickerBtn.onclick = async (e) => {
             e.stopPropagation();
