@@ -133,6 +133,7 @@ String webShareUrl({
         'y': n.gridY,
         if (p < 0) 'e': n.emoji,
         if (n.pitchOffset != 0 || n.pitchEdited) 'a': n.pitchOffset,
+        if (n.velocity != 1.0) 'v': (n.velocity * 1000).round() / 1000,
       };
     }).toList(),
   };
@@ -188,6 +189,7 @@ SharedSong? sharedSongFromCode(String code) {
           emoji,
           (n['x'] as num).toInt(),
           (n['y'] as num).toInt(),
+          velocity: (n['v'] as num?)?.toDouble() ?? 1.0,
           pitchOffset: _pitchOffset(n['a']),
           pitchEdited: n.containsKey('a'),
         ),

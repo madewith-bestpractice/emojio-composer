@@ -1,0 +1,17 @@
+{
+  "name": "Emojio Paint Composer",
+  "short_name": "Emojio",
+  "description": "A playful emoji-stamp music composer. Paint sounds on a staff and share songs with a single link.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#e0f7fa",
+  "theme_color": "#81d4fa",
+  "icons": [
+    {
+      "src": "emojio-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

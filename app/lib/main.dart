@@ -109,6 +109,8 @@ class _HarnessPageState extends State<HarnessPage>
   bool _pitchManuallySet = false;
 
   final List<Note> _notes = [];
+  final List<List<Note>> _undoStack = [];
+  static const int _maxUndo = 50;
   double _bpm = 110;
   bool _playing = false;
   int _currentStep = -1;
@@ -340,6 +342,7 @@ class _HarnessPageState extends State<HarnessPage>
       case MidiAction.playStop:
         _togglePlay();
       case MidiAction.clear:
+        _snapshotForUndo();
         setState(_notes.clear);
       case MidiAction.prevVoice:
         _cycleVoice(-1);
@@ -814,6 +817,7 @@ class _HarnessPageState extends State<HarnessPage>
     final (gx, gy) = hit;
     final idx = _notes.indexWhere((n) => n.gridX == gx && n.gridY == gy);
     if (idx < 0) {
+      _snapshotForUndo();
       setState(() => _addNote(gx, gy));
       return;
     }
@@ -822,6 +826,7 @@ class _HarnessPageState extends State<HarnessPage>
         _pitchManuallySet &&
         (n.pitchOffset != _selectedPitchOffset || !n.pitchEdited);
     if (!retune) {
+      _snapshotForUndo();
       setState(() => _notes.removeAt(idx));
       return;
     }
@@ -921,6 +926,7 @@ class _HarnessPageState extends State<HarnessPage>
     final (gx, gy) = hit;
     final idx = _notes.indexWhere((n) => n.gridX == gx && n.gridY == gy);
     if (idx < 0) return; // long-pressed empty space — nothing to grab
+    _snapshotForUndo();
     HapticFeedback.mediumImpact(); // "picked up"
     setState(() => _dragNote = _notes[idx]);
   }
@@ -992,10 +998,26 @@ class _HarnessPageState extends State<HarnessPage>
     );
   }
 
-  // Generate a random song from the current palette (ported from the web app):
-  // 12-19 notes, biased toward the downbeats (cols 0/4/8/12).
+  void _snapshotForUndo() {
+    _undoStack.add(_notes.map((n) => Note(
+      n.emoji, n.gridX, n.gridY, n.rotation, n.createdAtMs,
+      velocity: n.velocity, pitchOffset: n.pitchOffset, pitchEdited: n.pitchEdited,
+    )).toList());
+    if (_undoStack.length > _maxUndo) _undoStack.removeAt(0);
+  }
+
+  void _undo() {
+    if (_undoStack.isEmpty) return;
+    setState(() {
+      _notes
+        ..clear()
+        ..addAll(_undoStack.removeLast());
+    });
+  }
+
   void _randomize() {
     if (_palette.isEmpty) return;
+    _snapshotForUndo();
     setState(() {
       _notes.clear();
       const preferred = [0, 4, 8, 12];
@@ -1048,11 +1070,14 @@ class _HarnessPageState extends State<HarnessPage>
   }
 
   // ---- library ----
-  void _newSong() => setState(() {
-    _currentId = null;
-    _currentName = 'Untitled';
-    _notes.clear();
-  });
+  void _newSong() {
+    _snapshotForUndo();
+    setState(() {
+      _currentId = null;
+      _currentName = 'Untitled';
+      _notes.clear();
+    });
+  }
 
   // Playful song-name words paired with the emoji voices below.
   static const List<String> _songWords = [
@@ -1145,7 +1170,8 @@ class _HarnessPageState extends State<HarnessPage>
     _notes
       ..clear()
       ..addAll(
-        s.notes.map(
+        s.notes.where((n) => n.gridX >= 0 && n.gridX < kCols &&
+            n.gridY >= 0 && n.gridY < _rows).map(
           (n) => Note(
             n.emoji,
             n.gridX,
@@ -1191,7 +1217,8 @@ class _HarnessPageState extends State<HarnessPage>
     _notes
       ..clear()
       ..addAll(
-        s.notes.map(
+        s.notes.where((n) => n.gridX >= 0 && n.gridX < kCols &&
+            n.gridY >= 0 && n.gridY < _rows).map(
           (n) => Note(
             n.emoji,
             n.gridX,
@@ -1383,6 +1410,13 @@ class _HarnessPageState extends State<HarnessPage>
       color: Colors.white,
       textColor: Toy.text,
       onPressed: _randomize,
+    ),
+    _barButton(
+      label: 'Undo',
+      emoji: '↩️',
+      color: Colors.white,
+      textColor: _undoStack.isEmpty ? Toy.line : Toy.text,
+      onPressed: _undo,
     ),
     _barButton(
       label: 'Save',
@@ -1966,6 +2000,7 @@ class _HarnessPageState extends State<HarnessPage>
               globalPosition: d.globalPosition,
             ),
             onPanStart: (d) {
+              _snapshotForUndo();
               _lastPainted = null;
               _paintAt(d.localPosition, size);
             },
@@ -2285,8 +2320,21 @@ class _LibrarySheetState extends State<_LibrarySheet> {
                         icon: const Icon(Icons.delete_outline, color: Toy.text),
                         tooltip: 'Delete',
                         onPressed: () async {
-                          await widget.library.delete(s.id);
-                          _reload();
+                          final confirmed = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('Delete song?'),
+                              content: Text('Delete "${s.name.isEmpty ? 'Untitled' : s.name}"? This can\'t be undone.'),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                                TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete')),
+                              ],
+                            ),
+                          );
+                          if (confirmed == true) {
+                            await widget.library.delete(s.id);
+                            _reload();
+                          }
                         },
                       ),
                     ],

@@ -16,19 +16,15 @@
 
     <link rel="icon" type="image/png" href="emojio-icon.png">
     <link rel="apple-touch-icon" href="emojio-icon.png">
+    <link rel="manifest" href="manifest.json">
 
     <!-- Resource hints for the CDN's we depend on -->
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
-    <!-- Tone.js for Audio Synthesis (deferred so it doesn't block first paint) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"
-            integrity="sha384-c6Uo4N9c3SOEigMVzP6IshUG1wQ5uMp3xeoQFiHWAQ86joWdgyajkvopySyKy/Z6"
-            crossorigin="anonymous"
-            referrerpolicy="no-referrer"
-            defer></script>
+    <!-- Tone.js for Audio Synthesis (self-hosted, deferred so it doesn't block first paint) -->
+    <script src="Tone.js" defer></script>
     <!-- Pixel Font -->
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 
@@ -1301,7 +1297,8 @@
             <!-- Output (read-only) -->
             <textarea id="songCodeOutput" readonly style="width:100%; height:60px; font-size:0.6rem; margin-bottom:8px;"></textarea>
 
-            <button id="copySongCodeBtn" class="play-btn" style="width:100%; margin-bottom:20px;">Copy Song Code</button>
+            <button id="copySongCodeBtn" class="play-btn" style="width:100%; margin-bottom:8px;">Copy Song Code</button>
+            <button id="copyLinkBtn" class="play-btn" style="width:100%; margin-bottom:20px;">Copy Link</button>
 
             <!-- Input for loading -->
             <textarea id="songCodeInput" placeholder="Paste song code here..." style="width:100%; height:60px; font-size:0.6rem; margin-bottom:8px;"></textarea>
@@ -1568,6 +1565,7 @@
         const songCodeOutput = document.getElementById('songCodeOutput');
         const songCodeInput = document.getElementById('songCodeInput');
         const copySongCodeBtn = document.getElementById('copySongCodeBtn');
+        const copyLinkBtn = document.getElementById('copyLinkBtn');
         const loadSongCodeBtn = document.getElementById('loadSongCodeBtn');
         const closeShareModalBtn = document.getElementById('closeShareModalBtn');
 
@@ -1810,6 +1808,7 @@
                         e: paletteIndex === -1 ? note.emoji : undefined
                     };
                     if (note.pitchEdited || accidental) out.a = accidental;
+                    if (note.velocity !== undefined && note.velocity !== 1) out.v = Math.round(note.velocity * 1000) / 1000;
                     return out;
                 })
             };
@@ -1864,6 +1863,7 @@
                         emoji,
                         gridX: n.x,
                         gridY: n.y,
+                        velocity: typeof n.v === 'number' ? Math.max(0, Math.min(1, n.v)) : 1,
                         pitchOffset: normalizePitchOffset(n.a),
                         pitchEdited: hasPitch,
                         createdAt: Date.now()
@@ -1911,178 +1911,179 @@
             return masterBus;
         }
 
-        function getInstrument(type) {
-            if (instruments[type]) return instruments[type];
-            
-            const bus = getMasterBus();
+        function getInstrument(type, _bus, _cache) {
+            const cache = _cache || instruments;
+            if (cache[type]) return cache[type];
+
+            const bus = _bus || getMasterBus();
             // Per-instrument polyphony cap (headroom vs. browser CPU on iPad Safari)
             const polyOptions = { maxPolyphony: 8 };
 
             switch (type) {
                 case 'dog': {
                     // Bark — sharp attack, fast filter pop for the "woof" formant
-                    instruments.dog = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.003, decay: 0.09, sustain: 0.0, release: 0.06 }, filter: { Q: 6, type: "lowpass", rolloff: -24 }, filterEnvelope: { attack: 0.005, decay: 0.07, sustain: 0, release: 0.05, baseFrequency: 220, octaves: 3.5 } }).connect(bus);
-                    instruments.dog.volume.value = -4;
+                    cache.dog = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.003, decay: 0.09, sustain: 0.0, release: 0.06 }, filter: { Q: 6, type: "lowpass", rolloff: -24 }, filterEnvelope: { attack: 0.005, decay: 0.07, sustain: 0, release: 0.05, baseFrequency: 220, octaves: 3.5 } }).connect(bus);
+                    cache.dog.volume.value = -4;
                     break;
                 }
                 case 'howl': {
                     // Wolf howl — long sustained sawtooth with slow vibrato + gentle filter rise/fall
                     const howlVib = new Tone.Vibrato(3.5, 0.18).connect(bus);
-                    instruments.howl = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.18, decay: 0.25, sustain: 0.7, release: 0.55 }, filter: { Q: 5, type: "bandpass" }, filterEnvelope: { attack: 0.25, decay: 0.4, sustain: 0.5, release: 0.5, baseFrequency: 400, octaves: 1.3 } }).connect(howlVib);
-                    instruments.howl.volume.value = -7;
+                    cache.howl = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.18, decay: 0.25, sustain: 0.7, release: 0.55 }, filter: { Q: 5, type: "bandpass" }, filterEnvelope: { attack: 0.25, decay: 0.4, sustain: 0.5, release: 0.5, baseFrequency: 400, octaves: 1.3 } }).connect(howlVib);
+                    cache.howl.volume.value = -7;
                     break;
                 }
                 case 'cat': {
                     // Meow — vocal bandpass with a quick vibrato wobble for the "me-ow" feel
                     const catVib = new Tone.Vibrato(6, 0.08).connect(bus);
-                    instruments.cat = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "triangle" }, envelope: { attack: 0.04, decay: 0.22, sustain: 0.35, release: 0.4 }, filter: { Q: 5, type: "bandpass" }, filterEnvelope: { attack: 0.06, decay: 0.25, sustain: 0.55, release: 0.3, baseFrequency: 700, octaves: 1.6 } }).connect(catVib);
-                    instruments.cat.volume.value = -6;
+                    cache.cat = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "triangle" }, envelope: { attack: 0.04, decay: 0.22, sustain: 0.35, release: 0.4 }, filter: { Q: 5, type: "bandpass" }, filterEnvelope: { attack: 0.06, decay: 0.25, sustain: 0.55, release: 0.3, baseFrequency: 700, octaves: 1.6 } }).connect(catVib);
+                    cache.cat.volume.value = -6;
                     break;
                 }
                 case 'pig': {
                     // Oink / snort — nasal mid-low burst with bandpass and resonance
-                    instruments.pig = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.005, decay: 0.13, sustain: 0.0, release: 0.09 }, filter: { Q: 4.5, type: "bandpass" }, filterEnvelope: { attack: 0.01, decay: 0.11, sustain: 0, release: 0.08, baseFrequency: 180, octaves: 1.6 } }).connect(bus);
-                    instruments.pig.volume.value = -5;
+                    cache.pig = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.005, decay: 0.13, sustain: 0.0, release: 0.09 }, filter: { Q: 4.5, type: "bandpass" }, filterEnvelope: { attack: 0.01, decay: 0.11, sustain: 0, release: 0.08, baseFrequency: 180, octaves: 1.6 } }).connect(bus);
+                    cache.pig.volume.value = -5;
                     break;
                 }
                 case 'baby':
-                    instruments.baby = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "pulse", width: 0.4 }, envelope: { attack: 0.05, decay: 0.2, sustain: 0.4, release: 0.2 }, filter: { Q: 5, type: "bandpass" }, filterEnvelope: { attack: 0.1, decay: 0.2, sustain: 0.2, baseFrequency: 400, octaves: 2 } }).connect(bus);
-                    instruments.baby.volume.value = -8;
+                    cache.baby = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "pulse", width: 0.4 }, envelope: { attack: 0.05, decay: 0.2, sustain: 0.4, release: 0.2 }, filter: { Q: 5, type: "bandpass" }, filterEnvelope: { attack: 0.1, decay: 0.2, sustain: 0.2, baseFrequency: 400, octaves: 2 } }).connect(bus);
+                    cache.baby.volume.value = -8;
                     break;
                 case 'plane':
                     const planeTrem = new Tone.Tremolo(9, 0.75).start().connect(bus);
-                    instruments.plane = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "fatsawtooth", count: 2, spread: 20 }, envelope: { attack: 0.1, decay: 0.2, sustain: 0.8, release: 0.1 }, detune: -1200 }).connect(planeTrem);
-                    instruments.plane.volume.value = -12;
+                    cache.plane = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "fatsawtooth", count: 2, spread: 20 }, envelope: { attack: 0.1, decay: 0.2, sustain: 0.8, release: 0.1 }, detune: -1200 }).connect(planeTrem);
+                    cache.plane.volume.value = -12;
                     break;
                 case 'boat':
                     const boatTrem = new Tone.Tremolo(4, 0.5).start().connect(bus);
-                    instruments.boat = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "square" }, envelope: { attack: 0.1, decay: 0.2, sustain: 1, release: 0.2 } }).connect(boatTrem);
-                    instruments.boat.volume.value = -10;
+                    cache.boat = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "square" }, envelope: { attack: 0.1, decay: 0.2, sustain: 1, release: 0.2 } }).connect(boatTrem);
+                    cache.boat.volume.value = -10;
                     break;
                 case 'flower':
-                    instruments.flower = new Tone.PolySynth(Tone.FMSynth, { ...polyOptions, harmonicity: 3.01, modulationIndex: 2, oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 0.5, sustain: 0, release: 0.3 }, modulation: { type: "sine" }, modulationEnvelope: { attack: 0.01, decay: 0.5, sustain: 0, release: 0.3 } }).connect(bus);
-                    instruments.flower.volume.value = -5;
+                    cache.flower = new Tone.PolySynth(Tone.FMSynth, { ...polyOptions, harmonicity: 3.01, modulationIndex: 2, oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 0.5, sustain: 0, release: 0.3 }, modulation: { type: "sine" }, modulationEnvelope: { attack: 0.01, decay: 0.5, sustain: 0, release: 0.3 } }).connect(bus);
+                    cache.flower.volume.value = -5;
                     break;
                 case 'mario': {
                     // Piano-ish — sharp transient, long decay, almost no sustain (like a real piano)
-                    instruments.mario = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "triangle" }, envelope: { attack: 0.002, decay: 0.8, sustain: 0.05, release: 0.4 } }).connect(bus);
-                    instruments.mario.volume.value = -3;
+                    cache.mario = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "triangle" }, envelope: { attack: 0.002, decay: 0.8, sustain: 0.05, release: 0.4 } }).connect(bus);
+                    cache.mario.volume.value = -3;
                     break;
                 }
                 case 'gameboy':
                     const crusher = new Tone.BitCrusher(4);
                     const gbFilter = new Tone.Filter(3000, "lowpass").connect(bus);
                     crusher.connect(gbFilter);
-                    instruments.gameboy = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "square" }, envelope: { attack: 0.01, decay: 0.1, sustain: 0.1, release: 0.1 } }).connect(crusher);
-                    instruments.gameboy.volume.value = -8;
+                    cache.gameboy = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "square" }, envelope: { attack: 0.01, decay: 0.1, sustain: 0.1, release: 0.1 } }).connect(crusher);
+                    cache.gameboy.volume.value = -8;
                     break;
                 case 'car':
                     const hornFilter = new Tone.Filter(2000, "lowpass").connect(bus);
-                    instruments.car = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.02, decay: 0.2, sustain: 0.5, release: 0.2 }, }).connect(hornFilter);
-                    instruments.car.volume.value = -10;
+                    cache.car = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.02, decay: 0.2, sustain: 0.5, release: 0.2 }, }).connect(hornFilter);
+                    cache.car.volume.value = -10;
                     break;
                 case 'drum':
-                    instruments.drum = new Tone.PolySynth(Tone.MembraneSynth, { ...polyOptions, pitchDecay: 0.05, octaves: 4, oscillator: { type: "sine" }, envelope: { attack: 0.001, decay: 0.2, sustain: 0.01, release: 0.2 } }).connect(bus);
-                    instruments.drum.volume.value = -2;
+                    cache.drum = new Tone.PolySynth(Tone.MembraneSynth, { ...polyOptions, pitchDecay: 0.05, octaves: 4, oscillator: { type: "sine" }, envelope: { attack: 0.001, decay: 0.2, sustain: 0.01, release: 0.2 } }).connect(bus);
+                    cache.drum.volume.value = -2;
                     break;
                 case 'kick':
-                    instruments.kick = new Tone.PolySynth(Tone.MembraneSynth, { ...polyOptions, pitchDecay: 0.08, octaves: 6, oscillator: { type: "sine" }, envelope: { attack: 0.001, decay: 0.28, sustain: 0, release: 0.08 } }).connect(bus);
-                    instruments.kick.volume.value = -1;
+                    cache.kick = new Tone.PolySynth(Tone.MembraneSynth, { ...polyOptions, pitchDecay: 0.08, octaves: 6, oscillator: { type: "sine" }, envelope: { attack: 0.001, decay: 0.28, sustain: 0, release: 0.08 } }).connect(bus);
+                    cache.kick.volume.value = -1;
                     break;
                 case 'snare':
-                    instruments.snare = new Tone.PolySynth(Tone.MetalSynth, { ...polyOptions, envelope: { attack: 0.001, decay: 0.16, sustain: 0, release: 0.04 }, harmonicity: 3.5, modulationIndex: 26, resonance: 2600, octaves: 0.6 }).connect(bus);
-                    instruments.snare.volume.value = -13;
+                    cache.snare = new Tone.PolySynth(Tone.MetalSynth, { ...polyOptions, envelope: { attack: 0.001, decay: 0.16, sustain: 0, release: 0.04 }, harmonicity: 3.5, modulationIndex: 26, resonance: 2600, octaves: 0.6 }).connect(bus);
+                    cache.snare.volume.value = -13;
                     break;
                 case 'hat':
-                    instruments.hat = new Tone.PolySynth(Tone.MetalSynth, { ...polyOptions, envelope: { attack: 0.001, decay: 0.06, sustain: 0, release: 0.02 }, harmonicity: 5.1, modulationIndex: 12, resonance: 6000, octaves: 1.2 }).connect(bus);
-                    instruments.hat.volume.value = -17;
+                    cache.hat = new Tone.PolySynth(Tone.MetalSynth, { ...polyOptions, envelope: { attack: 0.001, decay: 0.06, sustain: 0, release: 0.02 }, harmonicity: 5.1, modulationIndex: 12, resonance: 6000, octaves: 1.2 }).connect(bus);
+                    cache.hat.volume.value = -17;
                     break;
                 case 'clap':
-                    instruments.clap = new Tone.PolySynth(Tone.MetalSynth, { ...polyOptions, envelope: { attack: 0.001, decay: 0.11, sustain: 0, release: 0.03 }, harmonicity: 2.8, modulationIndex: 18, resonance: 1800, octaves: 0.5 }).connect(bus);
-                    instruments.clap.volume.value = -14;
+                    cache.clap = new Tone.PolySynth(Tone.MetalSynth, { ...polyOptions, envelope: { attack: 0.001, decay: 0.11, sustain: 0, release: 0.03 }, harmonicity: 2.8, modulationIndex: 18, resonance: 1800, octaves: 0.5 }).connect(bus);
+                    cache.clap.volume.value = -14;
                     break;
                 case 'tom':
-                    instruments.tom = new Tone.PolySynth(Tone.MembraneSynth, { ...polyOptions, pitchDecay: 0.12, octaves: 3, oscillator: { type: "sine" }, envelope: { attack: 0.001, decay: 0.34, sustain: 0, release: 0.12 } }).connect(bus);
-                    instruments.tom.volume.value = -2;
+                    cache.tom = new Tone.PolySynth(Tone.MembraneSynth, { ...polyOptions, pitchDecay: 0.12, octaves: 3, oscillator: { type: "sine" }, envelope: { attack: 0.001, decay: 0.34, sustain: 0, release: 0.12 } }).connect(bus);
+                    cache.tom.volume.value = -2;
                     break;
                 case 'crash':
-                    instruments.crash = new Tone.PolySynth(Tone.MetalSynth, { ...polyOptions, envelope: { attack: 0.001, decay: 0.6, sustain: 0, release: 0.25 }, harmonicity: 8, modulationIndex: 24, resonance: 5000, octaves: 1.5 }).connect(bus);
-                    instruments.crash.volume.value = -18;
+                    cache.crash = new Tone.PolySynth(Tone.MetalSynth, { ...polyOptions, envelope: { attack: 0.001, decay: 0.6, sustain: 0, release: 0.25 }, harmonicity: 8, modulationIndex: 24, resonance: 5000, octaves: 1.5 }).connect(bus);
+                    cache.crash.volume.value = -18;
                     break;
                 case 'ghost':
                     const ghostVib = new Tone.Vibrato(6, 0.3).connect(bus);
-                    instruments.ghost = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "sine" }, envelope: { attack: 0.1, decay: 0.5, sustain: 1, release: 0.3 }, filter: { Q: 0, type: "lowpass", rolloff: -12 }, }).connect(ghostVib);
-                    instruments.ghost.volume.value = -8;
+                    cache.ghost = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "sine" }, envelope: { attack: 0.1, decay: 0.5, sustain: 1, release: 0.3 }, filter: { Q: 0, type: "lowpass", rolloff: -12 }, }).connect(ghostVib);
+                    cache.ghost.volume.value = -8;
                     break;
                 case 'frog': {
                     // Ribbit — throaty pulse with sharp bandpass at low-mid for the "rrr" body
-                    instruments.frog = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "pulse", width: 0.65 }, envelope: { attack: 0.005, decay: 0.18, sustain: 0.0, release: 0.1 }, filter: { Q: 8, type: "bandpass", rolloff: -12 }, filterEnvelope: { attack: 0.02, decay: 0.18, sustain: 0, release: 0.1, baseFrequency: 220, octaves: 1.1 } }).connect(bus);
-                    instruments.frog.volume.value = -5;
+                    cache.frog = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "pulse", width: 0.65 }, envelope: { attack: 0.005, decay: 0.18, sustain: 0.0, release: 0.1 }, filter: { Q: 8, type: "bandpass", rolloff: -12 }, filterEnvelope: { attack: 0.02, decay: 0.18, sustain: 0, release: 0.1, baseFrequency: 220, octaves: 1.1 } }).connect(bus);
+                    cache.frog.volume.value = -5;
                     break;
                 }
                 case 'brass': {
                     const brassFilter = new Tone.Filter(2500, "lowpass").connect(bus);
-                    instruments.brass = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.05, decay: 0.1, sustain: 0.7, release: 0.2 } }).connect(brassFilter);
-                    instruments.brass.volume.value = -8;
+                    cache.brass = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.05, decay: 0.1, sustain: 0.7, release: 0.2 } }).connect(brassFilter);
+                    cache.brass.volume.value = -8;
                     break;
                 }
                 case 'strings':
                     const stringVib = new Tone.Vibrato(4, 0.2).connect(bus);
-                    instruments.strings = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "pwm", modulationFrequency: 5 }, envelope: { attack: 0.05, decay: 0.2, sustain: 0.0, release: 0.3 } }).connect(stringVib);
-                    instruments.strings.volume.value = -10;
+                    cache.strings = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "pwm", modulationFrequency: 5 }, envelope: { attack: 0.05, decay: 0.2, sustain: 0.0, release: 0.3 } }).connect(stringVib);
+                    cache.strings.volume.value = -10;
                     break;
                 case 'cluck': {
                     // Chicken "bok" — very short narrow-pulse pop with mid-high bandpass
-                    instruments.cluck = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "pulse", width: 0.15 }, envelope: { attack: 0.002, decay: 0.07, sustain: 0, release: 0.04 }, filter: { Q: 8, type: "bandpass" }, filterEnvelope: { attack: 0.005, decay: 0.07, sustain: 0, release: 0.04, baseFrequency: 750, octaves: 1.4 } }).connect(bus);
-                    instruments.cluck.volume.value = -5;
+                    cache.cluck = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "pulse", width: 0.15 }, envelope: { attack: 0.002, decay: 0.07, sustain: 0, release: 0.04 }, filter: { Q: 8, type: "bandpass" }, filterEnvelope: { attack: 0.005, decay: 0.07, sustain: 0, release: 0.04, baseFrequency: 750, octaves: 1.4 } }).connect(bus);
+                    cache.cluck.volume.value = -5;
                     break;
                 }
                 case 'quack': {
                     // Duck — nasal blat with resonant downward sweep
-                    instruments.quack = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.015, decay: 0.18, sustain: 0.25, release: 0.15 }, filter: { Q: 10, type: "bandpass" }, filterEnvelope: { attack: 0.02, decay: 0.2, sustain: 0.3, release: 0.15, baseFrequency: 650, octaves: -0.6 } }).connect(bus);
-                    instruments.quack.volume.value = -6;
+                    cache.quack = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.015, decay: 0.18, sustain: 0.25, release: 0.15 }, filter: { Q: 10, type: "bandpass" }, filterEnvelope: { attack: 0.02, decay: 0.2, sustain: 0.3, release: 0.15, baseFrequency: 650, octaves: -0.6 } }).connect(bus);
+                    cache.quack.volume.value = -6;
                     break;
                 }
                 case 'moo': {
                     // Cow — long, throaty, slight upward formant then sustained body
-                    instruments.moo = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.08, decay: 0.5, sustain: 0.55, release: 0.4 }, filter: { Q: 3.5, type: "lowpass" }, filterEnvelope: { attack: 0.15, decay: 0.4, sustain: 0.35, release: 0.4, baseFrequency: 130, octaves: 1.2 } }).connect(bus);
-                    instruments.moo.volume.value = -5;
+                    cache.moo = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.08, decay: 0.5, sustain: 0.55, release: 0.4 }, filter: { Q: 3.5, type: "lowpass" }, filterEnvelope: { attack: 0.15, decay: 0.4, sustain: 0.35, release: 0.4, baseFrequency: 130, octaves: 1.2 } }).connect(bus);
+                    cache.moo.volume.value = -5;
                     break;
                 }
                 case 'chirp': {
                     // Bird tweet — short bright FM blip with quick mod decay (chirp shape)
-                    instruments.chirp = new Tone.PolySynth(Tone.FMSynth, { ...polyOptions, harmonicity: 3, modulationIndex: 9, oscillator: { type: "sine" }, envelope: { attack: 0.003, decay: 0.08, sustain: 0, release: 0.05 }, modulation: { type: "triangle" }, modulationEnvelope: { attack: 0.003, decay: 0.06, sustain: 0, release: 0.05 } }).connect(bus);
-                    instruments.chirp.volume.value = -5;
+                    cache.chirp = new Tone.PolySynth(Tone.FMSynth, { ...polyOptions, harmonicity: 3, modulationIndex: 9, oscillator: { type: "sine" }, envelope: { attack: 0.003, decay: 0.08, sustain: 0, release: 0.05 }, modulation: { type: "triangle" }, modulationEnvelope: { attack: 0.003, decay: 0.06, sustain: 0, release: 0.05 } }).connect(bus);
+                    cache.chirp.volume.value = -5;
                     break;
                 }
                 case 'lion': {
                     // Roar — distorted sawtooth + slow tremolo for growl + low base
                     const lionDist = new Tone.Distortion(0.55).connect(bus);
                     const lionGrowl = new Tone.Tremolo(7, 0.4).start().connect(lionDist);
-                    instruments.lion = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.06, decay: 0.3, sustain: 0.8, release: 0.4 }, filter: { Q: 2, type: "lowpass" }, filterEnvelope: { attack: 0.08, decay: 0.3, sustain: 0.55, release: 0.4, baseFrequency: 80, octaves: 2.6 } }).connect(lionGrowl);
-                    instruments.lion.volume.value = -5;
+                    cache.lion = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.06, decay: 0.3, sustain: 0.8, release: 0.4 }, filter: { Q: 2, type: "lowpass" }, filterEnvelope: { attack: 0.08, decay: 0.3, sustain: 0.55, release: 0.4, baseFrequency: 80, octaves: 2.6 } }).connect(lionGrowl);
+                    cache.lion.volume.value = -5;
                     break;
                 }
                 case 'alien':
-                    instruments.alien = new Tone.PolySynth(Tone.FMSynth, { harmonicity: 1.5, modulationIndex: 10, oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 0.3, sustain: 0.1, release: 0.3 }, modulation: { type: "square" }, modulationEnvelope: { attack: 0.1, decay: 0.1, sustain: 0, release: 0.1 } }).connect(bus);
-                    instruments.alien.volume.value = -6;
+                    cache.alien = new Tone.PolySynth(Tone.FMSynth, { harmonicity: 1.5, modulationIndex: 10, oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 0.3, sustain: 0.1, release: 0.3 }, modulation: { type: "square" }, modulationEnvelope: { attack: 0.1, decay: 0.1, sustain: 0, release: 0.1 } }).connect(bus);
+                    cache.alien.volume.value = -6;
                     break;
                 case 'wood':
-                    instruments.wood = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "sine" }, envelope: { attack: 0.001, decay: 0.1, sustain: 0, release: 0.1 } }).connect(bus);
-                    instruments.wood.volume.value = -2;
+                    cache.wood = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "sine" }, envelope: { attack: 0.001, decay: 0.1, sustain: 0, release: 0.1 } }).connect(bus);
+                    cache.wood.volume.value = -2;
                     break;
                 case 'honk':
-                    instruments.honk = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.5, release: 0.2 } }).connect(bus);
-                    instruments.honk.volume.value = -5;
+                    cache.honk = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.5, release: 0.2 } }).connect(bus);
+                    cache.honk.volume.value = -5;
                     break;
                 case 'star':
-                    instruments.star = new Tone.PolySynth(Tone.FMSynth, { ...polyOptions, harmonicity: 8, modulationIndex: 2, oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 1, sustain: 0, release: 1 }, modulation: { type: "sine" }, modulationEnvelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.2 } }).connect(bus);
-                    instruments.star.volume.value = -8;
+                    cache.star = new Tone.PolySynth(Tone.FMSynth, { ...polyOptions, harmonicity: 8, modulationIndex: 2, oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 1, sustain: 0, release: 1 }, modulation: { type: "sine" }, modulationEnvelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.2 } }).connect(bus);
+                    cache.star.volume.value = -8;
                     break;
                 case 'pluck': {
                     // Guitar — sharp transient (very fast attack), longer decay/release for string ring
-                    instruments.pluck = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "triangle" }, envelope: { attack: 0.001, decay: 0.55, sustain: 0.0, release: 0.5 } }).connect(bus);
-                    instruments.pluck.volume.value = -3;
+                    cache.pluck = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "triangle" }, envelope: { attack: 0.001, decay: 0.55, sustain: 0.0, release: 0.5 } }).connect(bus);
+                    cache.pluck.volume.value = -3;
                     break;
                 }
                 case 'sax': {
@@ -2090,45 +2091,45 @@
                     const saxVib = new Tone.Vibrato(5, 0.1).connect(bus);
                     const saxFilter = new Tone.Filter(1600, "bandpass").connect(saxVib);
                     saxFilter.Q.value = 1.4;
-                    instruments.sax = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.04, decay: 0.2, sustain: 0.75, release: 0.2 } }).connect(saxFilter);
-                    instruments.sax.volume.value = -7;
+                    cache.sax = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.04, decay: 0.2, sustain: 0.75, release: 0.2 } }).connect(saxFilter);
+                    cache.sax.volume.value = -7;
                     break;
                 }
                 case 'siren':
                     const sirenVib = new Tone.Vibrato(5, 0.5).connect(bus);
-                    instruments.siren = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.1, decay: 0.2, sustain: 0.8, release: 0.3 } }).connect(sirenVib);
-                    instruments.siren.volume.value = -10;
+                    cache.siren = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.1, decay: 0.2, sustain: 0.8, release: 0.3 } }).connect(sirenVib);
+                    cache.siren.volume.value = -10;
                     break;
                 case 'chopper':
                     const chopperTrem = new Tone.Tremolo(15, 1).start().connect(bus);
                     // Use Synth with noise-like modulation or short envelope instead of NoiseSynth for PolySynth
-                    instruments.chopper = new Tone.PolySynth(Tone.Synth, { 
+                    cache.chopper = new Tone.PolySynth(Tone.Synth, { 
                         ...polyOptions,
                         oscillator: { type: "pulse", width: 0.8 }, 
                         envelope: { attack: 0.01, decay: 0.2, sustain: 0.0, release: 0.1 } 
                     }).connect(chopperTrem);
-                    instruments.chopper.volume.value = -12;
+                    cache.chopper.volume.value = -12;
                     break;
                 case 'bell':
-                    instruments.bell = new Tone.PolySynth(Tone.FMSynth, { ...polyOptions, harmonicity: 4.1, modulationIndex: 3, oscillator: { type: "sine" }, envelope: { attack: 0.001, decay: 1, sustain: 0, release: 1 }, modulation: { type: "sine" }, modulationEnvelope: { attack: 0.001, decay: 0.5, sustain: 0, release: 0.5 } }).connect(bus);
-                    instruments.bell.volume.value = -5;
+                    cache.bell = new Tone.PolySynth(Tone.FMSynth, { ...polyOptions, harmonicity: 4.1, modulationIndex: 3, oscillator: { type: "sine" }, envelope: { attack: 0.001, decay: 1, sustain: 0, release: 1 }, modulation: { type: "sine" }, modulationEnvelope: { attack: 0.001, decay: 0.5, sustain: 0, release: 0.5 } }).connect(bus);
+                    cache.bell.volume.value = -5;
                     break;
                 case 'water':
-                    instruments.water = new Tone.PolySynth(Tone.MembraneSynth, { ...polyOptions, pitchDecay: 0.1, octaves: 2, oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 0.4, sustain: 0, release: 0.4 } }).connect(bus);
-                    instruments.water.volume.value = -8;
+                    cache.water = new Tone.PolySynth(Tone.MembraneSynth, { ...polyOptions, pitchDecay: 0.1, octaves: 2, oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 0.4, sustain: 0, release: 0.4 } }).connect(bus);
+                    cache.water.volume.value = -8;
                     break;
                 case 'unicorn': {
                     // Sparkly FM bell — high modulation index, sine carrier, bright shimmer
                     const unicornChorus = new Tone.Chorus(2, 1.5, 0.6).start().connect(bus);
-                    instruments.unicorn = new Tone.PolySynth(Tone.FMSynth, { ...polyOptions, harmonicity: 5.5, modulationIndex: 8, oscillator: { type: "sine" }, envelope: { attack: 0.005, decay: 0.8, sustain: 0.1, release: 0.8 }, modulation: { type: "triangle" }, modulationEnvelope: { attack: 0.005, decay: 0.4, sustain: 0.1, release: 0.5 } }).connect(unicornChorus);
-                    instruments.unicorn.volume.value = -7;
+                    cache.unicorn = new Tone.PolySynth(Tone.FMSynth, { ...polyOptions, harmonicity: 5.5, modulationIndex: 8, oscillator: { type: "sine" }, envelope: { attack: 0.005, decay: 0.8, sustain: 0.1, release: 0.8 }, modulation: { type: "triangle" }, modulationEnvelope: { attack: 0.005, decay: 0.4, sustain: 0.1, release: 0.5 } }).connect(unicornChorus);
+                    cache.unicorn.volume.value = -7;
                     break;
                 }
                 case 'mic': {
                     // Vocal "ah" — AM with light wobble
                     const micTrem = new Tone.Tremolo(5.5, 0.3).start().connect(bus);
-                    instruments.mic = new Tone.PolySynth(Tone.AMSynth, { ...polyOptions, harmonicity: 2.5, oscillator: { type: "sine" }, envelope: { attack: 0.05, decay: 0.2, sustain: 0.7, release: 0.3 }, modulation: { type: "sawtooth" }, modulationEnvelope: { attack: 0.1, decay: 0.2, sustain: 0.5, release: 0.3 } }).connect(micTrem);
-                    instruments.mic.volume.value = -8;
+                    cache.mic = new Tone.PolySynth(Tone.AMSynth, { ...polyOptions, harmonicity: 2.5, oscillator: { type: "sine" }, envelope: { attack: 0.05, decay: 0.2, sustain: 0.7, release: 0.3 }, modulation: { type: "sawtooth" }, modulationEnvelope: { attack: 0.1, decay: 0.2, sustain: 0.5, release: 0.3 } }).connect(micTrem);
+                    cache.mic.volume.value = -8;
                     break;
                 }
                 case 'headphones': {
@@ -2136,61 +2137,61 @@
                     const hpCrush = new Tone.BitCrusher(6);
                     const hpFilter = new Tone.Filter(1400, "lowpass").connect(bus);
                     hpCrush.connect(hpFilter);
-                    instruments.headphones = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "triangle" }, envelope: { attack: 0.08, decay: 0.3, sustain: 0.6, release: 0.4 } }).connect(hpCrush);
-                    instruments.headphones.volume.value = -9;
+                    cache.headphones = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "triangle" }, envelope: { attack: 0.08, decay: 0.3, sustain: 0.6, release: 0.4 } }).connect(hpCrush);
+                    cache.headphones.volume.value = -9;
                     break;
                 }
                 case 'angel': {
                     // Choir-like — long release, slight detune, extra reverb tail
                     const angelReverb = new Tone.Reverb({ decay: 3, wet: 0.45 }).connect(bus);
-                    instruments.angel = new Tone.PolySynth(Tone.FMSynth, { ...polyOptions, harmonicity: 2, modulationIndex: 1.5, oscillator: { type: "sine" }, envelope: { attack: 0.3, decay: 0.4, sustain: 0.8, release: 1.2 }, modulation: { type: "sine" }, modulationEnvelope: { attack: 0.4, decay: 0.4, sustain: 0.6, release: 1 } }).connect(angelReverb);
-                    instruments.angel.volume.value = -10;
+                    cache.angel = new Tone.PolySynth(Tone.FMSynth, { ...polyOptions, harmonicity: 2, modulationIndex: 1.5, oscillator: { type: "sine" }, envelope: { attack: 0.3, decay: 0.4, sustain: 0.8, release: 1.2 }, modulation: { type: "sine" }, modulationEnvelope: { attack: 0.4, decay: 0.4, sustain: 0.6, release: 1 } }).connect(angelReverb);
+                    cache.angel.volume.value = -10;
                     break;
                 }
                 case 'heart': {
                     // Warm pulse pad — slow attack, gentle
-                    instruments.heart = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "pwm", modulationFrequency: 0.7 }, envelope: { attack: 0.15, decay: 0.3, sustain: 0.6, release: 0.4 } }).connect(bus);
-                    instruments.heart.volume.value = -7;
+                    cache.heart = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "pwm", modulationFrequency: 0.7 }, envelope: { attack: 0.15, decay: 0.3, sustain: 0.6, release: 0.4 } }).connect(bus);
+                    cache.heart.volume.value = -7;
                     break;
                 }
                 case 'mushroom': {
                     // Power-up — quick triangle with pitch glide-up feel via short envelope
-                    instruments.mushroom = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "triangle" }, envelope: { attack: 0.005, decay: 0.18, sustain: 0.0, release: 0.15 }, portamento: 0.04 }).connect(bus);
-                    instruments.mushroom.volume.value = -4;
+                    cache.mushroom = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "triangle" }, envelope: { attack: 0.005, decay: 0.18, sustain: 0.0, release: 0.15 }, portamento: 0.04 }).connect(bus);
+                    cache.mushroom.volume.value = -4;
                     break;
                 }
                 case 'ball': {
                     // Bouncy thunk — drum variant tuned higher for sports balls
-                    instruments.ball = new Tone.PolySynth(Tone.MembraneSynth, { ...polyOptions, pitchDecay: 0.04, octaves: 5, oscillator: { type: "sine" }, envelope: { attack: 0.001, decay: 0.18, sustain: 0.0, release: 0.18 } }).connect(bus);
-                    instruments.ball.volume.value = -3;
+                    cache.ball = new Tone.PolySynth(Tone.MembraneSynth, { ...polyOptions, pitchDecay: 0.04, octaves: 5, oscillator: { type: "sine" }, envelope: { attack: 0.001, decay: 0.18, sustain: 0.0, release: 0.18 } }).connect(bus);
+                    cache.ball.volume.value = -3;
                     break;
                 }
                 case 'fire': {
                     // Crackling roar — very inharmonic FM + distortion = noise-like crackle
                     const fireDist = new Tone.Distortion(0.55).connect(bus);
-                    instruments.fire = new Tone.PolySynth(Tone.FMSynth, { ...polyOptions, harmonicity: 17, modulationIndex: 32, oscillator: { type: "sawtooth" }, envelope: { attack: 0.01, decay: 0.4, sustain: 0.5, release: 0.3 }, modulation: { type: "square" }, modulationEnvelope: { attack: 0.005, decay: 0.25, sustain: 0.6, release: 0.15 } }).connect(fireDist);
-                    instruments.fire.volume.value = -10;
+                    cache.fire = new Tone.PolySynth(Tone.FMSynth, { ...polyOptions, harmonicity: 17, modulationIndex: 32, oscillator: { type: "sawtooth" }, envelope: { attack: 0.01, decay: 0.4, sustain: 0.5, release: 0.3 }, modulation: { type: "square" }, modulationEnvelope: { attack: 0.005, decay: 0.25, sustain: 0.6, release: 0.15 } }).connect(fireDist);
+                    cache.fire.volume.value = -10;
                     break;
                 }
                 case 'rocket': {
                     // Whoosh — rising bandpass sweep + slight tremolo for rumble
                     const rocketTrem = new Tone.Tremolo(18, 0.4).start().connect(bus);
-                    instruments.rocket = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "fatsawtooth", count: 3, spread: 30 }, envelope: { attack: 0.03, decay: 0.4, sustain: 0.6, release: 0.3 }, filter: { Q: 3, type: "bandpass" }, filterEnvelope: { attack: 0.45, decay: 0.3, sustain: 0.7, release: 0.3, baseFrequency: 200, octaves: 4 } }).connect(rocketTrem);
-                    instruments.rocket.volume.value = -11;
+                    cache.rocket = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "fatsawtooth", count: 3, spread: 30 }, envelope: { attack: 0.03, decay: 0.4, sustain: 0.6, release: 0.3 }, filter: { Q: 3, type: "bandpass" }, filterEnvelope: { attack: 0.45, decay: 0.3, sustain: 0.7, release: 0.3, baseFrequency: 200, octaves: 4 } }).connect(rocketTrem);
+                    cache.rocket.volume.value = -11;
                     break;
                 }
                 case 'train': {
                     // Steam whistle — sustained sawtooth with slight detune (double-reed) + slow tremolo for chug
                     const trainTrem = new Tone.Tremolo(6, 0.35).start().connect(bus);
-                    instruments.train = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "fatsawtooth", count: 2, spread: 12 }, envelope: { attack: 0.06, decay: 0.2, sustain: 0.8, release: 0.3 } }).connect(trainTrem);
-                    instruments.train.volume.value = -10;
+                    cache.train = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "fatsawtooth", count: 2, spread: 12 }, envelope: { attack: 0.06, decay: 0.2, sustain: 0.8, release: 0.3 } }).connect(trainTrem);
+                    cache.train.volume.value = -10;
                     break;
                 }
                 case 'tractor': {
                     // Chug-chug — square with fast hard tremolo for "putt-putt-putt"
                     const tractorChug = new Tone.Tremolo(11, 0.85).start().connect(bus);
-                    instruments.tractor = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "square" }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.65, release: 0.2 }, filter: { Q: 2, type: "lowpass" }, filterEnvelope: { attack: 0.02, decay: 0.2, sustain: 0.55, release: 0.2, baseFrequency: 90, octaves: 2 } }).connect(tractorChug);
-                    instruments.tractor.volume.value = -8;
+                    cache.tractor = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "square" }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.65, release: 0.2 }, filter: { Q: 2, type: "lowpass" }, filterEnvelope: { attack: 0.02, decay: 0.2, sustain: 0.55, release: 0.2, baseFrequency: 90, octaves: 2 } }).connect(tractorChug);
+                    cache.tractor.volume.value = -8;
                     break;
                 }
                 case 'robot': {
@@ -2198,66 +2199,66 @@
                     const robotCrush = new Tone.BitCrusher(3);
                     const robotFilter = new Tone.Filter(1800, "bandpass").connect(bus);
                     robotCrush.connect(robotFilter);
-                    instruments.robot = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "square" }, envelope: { attack: 0.005, decay: 0.15, sustain: 0.4, release: 0.1 } }).connect(robotCrush);
-                    instruments.robot.volume.value = -7;
+                    cache.robot = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "square" }, envelope: { attack: 0.005, decay: 0.15, sustain: 0.4, release: 0.1 } }).connect(robotCrush);
+                    cache.robot.volume.value = -7;
                     break;
                 }
                 case 'splat': {
                     // Raspberry / splat — square with downward filter drop = "pbbbt" → "thunk"
-                    instruments.splat = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "square" }, envelope: { attack: 0.005, decay: 0.18, sustain: 0.0, release: 0.1 }, filter: { Q: 6, type: "lowpass" }, filterEnvelope: { attack: 0.005, decay: 0.18, sustain: 0, release: 0.1, baseFrequency: 800, octaves: -3 } }).connect(bus);
-                    instruments.splat.volume.value = -5;
+                    cache.splat = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "square" }, envelope: { attack: 0.005, decay: 0.18, sustain: 0.0, release: 0.1 }, filter: { Q: 6, type: "lowpass" }, filterEnvelope: { attack: 0.005, decay: 0.18, sustain: 0, release: 0.1, baseFrequency: 800, octaves: -3 } }).connect(bus);
+                    cache.splat.volume.value = -5;
                     break;
                 }
                 case 'bones': {
                     // Rattling bones — inharmonic metal with quick decay
-                    instruments.bones = new Tone.PolySynth(Tone.MetalSynth, { ...polyOptions, envelope: { attack: 0.001, decay: 0.3, sustain: 0.0, release: 0.15 }, harmonicity: 6.5, modulationIndex: 24, resonance: 3500, octaves: 0.6 }).connect(bus);
-                    instruments.bones.volume.value = -16;
+                    cache.bones = new Tone.PolySynth(Tone.MetalSynth, { ...polyOptions, envelope: { attack: 0.001, decay: 0.3, sustain: 0.0, release: 0.15 }, harmonicity: 6.5, modulationIndex: 24, resonance: 3500, octaves: 0.6 }).connect(bus);
+                    cache.bones.volume.value = -16;
                     break;
                 }
                 case 'laugh': {
                     // Staccato laughter — tight FM blip; rapid repeats give "ha ha ha"
-                    instruments.laugh = new Tone.PolySynth(Tone.FMSynth, { ...polyOptions, harmonicity: 2.5, modulationIndex: 6, oscillator: { type: "sine" }, envelope: { attack: 0.003, decay: 0.07, sustain: 0, release: 0.05 }, modulation: { type: "triangle" }, modulationEnvelope: { attack: 0.003, decay: 0.05, sustain: 0, release: 0.04 } }).connect(bus);
-                    instruments.laugh.volume.value = -4;
+                    cache.laugh = new Tone.PolySynth(Tone.FMSynth, { ...polyOptions, harmonicity: 2.5, modulationIndex: 6, oscillator: { type: "sine" }, envelope: { attack: 0.003, decay: 0.07, sustain: 0, release: 0.05 }, modulation: { type: "triangle" }, modulationEnvelope: { attack: 0.003, decay: 0.05, sustain: 0, release: 0.04 } }).connect(bus);
+                    cache.laugh.volume.value = -4;
                     break;
                 }
                 case 'cry': {
                     // Sobbing — triangle with downward filter sweep + vibrato wobble
                     const cryVib = new Tone.Vibrato(4.5, 0.2).connect(bus);
-                    instruments.cry = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "triangle" }, envelope: { attack: 0.08, decay: 0.4, sustain: 0.5, release: 0.4 }, filter: { Q: 5, type: "lowpass" }, filterEnvelope: { attack: 0.1, decay: 0.4, sustain: 0.3, release: 0.4, baseFrequency: 900, octaves: -1.5 } }).connect(cryVib);
-                    instruments.cry.volume.value = -7;
+                    cache.cry = new Tone.PolySynth(Tone.MonoSynth, { ...polyOptions, oscillator: { type: "triangle" }, envelope: { attack: 0.08, decay: 0.4, sustain: 0.5, release: 0.4 }, filter: { Q: 5, type: "lowpass" }, filterEnvelope: { attack: 0.1, decay: 0.4, sustain: 0.3, release: 0.4, baseFrequency: 900, octaves: -1.5 } }).connect(cryVib);
+                    cache.cry.volume.value = -7;
                     break;
                 }
                 case 'hiss': {
                     // Snake hiss / sizzle — very inharmonic FM = pseudo-noise + bandpass
                     const hissFilter = new Tone.Filter(4000, "bandpass").connect(bus);
                     hissFilter.Q.value = 3.5;
-                    instruments.hiss = new Tone.PolySynth(Tone.FMSynth, { ...polyOptions, harmonicity: 13, modulationIndex: 24, oscillator: { type: "square" }, envelope: { attack: 0.02, decay: 0.3, sustain: 0.4, release: 0.2 }, modulation: { type: "square" }, modulationEnvelope: { attack: 0.01, decay: 0.2, sustain: 0.5, release: 0.2 } }).connect(hissFilter);
-                    instruments.hiss.volume.value = -16;
+                    cache.hiss = new Tone.PolySynth(Tone.FMSynth, { ...polyOptions, harmonicity: 13, modulationIndex: 24, oscillator: { type: "square" }, envelope: { attack: 0.02, decay: 0.3, sustain: 0.4, release: 0.2 }, modulation: { type: "square" }, modulationEnvelope: { attack: 0.01, decay: 0.2, sustain: 0.5, release: 0.2 } }).connect(hissFilter);
+                    cache.hiss.volume.value = -16;
                     break;
                 }
                 case 'buzz': {
                     // Bee buzz — high vibrato sawtooth, detuned up for insect feel
                     const buzzVib = new Tone.Vibrato(28, 0.45).connect(bus);
-                    instruments.buzz = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.01, decay: 0.18, sustain: 0.7, release: 0.15 }, detune: 1200 }).connect(buzzVib);
-                    instruments.buzz.volume.value = -16;
+                    cache.buzz = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "sawtooth" }, envelope: { attack: 0.01, decay: 0.18, sustain: 0.7, release: 0.15 }, detune: 1200 }).connect(buzzVib);
+                    cache.buzz.volume.value = -16;
                     break;
                 }
                 case 'zap': {
                     // Lightning zap — distorted FM blast with very fast decay
                     const zapDist = new Tone.Distortion(0.75).connect(bus);
-                    instruments.zap = new Tone.PolySynth(Tone.FMSynth, { ...polyOptions, harmonicity: 1.5, modulationIndex: 28, oscillator: { type: "sawtooth" }, envelope: { attack: 0.001, decay: 0.14, sustain: 0, release: 0.08 }, modulation: { type: "square" }, modulationEnvelope: { attack: 0.001, decay: 0.1, sustain: 0, release: 0.05 } }).connect(zapDist);
-                    instruments.zap.volume.value = -8;
+                    cache.zap = new Tone.PolySynth(Tone.FMSynth, { ...polyOptions, harmonicity: 1.5, modulationIndex: 28, oscillator: { type: "sawtooth" }, envelope: { attack: 0.001, decay: 0.14, sustain: 0, release: 0.08 }, modulation: { type: "square" }, modulationEnvelope: { attack: 0.001, decay: 0.1, sustain: 0, release: 0.05 } }).connect(zapDist);
+                    cache.zap.volume.value = -8;
                     break;
                 }
                 default:
                     // Lazy load default if not exists
-                    if (!instruments.default) {
-                        instruments.default = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "triangle" }, envelope: { attack: 0.01, decay: 0.3, sustain: 0.1, release: 0.1 } }).connect(bus);
-                        instruments.default.volume.value = -3;
+                    if (!cache.default) {
+                        cache.default = new Tone.PolySynth(Tone.Synth, { ...polyOptions, oscillator: { type: "triangle" }, envelope: { attack: 0.01, decay: 0.3, sustain: 0.1, release: 0.1 } }).connect(bus);
+                        cache.default.volume.value = -3;
                     }
-                    return instruments.default;
+                    return cache.default;
             }
-            return instruments[type];
+            return cache[type];
         }
 
         async function initAudio() {
@@ -2518,7 +2519,7 @@
             const basePitch = pitchForRow(noteObj.gridY);
             const pitch = transposePitch(basePitch, (profile.semi || 0) + normalizePitchOffset(noteObj.pitchOffset));
             const duration = profile.dur || getSequenceDuration(profile.synth);
-            triggerSound(profile.synth, pitch, duration, time);
+            triggerSound(profile.synth, pitch, duration, time, noteObj.velocity);
         }
 
         function playPreview(emoji) {
@@ -3153,6 +3154,7 @@
         document.addEventListener('pointermove', (e) => {
             cursorX = e.clientX;
             cursorY = e.clientY;
+            scheduleCursorUpdate();
 
             // Velocity, time-normalized (px/ms scaled to a feel-good range)
             const now = e.timeStamp || performance.now();
@@ -3168,13 +3170,18 @@
             }
         }, { passive: true });
 
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+        let cursorRafId = null;
         function animateCursor() {
             if(customCursor) {
-                customCursor.style.transform = `translate(${cursorX - 32}px, ${cursorY - 32}px)`; // 64px / 2
+                customCursor.style.transform = `translate(${cursorX - 32}px, ${cursorY - 32}px)`;
             }
-            requestAnimationFrame(animateCursor);
+            cursorRafId = null;
         }
-        animateCursor();
+        function scheduleCursorUpdate() {
+            if (prefersReducedMotion.matches || cursorRafId != null) return;
+            cursorRafId = requestAnimationFrame(animateCursor);
+        }
 
         // Use pointer events to handle hold-to-press behavior robustly (compatible with mouse/touch/pen)
         // This ensures the cursor visually "presses" and "releases" regardless of where the click occurs.
@@ -3254,6 +3261,17 @@
             } catch (err) {
                 songCodeOutput.select();
                 showToast("Couldn't copy automatically — press Cmd/Ctrl+C", "error");
+            }
+        });
+
+        copyLinkBtn.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(location.href);
+                copyLinkBtn.textContent = "Copied!";
+                setTimeout(() => copyLinkBtn.textContent = "Copy Link", 1200);
+                showToast("Link copied!", "success");
+            } catch (err) {
+                showToast("Couldn't copy — try copying the URL bar", "error");
             }
         });
         
@@ -3381,24 +3399,9 @@
         });
 
         // --- EXPORT (WAV) ---
-        // No offline (Tone.Offline) render path — that would need a second copy of
-        // every getInstrument() case bound to an offline context. Instead this taps
-        // the real master-bus output through a MediaStreamDestination while the song
-        // actually plays for a fixed number of loops, so it's guaranteed to sound
-        // exactly like Play does. The captured audio comes back compressed (whatever
-        // MediaRecorder supports), so it's decoded and re-encoded to a real WAV.
         const EXPORT_LOOPS = 4;
         const EXPORT_TAIL_SEC = 1.5; // let reverb/release tails ring out before cutting
         let exporting = false;
-
-        function pickRecorderMimeType() {
-            if (typeof MediaRecorder === "undefined") return null;
-            const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
-            for (const type of candidates) {
-                if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(type)) return type;
-            }
-            return ''; // let the browser pick a default
-        }
 
         function encodeWav(audioBuffer) {
             const numChannels = audioBuffer.numberOfChannels;
@@ -3454,57 +3457,45 @@
                 return;
             }
             await initAudio();
-            if (typeof MediaRecorder === "undefined" || typeof AudioContext === "undefined") {
-                showToast("This browser can't export audio — try Chrome or Safari.", "error");
+            if (typeof Tone === "undefined") {
+                showToast("Audio engine not loaded.", "error");
                 return;
             }
             if (state.isPlaying) stopPlayback();
 
             setExportingUI(true);
-            getMasterBus(); // ensures masterBusOutput exists
-
-            const rawCtx = Tone.context.rawContext;
-            const dest = rawCtx.createMediaStreamDestination();
-            masterBusOutput.connect(dest);
-
-            const chunks = [];
-            const mimeType = pickRecorderMimeType();
-            const recorder = new MediaRecorder(dest.stream, mimeType ? { mimeType } : undefined);
-            recorder.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
-
-            const finished = new Promise((resolve, reject) => {
-                recorder.onstop = () => resolve();
-                recorder.onerror = (e) => reject(e.error || new Error('Recording failed'));
-            });
-
-            recorder.start();
-            startPlayback();
-            const totalSteps = GRID_COLS * EXPORT_LOOPS;
-            const startedAtStep = transportStep;
-
-            await new Promise(resolve => {
-                const poll = setInterval(() => {
-                    if (transportStep - startedAtStep >= totalSteps) {
-                        clearInterval(poll);
-                        resolve();
-                    }
-                }, 50);
-            });
-            stopPlayback();
-
-            await new Promise(r => setTimeout(r, EXPORT_TAIL_SEC * 1000));
-            recorder.stop();
 
             try {
-                await finished;
-                masterBusOutput.disconnect(dest);
-                const blob = new Blob(chunks, { type: mimeType || chunks[0]?.type || 'audio/webm' });
-                const arrayBuffer = await blob.arrayBuffer();
-                const decodeCtx = new AudioContext();
-                const audioBuffer = await decodeCtx.decodeAudioData(arrayBuffer);
-                await decodeCtx.close();
-                const wavBlob = encodeWav(audioBuffer);
+                const bpm = state.bpm;
+                const stepSec = 60 / bpm / 4; // 16th note duration in seconds
+                const totalSteps = GRID_COLS * EXPORT_LOOPS;
+                const duration = totalSteps * stepSec + EXPORT_TAIL_SEC;
 
+                const audioBuffer = await Tone.Offline(() => {
+                    const limiter = new Tone.Limiter(-2).toDestination();
+                    const reverb = new Tone.Reverb({ decay: 1.2, wet: 0.2 }).connect(limiter);
+                    const offBus = new Tone.Compressor({
+                        ratio: 3, threshold: -18, attack: 0.003, release: 0.1
+                    }).connect(reverb);
+                    const offCache = {};
+
+                    for (let step = 0; step < totalSteps; step++) {
+                        const col = step % GRID_COLS;
+                        const time = step * stepSec;
+                        const notesInCol = state.notes.filter(n => n.gridX === col);
+                        for (const note of notesInCol) {
+                            const profile = getVoiceProfile(note.emoji);
+                            const basePitch = pitchForRow(note.gridY);
+                            const pitch = transposePitch(basePitch, (profile.semi || 0) + normalizePitchOffset(note.pitchOffset));
+                            const dur = profile.dur || getSequenceDuration(profile.synth);
+                            const vel = Math.min(1, Math.max(0.5, note.velocity || 1));
+                            const inst = getInstrument(profile.synth, offBus, offCache);
+                            inst.triggerAttackRelease(pitch, dur, time, vel);
+                        }
+                    }
+                }, duration);
+
+                const wavBlob = encodeWav(audioBuffer);
                 const current = currentSongId && loadSongLibrary().find(s => s.id === currentSongId);
                 const url = URL.createObjectURL(wavBlob);
                 const a = document.createElement('a');
@@ -3514,10 +3505,9 @@
                 a.click();
                 a.remove();
                 setTimeout(() => URL.revokeObjectURL(url), 4000);
-
                 showToast("Exported!", "success");
             } catch (err) {
-                masterBusOutput.disconnect(dest);
+                console.error('Export failed:', err);
                 showToast("Export failed — try again.", "error");
             } finally {
                 setExportingUI(false);
@@ -3962,6 +3952,20 @@
                 return;
             }
 
+            // Cmd/Ctrl+S — save to library
+            if ((e.metaKey || e.ctrlKey) && (e.key === 's' || e.key === 'S')) {
+                e.preventDefault();
+                saveCurrentSong();
+                return;
+            }
+
+            // Cmd/Ctrl+N — new song (clear with confirm)
+            if ((e.metaKey || e.ctrlKey) && (e.key === 'n' || e.key === 'N')) {
+                e.preventDefault();
+                clearBtn.click();
+                return;
+            }
+
             // Space — toggle play. Skip if focus is on a button so Space activates the button.
             if ((e.key === ' ' || e.code === 'Space') && !isInteractiveTarget(e.target)) {
                 e.preventDefault();
@@ -4338,7 +4342,7 @@
         }
         tryRestoreSong();
 
-        // Detect Tone.js CDN failure — defer means it loads after this script, so
+        // Detect Tone.js load failure — defer means it loads after this script, so
         // wait for load+a beat and warn if still missing.
         window.addEventListener('load', () => {
             setTimeout(() => {
@@ -4355,6 +4359,10 @@
         });
 
         startRenderLoop();
+
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js').catch(() => {});
+        }
 
     </script>
 </body>

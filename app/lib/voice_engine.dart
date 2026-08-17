@@ -191,7 +191,10 @@ class VoiceEngine {
   }
 
   Future<void> dispose() async {
-    if (_soloud.isInitialized) await _soloud.disposeAllSources();
+    if (_soloud.isInitialized) {
+      await _soloud.disposeAllSources();
+      _soloud.deinit();
+    }
     _sources.clear();
     ready = false;
   }

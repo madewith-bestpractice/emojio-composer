@@ -4,3 +4,6 @@
   Content-Type: application/json
 /.well-known/apple-app-site-association
   Content-Type: application/json
+
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://cdn.jsdelivr.net; connect-src 'self'; media-src 'self' blob:; worker-src 'self' blob:
