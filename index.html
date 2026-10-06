@@ -2743,7 +2743,7 @@
         // paper: a clef bleeding onto the scrolling notes would break the illusion.
         // When the staff scrolls, also keep clear of the torn edge.
         function drawClef(g) {
-            const reserve = staffScrollable ? TEAR_W / 2 : 2;
+            const reserve = staffScrollable ? TEAR_W : 2;
             const room = staffPaddingLeft - reserve - 8;
             const space = Math.min(stepY * 1.5, room / CLEF_W);
             const x = Math.max(4, (room - CLEF_W * space) / 2);
@@ -2785,7 +2785,7 @@
             g.globalAlpha = opacity;
             // One fill paints both: the shadow the paper casts onto the notes sliding
             // under it, then the paper itself on top.
-            tearPath(g, staffPaddingLeft - 8, h);
+            tearPath(g, staffPaddingLeft - TEAR_W, h);
             g.shadowColor = 'rgba(0, 0, 0, 0.22)';
             g.shadowBlur = 6;
             g.shadowOffsetX = 3;
@@ -2798,7 +2798,7 @@
             // blank white margin tacked onto the end of the staff.
             g.save();
             g.globalAlpha = opacity;
-            tearPath(g, staffPaddingLeft - 8, h);
+            tearPath(g, staffPaddingLeft - TEAR_W, h);
             g.clip();
             drawStaffLines(g, 20, staffPaddingLeft + TEAR_W);
             g.restore();
@@ -2808,14 +2808,15 @@
             const h = clefGutter.height;
             gutterCtx.clearRect(0, 0, clefGutter.width, h);
 
-            // Opaque paper exactly as wide as the gutter — the staff scrolls beneath it.
+            // Opaque paper as wide as the gutter — the staff scrolls beneath it.
+            // When the staff scrolls, the last TEAR_W of it is the torn edge
+            // instead, always shown since it's what says the staff scrolls. It
+            // tears inside the gutter, so it never covers the first column.
+            const paperW = staffScrollable ? staffPaddingLeft - TEAR_W : staffPaddingLeft;
             gutterCtx.fillStyle = COLORS.bg;
-            gutterCtx.fillRect(0, 0, staffPaddingLeft, h);
-            drawStaffLines(gutterCtx, 20, staffPaddingLeft);
+            gutterCtx.fillRect(0, 0, paperW, h);
+            drawStaffLines(gutterCtx, 20, paperW);
             drawClef(gutterCtx);
-
-            // Whenever the staff is wider than the screen, the tear is always shown:
-            // it's what says the staff scrolls.
             if (staffScrollable) drawTornEdge(gutterCtx, h, 1);
         }
 
