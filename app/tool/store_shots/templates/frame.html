@@ -1,0 +1,78 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @font-face { font-family: Pixel; src: url("{{fonts}}/PressStart2P-Regular.ttf"); }
+  :root {
+    --w: {{w}}px; --h: {{h}}px; --unit: {{unit}}px;
+    --caption: {{caption}}px; --card-w: {{card_w}}px;
+    --ink: #37474F; --pink: #FF4081; --yellow: #FFF696; --dot: #F2E46B;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: var(--w); height: var(--h); overflow: hidden; }
+  body {
+    background-color: var(--yellow);
+    background-image: radial-gradient(var(--dot) 18%, transparent 19%);
+    background-size: calc(var(--unit) * 2.2) calc(var(--unit) * 2.2);
+    font-family: ui-rounded, "SF Pro Rounded", -apple-system, "Helvetica Neue", sans-serif;
+    color: var(--ink);
+  }
+  .caption {
+    min-height: var(--caption);
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    text-align: center; padding: calc(var(--unit) * 1.4) calc(var(--unit) * 3);
+  }
+  .eyebrow {
+    font-family: Pixel, monospace; font-size: calc(var(--unit) * 0.95);
+    letter-spacing: 0.08em; color: var(--pink); margin-bottom: calc(var(--unit) * 1.1);
+  }
+  .headline {
+    font-weight: 800; font-size: calc(var(--unit) * 3.0); line-height: 1.08;
+    letter-spacing: -0.01em;
+  }
+  .headline b { color: var(--pink); font-weight: 900; }
+  .subline {
+    margin-top: calc(var(--unit) * 0.9);
+    font-weight: 600; font-size: calc(var(--unit) * 1.35); opacity: 0.8;
+  }
+  .badge {
+    display: {{badge}}; margin-top: calc(var(--unit) * 1.0);
+    font-family: Pixel, monospace; font-size: calc(var(--unit) * 0.85);
+    color: white; background: var(--pink);
+    padding: calc(var(--unit) * 0.55) calc(var(--unit) * 1.0);
+    border: calc(var(--unit) * 0.18) solid var(--ink); border-radius: calc(var(--unit) * 0.8);
+    box-shadow: calc(var(--unit) * 0.25) calc(var(--unit) * 0.25) 0 var(--ink);
+  }
+  .card {
+    width: var(--card-w); margin: 0 auto; visibility: hidden;
+    border: calc(var(--unit) * 0.3) solid var(--ink);
+    border-radius: calc(var(--unit) * 1.8); overflow: hidden;
+    box-shadow: calc(var(--unit) * 0.6) calc(var(--unit) * 0.6) 0 var(--ink);
+  }
+  .card img { display: block; width: 100%; }
+</style>
+</head>
+<body>
+  <div class="caption">
+    <div class="eyebrow">{{eyebrow}}</div>
+    <div class="headline">{{headline}}</div>
+    <div class="subline">{{subline}}</div>
+    <div class="badge">★ PREMIUM</div>
+  </div>
+  <div class="card"><img src="{{image}}"></div>
+  <script>
+    // Fit the shot into whatever the caption leaves, once its fonts are in:
+    // a two-line headline or a badge makes the caption taller than a guess.
+    document.fonts.ready.then(() => {
+      const H = {{h}}, aspect = {{aspect}}, maxW = {{card_w}};
+      const unit = {{unit}};
+      const room = H - document.querySelector('.caption').offsetHeight - unit * 1.6;
+      const w = Math.min(maxW, room * aspect);
+      const card = document.querySelector('.card');
+      card.style.width = w + 'px';
+      card.style.visibility = 'visible';
+    });
+  </script>
+</body>
+</html>

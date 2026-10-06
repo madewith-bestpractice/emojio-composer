@@ -29,6 +29,7 @@ import 'song.dart';
 import 'song_library.dart';
 import 'splash.dart';
 import 'staff_painter.dart';
+import 'store_demo.dart';
 import 'tempo_sheet.dart';
 import 'theme.dart';
 import 'voice_engine.dart';
@@ -264,6 +265,9 @@ class _HarnessPageState extends State<HarnessPage>
       });
       _ticker.start();
       await _initDeepLinks();
+      await loadStoreDemo();
+      final demo = storeDemo;
+      if (demo != null) await _runStoreDemo(demo);
     } catch (e, st) {
       debugPrint('boot failed: $e\n$st');
       setState(() => _bootError = '$e');
@@ -1294,6 +1298,38 @@ class _HarnessPageState extends State<HarnessPage>
     _snack('Loaded shared song!');
   }
 
+  /// Debug builds only: sets up one store screenshot (see store_demo.dart).
+  Future<void> _runStoreDemo(String mode) async {
+    _loadShared(demoSong());
+    setState(() => _selected = '🐸');
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    if (!mounted) return;
+    switch (mode) {
+      case 'play':
+        _togglePlay();
+      case 'picker':
+        await _openPicker();
+      case 'library':
+        if ((await _library.list()).isEmpty) {
+          for (final (name, song) in demoLibrary().reversed) {
+            await _library.save(
+              Song.fresh(
+                name: name,
+                bpm: song.bpm,
+                palette: song.palette,
+                selectedEmoji: song.palette.first,
+              )..notes = song.notes,
+            );
+          }
+        }
+        await _openLibrary();
+      case 'export':
+        await _openExport();
+      case 'midi':
+        await _openMidi();
+    }
+  }
+
   // Like _loadSong but for an incoming link: no id/name, so it behaves as a
   // fresh unsaved song the recipient can tweak and Save under their own name.
   void _loadShared(SharedSong s) => setState(() {
@@ -1379,7 +1415,7 @@ class _HarnessPageState extends State<HarnessPage>
         crossAxisAlignment: CrossAxisAlignment.stretch, // bars span full width
         children: [
           _header(topInset: topInset),
-          if (!_purchases.unlocked && _trial.active)
+          if (!_purchases.unlocked && _trial.active && storeDemo == null)
             TrialBanner(trial: _trial, onTap: _openPaywall),
           _paletteBar(),
           Expanded(child: _staff()),
