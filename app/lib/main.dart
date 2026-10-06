@@ -112,6 +112,9 @@ class _HarnessPageState extends State<HarnessPage>
   int _midiDevices =
       0; // tracked so device connect/disconnect rebuilds the page
   int _cursorStep = 0; // MIDI shuttle scrub position (shown when stopped)
+  // The scrub cursor only shows once a MIDI controller has moved it: without
+  // one it's a stray wash beside the gutter.
+  bool _shuttled = false;
   int _extClock = 0; // MIDI-clock pulse counter (6 per 16th step)
 
   /// Premium with the lifetime unlock, or during the first-days reverse trial;
@@ -461,9 +464,10 @@ class _HarnessPageState extends State<HarnessPage>
   }
 
   void _shuttle(int delta) {
-    setState(
-      () => _cursorStep = ((_cursorStep + delta) % kCols + kCols) % kCols,
-    );
+    setState(() {
+      _shuttled = true;
+      _cursorStep = ((_cursorStep + delta) % kCols + kCols) % kCols;
+    });
     for (final n in _notes) {
       if (n.gridX == _cursorStep) {
         _engine.playEmoji(
@@ -2053,7 +2057,7 @@ class _HarnessPageState extends State<HarnessPage>
         currentStep: _currentStep,
         playheadFrac: _playheadFrac,
         tMs: _nowMs,
-        cursorStep: _playing ? -1 : _cursorStep,
+        cursorStep: _playing || !_shuttled ? -1 : _cursorStep,
         rowLabels: withGutter ? labels : null,
         showClef: withGutter && showClef,
         reduceMotion: reduceMotion,
