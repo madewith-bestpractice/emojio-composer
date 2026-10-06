@@ -32,7 +32,8 @@
       "headline": "Plug in a <b>MIDI keyboard</b>",
       "subline": "Play soft or loud with Apple Pencil",
       "subline_play": "Play soft or loud with a stylus",
-      "premium": true
+      "premium": true,
+      "subline_mac": "Play live, record into the grid, sync to MIDI clock"
     }
   },
   "sets": {
@@ -81,6 +82,21 @@
         "compose",
         "picker",
         "library",
+        "export",
+        "midi"
+      ]
+    },
+    "appstore-mac": {
+      "store": "appstore",
+      "raw": "mac",
+      "size": [
+        2880,
+        1800
+      ],
+      "frames": [
+        "play",
+        "compose",
+        "picker",
         "export",
         "midi"
       ]

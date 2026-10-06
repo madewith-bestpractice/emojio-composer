@@ -71,7 +71,11 @@ def build(name, spec, frames):
     made = []
     for n, frame in enumerate(spec["frames"], 1):
         f = frames[frame]
-        subline = f.get("subline_play", f["subline"]) if spec["store"] == "play" else f["subline"]
+        subline = f["subline"]
+        if spec["store"] == "play":
+            subline = f.get("subline_play", subline)
+        elif spec["raw"] == "mac":
+            subline = f.get("subline_mac", subline)
         text = {"eyebrow": f["eyebrow"], "headline": f["headline"], "subline": subline}
         lint(spec["store"], frame, text)
         src = RAW / spec["raw"] / f"{frame}.png"
