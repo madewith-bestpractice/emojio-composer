@@ -2178,28 +2178,16 @@ class _HarnessPageState extends State<HarnessPage>
               ],
             ),
             // Torn-paper right edge of the clef gutter — the notes read as
-            // scrolling under the ripped edge of the staff paper. Hidden at
-            // rest (nothing has slid under yet); it fades in over the first
-            // few pixels of scroll.
+            // scrolling under the ripped edge of the staff paper. Always
+            // shown: the handset grid always runs wider than the screen, and
+            // the rip is what says the staff scrolls.
             Positioned(
               left: StaffMetrics.gutter - 8,
               top: 0,
               bottom: 0,
               width: 24,
               child: IgnorePointer(
-                child: AnimatedBuilder(
-                  animation: _handsetScroll,
-                  builder: (context, _) {
-                    final off = _handsetScroll.hasClients
-                        ? _handsetScroll.offset
-                        : 0.0;
-                    final op = (off / 16).clamp(0.0, 1.0);
-                    return Opacity(
-                      opacity: op,
-                      child: CustomPaint(painter: TornEdgePainter(rows: _rows)),
-                    );
-                  },
-                ),
+                child: CustomPaint(painter: TornEdgePainter(rows: _rows)),
               ),
             ),
           ],
