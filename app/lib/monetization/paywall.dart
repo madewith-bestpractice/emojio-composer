@@ -3,42 +3,31 @@ import 'package:flutter/material.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:purchases_ui_flutter/purchases_ui_flutter.dart';
 import '../theme.dart';
+import 'access.dart';
 import 'purchases.dart';
 import 'trial.dart';
 
-/// Hard-wall paywall shown when the trial has ended. Prefers the RevenueCat
-/// dashboard paywall (hero, bullets, price, buttons all configured there), but
-/// that renders nothing when the offering holds no purchasable package. Behind
-/// `canPop: false` an empty render strands the user on a blank screen with no
-/// way forward, so fall back to our own sheet, which always draws a button and
-/// the reason it can't be used.
-class RcPaywall extends StatelessWidget {
-  final PurchaseManager purchases;
-  const RcPaywall({super.key, required this.purchases});
-
-  @override
-  Widget build(BuildContext context) => PopScope(
-        canPop: false, // trial's over — no way past it but to buy/restore
-        child: Scaffold(
-          backgroundColor: Toy.bg,
-          body: purchases.canBuy
-              ? PaywallView(displayCloseButton: false)
-              : UnlockSheet(purchases: purchases),
-        ),
-      );
-}
-
-/// Emojio's own unlock screen, used whenever the RevenueCat paywall can't be
-/// shown. It always renders *something*: a real buy button when a product
-/// loaded, and the underlying error plus a retry when one didn't — so a failed
-/// product load reads as a diagnosable message instead of a dead tap.
+/// Emojio's own Premium sheet. It names the feature that opened it (when there
+/// is one), lists everything Premium adds, and always renders *something*: a
+/// real buy button when a product loaded, and a plain message plus a retry when
+/// one didn't — so a failed product load never reads as a dead tap.
 ///
-/// [onClose] null means this is the hard wall and there's no way out but to
-/// buy or restore.
+/// The copy speaks to the grown-up holding the iPad: the sheet usually opens
+/// because a child tapped a locked sticker.
 class UnlockSheet extends StatefulWidget {
   final PurchaseManager purchases;
-  final VoidCallback? onClose;
-  const UnlockSheet({super.key, required this.purchases, this.onClose});
+  final VoidCallback onClose;
+
+  /// The locked feature the user just reached for, or null when they opened
+  /// Premium on purpose (header button, Customer Center fallback).
+  final PremiumFeature? reason;
+
+  const UnlockSheet({
+    super.key,
+    required this.purchases,
+    required this.onClose,
+    this.reason,
+  });
 
   @override
   State<UnlockSheet> createState() => _UnlockSheetState();
@@ -62,29 +51,64 @@ class _UnlockSheetState extends State<UnlockSheet> {
   void _onChange() {
     if (!mounted) return;
     setState(() {});
-    // Bought or restored from this sheet — dismiss so the app tree behind it
-    // rebuilds into the composer.
-    if (_p.unlocked && widget.onClose != null) widget.onClose!();
+    // Bought or restored from this sheet — dismiss back to the composer.
+    if (_p.unlocked) widget.onClose();
   }
 
   @override
   Widget build(BuildContext context) {
     final price = _p.priceLabel;
+    final reason = widget.reason;
     return Container(
       color: Toy.bg,
-      padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('🔓', style: TextStyle(fontSize: 44)),
+            Text(reason?.emoji ?? '✨', style: const TextStyle(fontSize: 44)),
             const SizedBox(height: 14),
-            Text('EMOJIO LIFETIME UNLOCK',
-                textAlign: TextAlign.center, style: Toy.label(13)),
-            const SizedBox(height: 12),
-            Text('All features, no subscriptions.',
-                textAlign: TextAlign.center, style: Toy.label(9)),
-            const SizedBox(height: 22),
+            Text(
+              reason == null
+                  ? 'EMOJIO PREMIUM'
+                  : '${reason.title.toUpperCase()} IS PREMIUM',
+              textAlign: TextAlign.center,
+              style: Toy.label(13),
+            ),
+            if (reason != null) ...[
+              const SizedBox(height: 10),
+              Text(reason.blurb,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 14, color: Toy.text)),
+            ],
+            const SizedBox(height: 18),
+            // Everything Premium adds, so one purchase reads as worth it.
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 360),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final f in PremiumFeature.values)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: [
+                          Text(f.emoji, style: const TextStyle(fontSize: 18)),
+                          const SizedBox(width: 10),
+                          Expanded(child: Text(f.title, style: Toy.label(9))),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'For grown-ups: one payment, yours forever.\nNo subscription.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: Colors.black54),
+            ),
+            const SizedBox(height: 18),
             if (_p.purchasePending)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 10),
@@ -92,7 +116,7 @@ class _UnlockSheetState extends State<UnlockSheet> {
               )
             else
               ToyButton(
-                label: price.isEmpty ? 'Unlock Forever' : 'Unlock — $price',
+                label: price.isEmpty ? 'Get Premium' : 'Get Premium — $price',
                 emoji: '✨',
                 color: Toy.accent,
                 fontSize: 11,
@@ -110,8 +134,7 @@ class _UnlockSheetState extends State<UnlockSheet> {
               fontSize: 9,
               onPressed: _p.restore,
             ),
-            // No product loaded — say so plainly and offer a retry. This is the
-            // state that previously rendered nothing.
+            // No product loaded — say so plainly and offer a retry.
             if (!_p.canBuy) ...[
               const SizedBox(height: 20),
               Text(
@@ -146,13 +169,11 @@ class _UnlockSheetState extends State<UnlockSheet> {
               Text(_p.error!,
                   textAlign: TextAlign.center, style: Toy.label(6, Toy.line)),
             ],
-            if (widget.onClose != null) ...[
-              const SizedBox(height: 22),
-              TextButton(
-                onPressed: widget.onClose,
-                child: Text('Not now', style: Toy.label(9)),
-              ),
-            ],
+            const SizedBox(height: 22),
+            TextButton(
+              onPressed: widget.onClose,
+              child: Text('Not now', style: Toy.label(9)),
+            ),
           ],
         ),
       ),
@@ -160,12 +181,31 @@ class _UnlockSheetState extends State<UnlockSheet> {
   }
 }
 
-/// Opens the purchase flow. Prefers RevenueCat's hosted paywall and falls back
-/// to [UnlockSheet] when it can't be used — the SDK isn't configured, no
-/// product loaded, or the native presentation returned an error. Every path
-/// ends with something on screen; none of them no-op.
-Future<void> presentEmojioPaywall(
-    BuildContext context, PurchaseManager purchases) async {
+Future<void> _showUnlockSheet(BuildContext context, PurchaseManager purchases,
+        {PremiumFeature? reason}) =>
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Toy.bg,
+      isScrollControlled: true,
+      builder: (sheetContext) => UnlockSheet(
+        purchases: purchases,
+        reason: reason,
+        onClose: () => Navigator.of(sheetContext).pop(),
+      ),
+    );
+
+/// Opens the purchase flow and resolves once it's dismissed; true if the user
+/// now has the unlock.
+///
+/// From a locked feature ([reason] set) it shows [UnlockSheet], which can say
+/// which feature was reached for. Opened on purpose (the header Premium button)
+/// it prefers RevenueCat's dashboard paywall and falls back to [UnlockSheet]
+/// when that can't be used — the SDK isn't configured, no product loaded, or
+/// the native presentation returned an error. Every path ends with something
+/// on screen; none of them no-op.
+Future<bool> presentEmojioPaywall(
+    BuildContext context, PurchaseManager purchases,
+    {PremiumFeature? reason}) async {
   // Presenting before configure() trips a native `Purchases.shared` assertion
   // (SIGTRAP) that a Dart try/catch can't catch, so gate on it.
   final configured = await Purchases.isConfigured;
@@ -173,20 +213,16 @@ Future<void> presentEmojioPaywall(
   // launch) and since recovered.
   if (configured && !purchases.canBuy) await purchases.reload();
 
-  if (configured && purchases.canBuy) {
+  if (reason == null && configured && purchases.canBuy) {
     final result = await RevenueCatUI.presentPaywall(displayCloseButton: true);
-    if (result != PaywallResult.error) return;
+    if (result == PaywallResult.purchased || result == PaywallResult.restored) {
+      return true;
+    }
+    if (result != PaywallResult.error) return purchases.unlocked;
   }
-  if (!context.mounted) return;
-  await showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: Toy.bg,
-    isScrollControlled: true,
-    builder: (sheetContext) => UnlockSheet(
-      purchases: purchases,
-      onClose: () => Navigator.of(sheetContext).pop(),
-    ),
-  );
+  if (!context.mounted) return purchases.unlocked;
+  await _showUnlockSheet(context, purchases, reason: reason);
+  return purchases.unlocked;
 }
 
 /// Opens the RevenueCat Customer Center (restore, manage the unlock, contact
@@ -200,20 +236,13 @@ Future<void> presentEmojioCustomerCenter(
     return;
   }
   if (!context.mounted) return;
-  await showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: Toy.bg,
-    isScrollControlled: true,
-    builder: (sheetContext) => UnlockSheet(
-      purchases: purchases,
-      onClose: () => Navigator.of(sheetContext).pop(),
-    ),
-  );
+  await _showUnlockSheet(context, purchases);
 }
 
-/// Slim banner shown during the trial (when not yet unlocked). Carries a real
-/// [ToyButton] rather than bare text: styled as a flat ribbon it read as a
-/// status strip, and App Review couldn't find the purchase behind it.
+/// Slim ribbon shown during the reverse trial (Premium free for the first few
+/// days), so the drop back to the free tier is never a surprise. Carries a real
+/// [ToyButton]: styled as a flat ribbon it read as a status strip, and App
+/// Review couldn't find the purchase behind it.
 class TrialBanner extends StatelessWidget {
   final TrialManager trial;
   final VoidCallback onTap;
@@ -233,11 +262,12 @@ class TrialBanner extends StatelessWidget {
               const Text('✨', style: TextStyle(fontSize: 15)),
               const SizedBox(width: 8),
               Expanded(
-                child: Text('Free trial — $d ${d == 1 ? "day" : "days"} left',
+                child: Text(
+                    'Premium free for $d more ${d == 1 ? "day" : "days"}',
                     style: Toy.label(9)),
               ),
               ToyButton(
-                label: 'Unlock',
+                label: 'Keep Premium',
                 color: Toy.accent,
                 fontSize: 9,
                 padding:

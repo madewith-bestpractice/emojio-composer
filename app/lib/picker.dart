@@ -8,9 +8,12 @@ import 'theme.dart';
 /// dismissed. Choosing a sticker plays its sound; on devices that support hover
 /// (Apple Pencil), hovering a sticker previews it too — [onPreview] is the play
 /// hook. Emojis whose voice isn't in the current bundle are dimmed + tagged 🔇.
+/// [locked] stickers (Premium sounds) are tagged 🔒 but still preview and still
+/// return when chosen — the caller decides what choosing one does.
 Future<String?> showEmojiPicker(
   BuildContext context, {
   required Set<String> playable,
+  Set<String> locked = const {},
   required void Function(String emoji) onPreview,
 }) {
   return showModalBottomSheet<String>(
@@ -21,7 +24,8 @@ Future<String?> showEmojiPicker(
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
-    builder: (ctx) => _PickerBody(playable: playable, onPreview: onPreview),
+    builder: (ctx) =>
+        _PickerBody(playable: playable, locked: locked, onPreview: onPreview),
   );
 }
 
@@ -70,8 +74,10 @@ class _SplashField extends StatelessWidget {
 
 class _PickerBody extends StatefulWidget {
   final Set<String> playable;
+  final Set<String> locked;
   final void Function(String emoji) onPreview;
-  const _PickerBody({required this.playable, required this.onPreview});
+  const _PickerBody(
+      {required this.playable, required this.locked, required this.onPreview});
 
   @override
   State<_PickerBody> createState() => _PickerBodyState();
@@ -154,6 +160,7 @@ class _PickerBodyState extends State<_PickerBody>
                       _Grid(
                           emojis: kCategories[c]!,
                           playable: widget.playable,
+                          locked: widget.locked,
                           onPreview: widget.onPreview),
                   ],
                 ),
@@ -177,8 +184,13 @@ class _PickerBodyState extends State<_PickerBody>
 class _Grid extends StatelessWidget {
   final List<String> emojis;
   final Set<String> playable;
+  final Set<String> locked;
   final void Function(String emoji) onPreview;
-  const _Grid({required this.emojis, required this.playable, required this.onPreview});
+  const _Grid(
+      {required this.emojis,
+      required this.playable,
+      required this.locked,
+      required this.onPreview});
 
   @override
   Widget build(BuildContext context) {
@@ -190,7 +202,11 @@ class _Grid extends StatelessWidget {
       physics: const ClampingScrollPhysics(),
       children: [
         for (final e in emojis)
-          _Item(emoji: e, playable: playable.contains(e), onPreview: onPreview),
+          _Item(
+              emoji: e,
+              playable: playable.contains(e),
+              locked: locked.contains(e),
+              onPreview: onPreview),
       ],
     );
   }
@@ -199,8 +215,13 @@ class _Grid extends StatelessWidget {
 class _Item extends StatelessWidget {
   final String emoji;
   final bool playable;
+  final bool locked;
   final void Function(String emoji) onPreview;
-  const _Item({required this.emoji, required this.playable, required this.onPreview});
+  const _Item(
+      {required this.emoji,
+      required this.playable,
+      required this.locked,
+      required this.onPreview});
 
   void _preview() {
     if (playable) onPreview(emoji);
@@ -210,7 +231,11 @@ class _Item extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
-      label: playable ? emoji : '$emoji, no sound',
+      label: !playable
+          ? '$emoji, no sound'
+          : locked
+              ? '$emoji, Premium'
+              : emoji,
       onTap: () {
         _preview();
         Navigator.pop(context, emoji);
@@ -234,7 +259,9 @@ class _Item extends StatelessWidget {
                   children: [
                     Text(emoji, style: const TextStyle(fontSize: 26)),
                     if (!playable)
-                      const Positioned(right: 2, bottom: 1, child: Text('🔇', style: TextStyle(fontSize: 10))),
+                      const Positioned(right: 2, bottom: 1, child: Text('🔇', style: TextStyle(fontSize: 10)))
+                    else if (locked)
+                      const Positioned(right: 2, bottom: 1, child: Text('🔒', style: TextStyle(fontSize: 10))),
                   ],
                 ),
               ),

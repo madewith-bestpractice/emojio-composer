@@ -19,6 +19,7 @@ import 'midi/clock_out.dart';
 import 'midi/host_time.dart';
 import 'midi/midi_manager.dart';
 import 'midi/midi_panel.dart';
+import 'monetization/access.dart';
 import 'monetization/paywall.dart';
 import 'monetization/purchases.dart';
 import 'monetization/trial.dart';
@@ -97,7 +98,18 @@ class _HarnessPageState extends State<HarnessPage>
   int _cursorStep = 0; // MIDI shuttle scrub position (shown when stopped)
   int _extClock = 0; // MIDI-clock pulse counter (6 per 16th step)
 
-  bool get _hasAccess => _purchases.unlocked || _trial.active;
+  /// Premium with the lifetime unlock, or during the first-days reverse trial;
+  /// the free tier otherwise. Read fresh each time, so the trial lapsing or a
+  /// purchase landing takes effect on the next tap.
+  Access get _access => Access(premium: _purchases.unlocked || _trial.active);
+
+  /// True if [f] is available — otherwise opens the paywall naming it and
+  /// resolves true only if the user unlocks there.
+  Future<bool> _requirePremium(PremiumFeature f) async {
+    if (_access.allows(f)) return true;
+    if (_playing) _togglePlay();
+    return presentEmojioPaywall(context, _purchases, reason: f);
+  }
 
   VoiceManifest? _manifest;
   String? _bootError;
@@ -170,10 +182,9 @@ class _HarnessPageState extends State<HarnessPage>
         debugPrint('audio session config failed: $e');
       }
       // Keychain reads can fail (-34018 when entitlements are missing). Let it:
-      // an unwritable trial start leaves the trial reading as active, which
-      // opens the app with the purchase reachable. Letting it throw here would
-      // abort the rest of boot and strand the user on the error screen with no
-      // way to buy anything.
+      // an unwritable trial start leaves the reverse trial reading as active,
+      // so the session runs as Premium. Letting it throw here would abort the
+      // rest of boot and strand the user on the error screen.
       try {
         await _trial.ensureStarted();
       } catch (e) {
@@ -181,24 +192,44 @@ class _HarnessPageState extends State<HarnessPage>
       }
       _purchases.addListener(_onMonetizationChange);
       await _purchases.init();
-      _midi.onNote = _onMidiNote;
-      _midi.onAction = _doMidiAction;
-      _midi.onShuttle = _shuttle;
-      _midi.onPaletteSlot = _selectSlot;
-      _midi.onClock = _extClockStep;
-      _midi.onStart = _extStart;
-      _midi.onContinue = () {
-        if (_midi.externalSync) _playing = true;
+      // MIDI is Premium: without it, incoming events are ignored.
+      _midi.onNote = (e) {
+        if (_midiOn) _onMidiNote(e);
       };
-      _midi.onStop = _extStop;
-      _midi.onSongPosition = _extSongPos;
+      _midi.onAction = (a) {
+        if (_midiOn) _doMidiAction(a);
+      };
+      _midi.onShuttle = (d) {
+        if (_midiOn) _shuttle(d);
+      };
+      _midi.onPaletteSlot = (i) {
+        if (_midiOn) _selectSlot(i);
+      };
+      _midi.onClock = () {
+        if (_midiOn) _extClockStep();
+      };
+      _midi.onStart = () {
+        if (_midiOn) _extStart();
+      };
+      _midi.onContinue = () {
+        if (_midiOn && _midi.externalSync) _playing = true;
+      };
+      _midi.onStop = () {
+        if (_midiOn) _extStop();
+      };
+      _midi.onSongPosition = (b) {
+        if (_midiOn) _extSongPos(b);
+      };
       await _midi.init();
       _midiDevices = _midi.devices.length;
       _midi.addListener(_onMidiDevices);
       final m = await VoiceManifest.load();
       await _engine.init(m);
       final playable = m.playableEmojis();
-      final shuffled = List.of(playable)..shuffle(_rng);
+      // Free users start with sounds they can pick themselves.
+      final starters = playable.where(_access.canUseVoice).toList();
+      final shuffled = List.of(starters.isEmpty ? playable : starters)
+        ..shuffle(_rng);
       setState(() {
         _manifest = m;
         _playable = playable.toSet();
@@ -227,8 +258,10 @@ class _HarnessPageState extends State<HarnessPage>
     _syncClockOut();
   }
 
+  bool get _midiOn => _access.allows(PremiumFeature.midi);
+
   bool get _clockOutShouldRun =>
-      _playing && _midi.sendClock && !_midi.externalSync;
+      _playing && _midiOn && _midi.sendClock && !_midi.externalSync;
 
   // Start/stop the clock master to match the transport + settings. Anchored at
   // the same play-press instant as _playStartMs, so the app's audio and the
@@ -281,7 +314,7 @@ class _HarnessPageState extends State<HarnessPage>
         velocity: n.velocity,
         pitchOffset: n.pitchOffset,
       );
-      if (_midi.outEnabled && _manifest != null) {
+      if (_midi.outEnabled && _midiOn && _manifest != null) {
         final ev = _manifest!.emojiVoices[n.emoji];
         _midi.sendNote(
           _engine.midiForRow(n.gridY) + (ev?.semi ?? 0) + n.pitchOffset,
@@ -453,19 +486,22 @@ class _HarnessPageState extends State<HarnessPage>
     return (bestRow, bestOffset);
   }
 
-  void _openMidi() => showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
-    backgroundColor: Colors.white,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-    ),
-    builder: (_) => FractionallySizedBox(
-      heightFactor: 0.88,
-      child: MidiPanel(midi: _midi, palette: _palette),
-    ),
-  );
+  Future<void> _openMidi() async {
+    if (!await _requirePremium(PremiumFeature.midi) || !mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => FractionallySizedBox(
+        heightFactor: 0.88,
+        child: MidiPanel(midi: _midi, palette: _palette),
+      ),
+    );
+  }
 
   // ---- export ----
   Future<void> _openExport() async {
@@ -503,9 +539,12 @@ class _HarnessPageState extends State<HarnessPage>
               color: Toy.accent,
               fontSize: 11,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-              onPressed: () {
+              locked: !_access.allows(PremiumFeature.videoExport),
+              onPressed: () async {
                 Navigator.pop(ctx);
-                _exportVideo();
+                if (await _requirePremium(PremiumFeature.videoExport)) {
+                  _exportVideo();
+                }
               },
             ),
             const SizedBox(height: 10),
@@ -1061,12 +1100,20 @@ class _HarnessPageState extends State<HarnessPage>
     final picked = await showEmojiPicker(
       context,
       playable: _playable,
+      locked: _access.lockedAmong(_playable),
       // Hear the sticker when it's chosen (or hovered with Apple Pencil), at a
       // middle pitch.
       onPreview: (e) =>
           _engine.playEmoji(e, _rows ~/ 2, pitchOffset: _selectedPitchOffset),
     );
-    if (picked != null) _addToPalette(picked);
+    if (picked == null || !mounted) return;
+    // A locked sticker still previews in the picker; choosing one offers
+    // Premium, and adds it straight away if the user unlocks there.
+    if (!_access.canUseVoice(picked) &&
+        !await _requirePremium(PremiumFeature.voices)) {
+      return;
+    }
+    _addToPalette(picked);
   }
 
   // ---- library ----
@@ -1119,6 +1166,15 @@ class _HarnessPageState extends State<HarnessPage>
     // dialog + keyboard don't compete with live playback for the CPU — that
     // contention was starving the audio thread (crackle/drop-outs).
     if (_playing) _togglePlay();
+    // Free keeps a few songs. Songs already saved past the limit (e.g. during
+    // the trial) are never touched — only a new save asks for Premium.
+    final saved = (await _library.list()).length;
+    if (!mounted) return;
+    if (!_access.canSaveAnother(saved) &&
+        !await _requirePremium(PremiumFeature.unlimitedSongs)) {
+      return;
+    }
+    if (!mounted) return;
     // Every save writes a NEW song file rather than overwriting the last one,
     // pre-filled with a generated name the user can keep or edit.
     final name = await _promptName(initial: _suggestSongName());
@@ -1266,9 +1322,9 @@ class _HarnessPageState extends State<HarnessPage>
     super.dispose();
   }
 
-  // Dismissible paywall (from the header Unlock button or the trial banner).
-  // Fire-and-forget: the purchase manager's customer-info listener updates
-  // state on completion.
+  // Premium paywall opened on purpose (the header Premium button or the trial
+  // banner). Fire-and-forget: the purchase manager's customer-info listener
+  // updates state on completion.
   void _openPaywall() {
     presentEmojioPaywall(context, _purchases);
   }
@@ -1281,8 +1337,6 @@ class _HarnessPageState extends State<HarnessPage>
   Widget build(BuildContext context) {
     if (_bootError != null) return _errorScreen(_bootError!);
     if (_manifest == null) return const SplashScreen();
-    // Hard wall once the 3-day trial ends and the app isn't unlocked.
-    if (!_hasAccess) return RcPaywall(purchases: _purchases);
     // Edge-to-edge: the coloured bars run to every screen edge. The blue header
     // owns the top (including the status-bar inset), so the top of the screen is
     // always blue; the trial ribbon, if any, sits just beneath it.
@@ -1292,7 +1346,7 @@ class _HarnessPageState extends State<HarnessPage>
         crossAxisAlignment: CrossAxisAlignment.stretch, // bars span full width
         children: [
           _header(topInset: topInset),
-          if (!_purchases.unlocked)
+          if (!_purchases.unlocked && _trial.active)
             TrialBanner(trial: _trial, onTap: _openPaywall),
           _paletteBar(),
           Expanded(child: _staff()),
@@ -1359,6 +1413,7 @@ class _HarnessPageState extends State<HarnessPage>
     required Color color,
     Color textColor = Colors.white,
     String? tooltip,
+    bool locked = false,
     required VoidCallback onPressed,
   }) => ToyButton(
     key: key,
@@ -1367,6 +1422,7 @@ class _HarnessPageState extends State<HarnessPage>
     color: color,
     textColor: textColor,
     tooltip: tooltip,
+    locked: locked,
     fontSize: _barFont,
     radius: _barRadius,
     padding: _barPad,
@@ -1388,12 +1444,12 @@ class _HarnessPageState extends State<HarnessPage>
   List<Widget> _actionButtons() => [
     // Purchase entry point, first so it survives the row scrolling on a
     // handset. The trial ribbon alone wasn't findable — App Review rejected
-    // 1.0 for it — so the unlock also lives here, shaped like every other
-    // button in the app.
+    // 1.0 for it — so Premium also lives here, shaped like every other button
+    // in the app, and shows whenever the unlock isn't owned (trial included).
     if (!_purchases.unlocked)
       _barButton(
-        label: 'Unlock',
-        emoji: '🔓',
+        label: 'Premium',
+        emoji: '⭐',
         color: Toy.accent,
         onPressed: _openPaywall,
       ),
@@ -1449,6 +1505,7 @@ class _HarnessPageState extends State<HarnessPage>
       label: 'MIDI',
       emoji: '🎹',
       color: Toy.green,
+      locked: !_midiOn,
       onPressed: _openMidi,
     ),
   ];
@@ -1930,8 +1987,11 @@ class _HarnessPageState extends State<HarnessPage>
   );
 
   // Capture Apple Pencil pressure (finger/mouse report no useful pressure -> full).
+  // Pressure-to-volume is Premium; free notes all play at full volume.
   void _capturePressure(PointerEvent e) {
-    _lastPressure = e.kind == PointerDeviceKind.stylus
+    _lastPressure =
+        e.kind == PointerDeviceKind.stylus &&
+            _access.allows(PremiumFeature.pencil)
         ? e.pressure.clamp(0.0, 1.0)
         : 1.0;
   }
