@@ -1054,6 +1054,14 @@
             .modal-box { animation: none !important; }
         }
 
+        /* A short screen (a phone on its side) would leave the staff a sliver under
+           the header and palette. Never let it drop below ~24px a row
+           (staffMarginY() * 2 + 14 rows * 24 ~ 384px); the page scrolls instead. */
+        @media (max-height: 760px) {
+            body { overflow-y: auto; overflow-x: hidden; }
+            .canvas-wrapper { flex-shrink: 0; min-height: 384px; }
+        }
+
         @media (max-width: 800px) {
             .palette-bar { padding: 15px; overflow-x: auto; justify-content: flex-start; }
             .palette-container { justify-content: flex-start; flex-wrap: nowrap; }
@@ -1456,7 +1464,19 @@
             clef: '#37474f'
         };
 
-        const MAIN_STAFF_LINES = [1, 3, 5, 7, 9, 11, 13];
+        // Rows of SCALE (G5 at the top) that carry the five treble-staff lines,
+        // F5 D5 B4 G4 E4. The odd rows below them (C4, A3) sit on ledger lines.
+        const STAFF_LINE_ROWS = [1, 3, 5, 7, 9];
+        const G_LINE_ROW = 7; // the treble clef's curl wraps G4
+        // Ledger lines a note on `row` needs: every odd row between the staff and it.
+        function ledgerRowsFor(row) {
+            const rows = [];
+            for (let r = 11; r <= row; r += 2) rows.push(r);
+            return rows;
+        }
+        // Space above the top row and below the bottom one: 40px on a big screen,
+        // less on a short staff so its rows aren't squeezed to nothing.
+        function staffMarginY(h) { return Math.min(40, Math.max(16, h * 0.06)); }
 
         const CATEGORIES = {
             "Faces 😀": ["😀", "😂", "😍", "😎", "😢", "😱", "😴", "😡", "🤔", "😘", "🤯", "😈", "🤗", "🥺", "🥳", "😇"],
@@ -2583,6 +2603,7 @@
          * 7. VISUAL RENDERER
          */
         let stepX, stepY, staffPaddingLeft = 120;
+        let staffMargin = 40; // see staffMarginY(); set with stepY on resize
         // Width of the whole song in canvas pixels, and whether that overflows the
         // viewport (i.e. whether the staff scrolls at all).
         let contentWidth = 0;
@@ -2622,11 +2643,13 @@
             // When the staff overflows, a finger drag belongs to the scroller and a tap
             // is what places a note (see the pointerdown handler); when it all fits there
             // is nothing to scroll, so a drag paints a run of notes as it always has.
-            canvas.style.touchAction = staffScrollable ? 'pan-x' : 'none';
+            // pan-y too, so a vertical swipe on the staff can scroll the page when
+            // a short screen has made it scrollable (see the max-height rule).
+            canvas.style.touchAction = staffScrollable ? 'pan-x pan-y' : 'none';
             if (!staffScrollable) staffScroll.scrollLeft = 0;
 
-            const marginY = 40;
-            stepY = (viewH - (marginY * 2)) / (GRID_ROWS - 1);
+            staffMargin = staffMarginY(viewH);
+            stepY = (viewH - (staffMargin * 2)) / (GRID_ROWS - 1);
 
             syncGrabBar();
             bgDirty = true;
@@ -2639,11 +2662,12 @@
 
             bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
 
-            // Grid
-            bgCtx.strokeStyle = '#e0f7fa';
-            bgCtx.lineWidth = 1;
+            // Grid. Every 4th line is a beat (16 steps = one bar of 4/4).
             for (let i = 0; i <= GRID_COLS; i++) {
                 const x = staffPaddingLeft + i * stepX;
+                const onBeat = i % 4 === 0 && i > 0 && i < GRID_COLS;
+                bgCtx.strokeStyle = onBeat ? '#b2ebf2' : '#e0f7fa';
+                bgCtx.lineWidth = onBeat ? 2 : 1;
                 bgCtx.beginPath();
                 bgCtx.moveTo(x, 0);
                 bgCtx.lineTo(x, bgCanvas.height);
@@ -2652,30 +2676,53 @@
 
             // Staff
             drawStaffLines(bgCtx, 20, bgCanvas.width - 20);
+            drawEndRepeat(bgCtx, bgCanvas.width - 20);
         }
 
-        // Shared by the scrolling staff and the pinned gutter so the gutter's line
-        // stubs meet the staff's lines exactly at the seam.
-        function drawStaffLines(g, x0, x1) {
-            const marginY = 40;
-            g.lineCap = "round";
-            for (let i = 0; i < GRID_ROWS; i++) {
-                if (i % 2 !== 0) {
-                    const y = marginY + i * stepY;
-                    const isMain = MAIN_STAFF_LINES.includes(i);
-                    g.strokeStyle = isMain ? COLORS.staffLine : '#eceff1';
-                    g.lineWidth = isMain ? 4 : 2;
-                    g.beginPath();
-                    g.moveTo(x0, y);
-                    g.lineTo(x1, y);
-                    g.stroke();
-                }
+        // End-repeat barline at x: dots, a thin line and a thick one across the five
+        // staff lines, since the 16 steps loop.
+        function drawEndRepeat(g, x) {
+            const top = staffMargin + STAFF_LINE_ROWS[0] * stepY;
+            const bottom = staffMargin + STAFF_LINE_ROWS[STAFF_LINE_ROWS.length - 1] * stepY;
+            g.fillStyle = COLORS.staffLine;
+            g.fillRect(x - 6, top, 6, bottom - top);
+            g.fillRect(x - 12, top, 2, bottom - top);
+            const r = Math.min(6, Math.max(2.5, stepY * 0.22));
+            for (const row of [4, 6]) {
+                g.beginPath();
+                g.arc(x - 20, staffMargin + row * stepY, r, 0, Math.PI * 2);
+                g.fill();
             }
+        }
+
+        // The five treble-staff lines solid, and the ledger rows below (C4, A3) as
+        // faint dashed guides so those rows are still easy to aim at. Shared by the
+        // scrolling staff and the pinned gutter so the gutter's line stubs meet the
+        // staff's lines exactly at the seam.
+        function drawStaffLines(g, x0, x1) {
+            g.save();
+            for (let i = 1; i < GRID_ROWS; i += 2) {
+                const y = staffMargin + i * stepY;
+                const isStaff = STAFF_LINE_ROWS.includes(i);
+                g.strokeStyle = isStaff ? COLORS.staffLine : '#cfd8dc';
+                g.lineWidth = isStaff ? 4 : 2;
+                g.lineCap = isStaff ? 'round' : 'butt';
+                g.setLineDash(isStaff ? [] : [7, 7]);
+                g.beginPath();
+                g.moveTo(x0, y);
+                g.lineTo(x1, y);
+                g.stroke();
+            }
+            g.restore();
         }
 
         /* ---- Pinned clef gutter (ported from the Flutter app's StaffGutterPainter) ---- */
 
-        const CLEF_GLYPH = "𝄞";
+        // Bravura's treble clef (SMuFL U+E050, SIL Open Font License 1.1,
+        // (c) Steinberg Media Technologies) as a path in staff spaces, y down, with
+        // the G line at y = 0. Spans x 0..2.684, y -4.392..2.632.
+        const CLEF_PATH = new Path2D('M1.504 -1.66C1.496 -1.708 1.504 -1.712 1.528 -1.736C1.592 -1.796 1.676 -1.88 1.752 -1.964C2.088 -2.332 2.288 -2.808 2.288 -3.26C2.288 -3.608 2.192 -3.952 2.028 -4.192C1.968 -4.28 1.864 -4.392 1.82 -4.392C1.764 -4.392 1.64 -4.288 1.56 -4.2C1.264 -3.872 1.168 -3.372 1.168 -2.956C1.168 -2.724 1.196 -2.464 1.224 -2.3C1.232 -2.252 1.236 -2.244 1.188 -2.204C0.932 -1.992 0.656 -1.748 0.448 -1.492C0.172 -1.148 0 -0.776 0 -0.348C0 0.348 0.476 1.008 1.456 1.008C1.548 1.008 1.652 1 1.732 0.984C1.776 0.976 1.784 0.972 1.792 1.02C1.84 1.288 1.9 1.636 1.9 1.824C1.9 2.416 1.5 2.488 1.264 2.488C1.048 2.488 0.944 2.424 0.944 2.372C0.944 2.344 0.98 2.332 1.072 2.304C1.196 2.268 1.34 2.16 1.34 1.928C1.34 1.708 1.2 1.52 0.956 1.52C0.688 1.52 0.528 1.732 0.528 1.98C0.528 2.24 0.684 2.632 1.288 2.632C1.556 2.632 2.076 2.512 2.076 1.832C2.076 1.604 2.004 1.224 1.96 0.976C1.952 0.928 1.956 0.932 2.012 0.908C2.416 0.748 2.684 0.408 2.684 -0.044C2.684 -0.556 2.308 -1.008 1.72 -1.008C1.616 -1.008 1.616 -1.008 1.604 -1.08ZM1.88 -3.772C2.012 -3.772 2.12 -3.664 2.12 -3.444C2.12 -3.168 1.988 -2.912 1.676 -2.6C1.612 -2.536 1.516 -2.444 1.424 -2.364C1.396 -2.34 1.38 -2.344 1.372 -2.396C1.356 -2.5 1.348 -2.636 1.348 -2.764C1.348 -3.388 1.636 -3.772 1.88 -3.772ZM1.444 -1.048C1.456 -0.972 1.456 -0.976 1.384 -0.952C1.032 -0.832 0.804 -0.516 0.804 -0.176C0.804 0.184 0.992 0.44 1.264 0.532C1.296 0.544 1.344 0.556 1.372 0.556C1.404 0.556 1.42 0.536 1.42 0.512C1.42 0.484 1.388 0.472 1.36 0.46C1.192 0.388 1.072 0.216 1.072 0.032C1.072 -0.196 1.228 -0.368 1.472 -0.436C1.536 -0.452 1.544 -0.448 1.552 -0.404L1.752 0.788C1.76 0.832 1.756 0.832 1.696 0.844C1.632 0.856 1.552 0.864 1.472 0.864C0.772 0.864 0.32 0.476 0.32 -0.08C0.32 -0.316 0.36 -0.632 0.692 -1.008C0.932 -1.276 1.116 -1.424 1.304 -1.576C1.344 -1.608 1.352 -1.604 1.36 -1.56ZM1.72 -0.412C1.712 -0.46 1.716 -0.472 1.764 -0.468C2.088 -0.44 2.356 -0.168 2.356 0.184C2.356 0.436 2.204 0.64 1.98 0.752C1.932 0.776 1.924 0.776 1.916 0.728Z');
+        const CLEF_W = 2.684;
         const TEAR_W = 24;
         const TEAR_SEG = 15;
         // Deterministic ragged silhouette (0 = tear pulled in, 1 = paper reaches far).
@@ -2690,61 +2737,33 @@
                               'rgba(79,176,240,0.85)', 'rgba(155,123,240,0.85)',
                               'rgba(255,94,126,0.85)'];
 
-        // Ink extents of the clef per 1px of font size. The em box has huge side
-        // bearings, so measuring is the only reliable way to fit and centre the glyph
-        // across platform serif fonts. Ratios are constant, so measure once.
-        let clefInk = null;
-        function clefInkRatios(g) {
-            if (clefInk) return clefInk;
-            const REF = 100;
-            g.save();
-            g.font = `${REF}px serif`;
-            g.textAlign = "center";
-            g.textBaseline = "alphabetic";
-            const m = g.measureText(CLEF_GLYPH);
-            g.restore();
-            clefInk = {
-                right: m.actualBoundingBoxRight / REF,
-                asc: m.actualBoundingBoxAscent / REF,
-                desc: m.actualBoundingBoxDescent / REF
-            };
-            return clefInk;
-        }
-
+        // The treble clef with its curl on the G line, as in real notation. A true
+        // clef is two rows per staff space; it's drawn at 1.5 (so it stays inside the
+        // margins) and, on a tall staff, capped so it always stays on the pinned
+        // paper: a clef bleeding onto the scrolling notes would break the illusion.
+        // When the staff scrolls, also keep clear of the torn edge.
         function drawClef(g) {
-            const r = clefInkRatios(g);
-            const marginY = 40;
-            const anchorX = staffPaddingLeft / 2.5;
-            const idealSize = stepY * 14;
-
-            // The classic size is stepY*14, but the glyph grows with the staff, and on
-            // a tall one it outgrows the gutter. Cap it so the clef always stays on the
-            // pinned paper: a clef bleeding onto the scrolling notes would break the
-            // illusion. When the staff scrolls, also keep clear of the torn edge, which
-            // would otherwise slice straight through the glyph.
             const reserve = staffScrollable ? TEAR_W / 2 : 2;
-            const size = Math.min(idealSize, (staffPaddingLeft - reserve - anchorX) / r.right);
-            // Keep the ink centred where the full-size clef sits, so capping only ever
-            // shrinks it rather than sliding it down the staff.
-            const idealBaseline = marginY + 7 * stepY + (stepY * 4.5);
-            const centreY = idealBaseline + (r.desc - r.asc) * idealSize / 2;
-            const baseline = centreY - (r.desc - r.asc) * size / 2;
+            const room = staffPaddingLeft - reserve - 8;
+            const space = Math.min(stepY * 1.5, room / CLEF_W);
+            const x = Math.max(4, (room - CLEF_W * space) / 2);
+            const y = staffMargin + G_LINE_ROW * stepY;
 
-            g.font = `${size}px serif`;
-            g.textAlign = "center";
-            g.textBaseline = "alphabetic";
+            g.save();
+            g.translate(x, y);
+            g.scale(space, space);
             g.fillStyle = COLORS.clef;
-            g.fillText(CLEF_GLYPH, anchorX, baseline);
-
+            g.fill(CLEF_PATH);
             // Rainbow sweep while playing: a second pass of translucent gradient over
             // the ink, which is what the Flutter build's srcATOP blend amounts to.
             if (state.isPlaying && g.createConicGradient) {
                 const phase = (Date.now() / 5000) * Math.PI * 2;  // a full turn every 5s
-                const grad = g.createConicGradient(phase, anchorX, centreY);
+                const grad = g.createConicGradient(phase, CLEF_W / 2, -0.9);
                 CLEF_RAINBOW.forEach((c, i) => grad.addColorStop(i / (CLEF_RAINBOW.length - 1), c));
                 g.fillStyle = grad;
-                g.fillText(CLEF_GLYPH, anchorX, baseline);
+                g.fill(CLEF_PATH);
             }
+            g.restore();
         }
 
         // A torn-paper right edge for the gutter, so the notes read as scrolling *under*
@@ -2840,7 +2859,7 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(bgCanvas, 0, 0);
 
-            const marginY = 40;
+            const marginY = staffMargin;
 
             // Playhead
             if (state.isPlaying && playheadIndex >= 0) {
@@ -2852,9 +2871,25 @@
                 ctx.beginPath(); ctx.moveTo(x + stepX/2, 0); ctx.lineTo(x + stepX/2, canvas.height); ctx.stroke();
             }
 
-            // Notes
+            // Notes. Ledger lines go down first so every note sits on top of them.
             const now = Date.now();
             let animateNextFrame = false;
+            if (state.scaleMode === 'free') {
+                const half = stepY * 1.9 * 0.65;
+                ctx.strokeStyle = COLORS.staffLine;
+                ctx.lineWidth = 3;
+                ctx.lineCap = 'round';
+                state.notes.forEach(note => {
+                    const cx = staffPaddingLeft + note.gridX * stepX + stepX / 2;
+                    for (const r of ledgerRowsFor(note.gridY)) {
+                        const y = marginY + r * stepY;
+                        ctx.beginPath();
+                        ctx.moveTo(cx - half, y);
+                        ctx.lineTo(cx + half, y);
+                        ctx.stroke();
+                    }
+                });
+            }
 
             state.notes.forEach(note => {
                 const x = staffPaddingLeft + note.gridX * stepX;
@@ -3584,7 +3619,7 @@
             // would be a nasty surprise.
             if (clientX - staffScroll.getBoundingClientRect().left < staffPaddingLeft) return null;
             const gridX = Math.floor((x - staffPaddingLeft) / stepX);
-            const rawY = (y - 40) / stepY;
+            const rawY = (y - staffMargin) / stepY;
             const gridY = Math.round(rawY);
             if (gridX < 0 || gridX >= GRID_COLS || gridY < 0 || gridY >= GRID_ROWS) return null;
             return { gridX, gridY };
@@ -3603,7 +3638,7 @@
                 const note = state.notes[i];
                 if (!note.pitchEdited) continue;
                 const cx = staffPaddingLeft + note.gridX * stepX + stepX / 2;
-                const cy = 40 + note.gridY * stepY;
+                const cy = staffMargin + note.gridY * stepY;
                 const bx = cx + noteSize * 0.45;
                 const by = cy - noteSize * 0.45;
                 if (Math.hypot(x - bx, y - by) <= radius + NOTE_PITCH_HIT_PAD) return note;
