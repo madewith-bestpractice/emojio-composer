@@ -12,9 +12,20 @@ import 'trial.dart';
 /// `canPop: false` an empty render strands the user on a blank screen with no
 /// way forward, so fall back to our own sheet, which always draws a button and
 /// the reason it can't be used.
+///
+/// The wall stays hard whenever a purchase is actually possible. It softens in
+/// exactly one case: when the store can't sell right now ([PurchaseManager.canBuy]
+/// is false — offline, no product loaded, SDK unconfigured), a lapsed-trial user
+/// must not be bricked by a transient outage, so [onContinueWithoutStore] (if
+/// given) offers a session-only "continue" that the app re-evaluates next launch.
 class RcPaywall extends StatelessWidget {
   final PurchaseManager purchases;
-  const RcPaywall({super.key, required this.purchases});
+  final VoidCallback? onContinueWithoutStore;
+  const RcPaywall({
+    super.key,
+    required this.purchases,
+    this.onContinueWithoutStore,
+  });
 
   @override
   Widget build(BuildContext context) => PopScope(
@@ -23,7 +34,10 @@ class RcPaywall extends StatelessWidget {
           backgroundColor: Toy.bg,
           body: purchases.canBuy
               ? PaywallView(displayCloseButton: false)
-              : UnlockSheet(purchases: purchases),
+              : UnlockSheet(
+                  purchases: purchases,
+                  onStoreUnavailableContinue: onContinueWithoutStore,
+                ),
         ),
       );
 }
@@ -35,10 +49,21 @@ class RcPaywall extends StatelessWidget {
 ///
 /// [onClose] null means this is the hard wall and there's no way out but to
 /// buy or restore.
+///
+/// [onStoreUnavailableContinue], when set, adds a "Continue for now" escape that
+/// shows ONLY while a purchase can't be made ([PurchaseManager.canBuy] false).
+/// It exists so a store outage during a lapsed trial can't permanently strand a
+/// user; it never appears when the product is buyable.
 class UnlockSheet extends StatefulWidget {
   final PurchaseManager purchases;
   final VoidCallback? onClose;
-  const UnlockSheet({super.key, required this.purchases, this.onClose});
+  final VoidCallback? onStoreUnavailableContinue;
+  const UnlockSheet({
+    super.key,
+    required this.purchases,
+    this.onClose,
+    this.onStoreUnavailableContinue,
+  });
 
   @override
   State<UnlockSheet> createState() => _UnlockSheetState();
@@ -129,6 +154,16 @@ class _UnlockSheetState extends State<UnlockSheet> {
                 fontSize: 9,
                 onPressed: _p.reload,
               ),
+              // A lapsed-trial user shouldn't be trapped by a store outage they
+              // can't fix. Session-only: the wall returns next launch, when the
+              // store may be reachable and the purchase possible again.
+              if (widget.onStoreUnavailableContinue != null) ...[
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: widget.onStoreUnavailableContinue,
+                  child: Text('Continue for now', style: Toy.label(9)),
+                ),
+              ],
             ]
             // A product loaded but the last purchase or restore failed. One
             // short, human line — never the raw platform exception, which reads

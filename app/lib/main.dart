@@ -97,7 +97,12 @@ class _HarnessPageState extends State<HarnessPage>
   int _cursorStep = 0; // MIDI shuttle scrub position (shown when stopped)
   int _extClock = 0; // MIDI-clock pulse counter (6 per 16th step)
 
-  bool get _hasAccess => _purchases.unlocked || _trial.active;
+  /// Session-only escape from the hard wall, granted only when the store can't
+  /// sell (see [RcPaywall]) so a transient outage can't brick a lapsed-trial
+  /// user. Never persisted — the wall is re-evaluated on the next launch.
+  bool _storeGrace = false;
+
+  bool get _hasAccess => _purchases.unlocked || _trial.active || _storeGrace;
 
   VoiceManifest? _manifest;
   String? _bootError;
@@ -1281,8 +1286,14 @@ class _HarnessPageState extends State<HarnessPage>
   Widget build(BuildContext context) {
     if (_bootError != null) return _errorScreen(_bootError!);
     if (_manifest == null) return const SplashScreen();
-    // Hard wall once the 3-day trial ends and the app isn't unlocked.
-    if (!_hasAccess) return RcPaywall(purchases: _purchases);
+    // Hard wall once the 3-day trial ends and the app isn't unlocked. It softens
+    // only when the store can't sell right now, so an outage can't strand a user.
+    if (!_hasAccess) {
+      return RcPaywall(
+        purchases: _purchases,
+        onContinueWithoutStore: () => setState(() => _storeGrace = true),
+      );
+    }
     // Edge-to-edge: the coloured bars run to every screen edge. The blue header
     // owns the top (including the status-bar inset), so the top of the screen is
     // always blue; the trial ribbon, if any, sits just beneath it.
