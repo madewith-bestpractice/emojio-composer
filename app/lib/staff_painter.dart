@@ -357,8 +357,8 @@ class StaffGutterPainter extends CustomPainter {
         canvas,
         stepY: stepY,
         marginY: marginY,
-        gutter: size.width,
-        maxWidth: size.width - 8,
+        gutter: size.width - 8, // the torn edge's paper starts 8 in
+        maxWidth: size.width - 16,
         playing: isPlaying,
         tMs: tMs,
       );

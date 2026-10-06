@@ -2032,6 +2032,9 @@ class _HarnessPageState extends State<HarnessPage>
   // Handset column width — big enough to tap and to keep the emoji from
   // colliding; 16 of these overflow a phone, so the grid scrolls horizontally.
   static const double _handsetStepX = 64.0;
+  // Blank staff before the first column, so at rest it sits clear of the
+  // gutter's torn edge, which overhangs the grid by up to 16.
+  static const double _handsetLead = 16.0;
   static const double _handsetMinStepY = 24.0;
 
   Widget _staff() => LayoutBuilder(
@@ -2045,7 +2048,8 @@ class _HarnessPageState extends State<HarnessPage>
       final showClef = _engine.scaleMode == ScaleMode.free;
 
       // The note grid. On handset the clef/labels live in a pinned gutter,
-      // so the grid draws with padLeft 0 and a fixed column width.
+      // so the grid draws with only a short lead (clear of the torn edge) and
+      // a fixed column width.
       StaffPainter gridPainter({
         required bool withGutter,
         double? fixedStepX,
@@ -2061,7 +2065,7 @@ class _HarnessPageState extends State<HarnessPage>
         rowLabels: withGutter ? labels : null,
         showClef: withGutter && showClef,
         reduceMotion: reduceMotion,
-        padLeft: withGutter ? 88.0 : 0.0,
+        padLeft: withGutter ? 88.0 : _handsetLead,
         drawGutter: withGutter,
         fixedStepX: fixedStepX,
         ledgers: showClef,
@@ -2116,7 +2120,7 @@ class _HarnessPageState extends State<HarnessPage>
         // short for that, it scrolls up and down as well as sideways.
         final minH = staffHeightForStep(_handsetMinStepY, _rows);
         final h = math.max(constraints.maxHeight, minH);
-        final gridSize = Size(kCols * _handsetStepX, h);
+        final gridSize = Size(_handsetLead + kCols * _handsetStepX, h);
         body = Stack(
           children: [
             Row(
@@ -2151,7 +2155,7 @@ class _HarnessPageState extends State<HarnessPage>
                         onTapUp: (d) => _toggleAt(
                           d.localPosition,
                           gridSize,
-                          padLeft: 0,
+                          padLeft: _handsetLead,
                           fixedStepX: _handsetStepX,
                           globalPosition: d.globalPosition,
                         ),
@@ -2160,13 +2164,13 @@ class _HarnessPageState extends State<HarnessPage>
                         onLongPressStart: (d) => _grabAt(
                           d.localPosition,
                           gridSize,
-                          padLeft: 0,
+                          padLeft: _handsetLead,
                           fixedStepX: _handsetStepX,
                         ),
                         onLongPressMoveUpdate: (d) => _dragTo(
                           d.localPosition,
                           gridSize,
-                          padLeft: 0,
+                          padLeft: _handsetLead,
                           fixedStepX: _handsetStepX,
                         ),
                         onLongPressEnd: (_) => _dropNote(),
