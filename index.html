@@ -2814,12 +2814,9 @@
             drawStaffLines(gutterCtx, 20, staffPaddingLeft);
             drawClef(gutterCtx);
 
-            // The tear only makes sense once the paper has something sliding under it,
-            // so it fades in over the first 16px of scroll.
-            if (staffScrollable) {
-                const opacity = Math.min(1, Math.max(0, staffScroll.scrollLeft / 16));
-                if (opacity > 0) drawTornEdge(gutterCtx, h, opacity);
-            }
+            // Whenever the staff is wider than the screen, the tear is always shown:
+            // it's what says the staff scrolls.
+            if (staffScrollable) drawTornEdge(gutterCtx, h, 1);
         }
 
         // Render loop sleeps when idle and is woken via markDirty()/wakeRenderLoop().
