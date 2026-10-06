@@ -34,10 +34,23 @@ import 'voice_engine.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  SystemChrome.setPreferredOrientations(const [
-    DeviceOrientation.landscapeLeft,
-    DeviceOrientation.landscapeRight,
-  ]);
+  // Tablets compose in landscape (iPad ignores this anyway). A phone stands
+  // upright: on its side there's too little height left for 15 staff rows
+  // under the header and palette.
+  final display = ui.PlatformDispatcher.instance.displays.firstOrNull;
+  final shortest = display == null || display.devicePixelRatio == 0
+      ? 0.0
+      : display.size.shortestSide / display.devicePixelRatio;
+  if (shortest > 0) {
+    SystemChrome.setPreferredOrientations(
+      shortest < 600
+          ? const [DeviceOrientation.portraitUp]
+          : const [
+              DeviceOrientation.landscapeLeft,
+              DeviceOrientation.landscapeRight,
+            ],
+    );
+  }
   runApp(const EmojioApp());
 }
 
@@ -798,6 +811,7 @@ class _HarnessPageState extends State<HarnessPage>
       tMs: tMs,
       rowLabels: rowLabels,
       showClef: showClef,
+      ledgers: showClef,
       bgColor: const Color(0xFFFFF696), // brand yellow
     ).paint(Canvas(recorder), Size(width.toDouble(), height.toDouble()));
     final img = await recorder.endRecording().toImage(width, height);
@@ -1999,6 +2013,7 @@ class _HarnessPageState extends State<HarnessPage>
   // Handset column width — big enough to tap and to keep the emoji from
   // colliding; 16 of these overflow a phone, so the grid scrolls horizontally.
   static const double _handsetStepX = 64.0;
+  static const double _handsetMinStepY = 24.0;
 
   Widget _staff() => LayoutBuilder(
     builder: (context, constraints) {
@@ -2030,6 +2045,7 @@ class _HarnessPageState extends State<HarnessPage>
         padLeft: withGutter ? 88.0 : 0.0,
         drawGutter: withGutter,
         fixedStepX: fixedStepX,
+        ledgers: showClef,
       );
 
       Widget grid(Size size, {double? fixedStepX, required bool withGutter}) =>
@@ -2077,7 +2093,10 @@ class _HarnessPageState extends State<HarnessPage>
         // Handset: frozen clef/label gutter + a horizontally-scrolling grid.
         // Drag scrolls; a tap places/removes a note (no drag-paint, so the
         // scroll and the placement gestures never fight).
-        final h = constraints.maxHeight;
+        // Never squeeze the rows below a tappable pitch: if the staff is too
+        // short for that, it scrolls up and down as well as sideways.
+        final minH = staffHeightForStep(_handsetMinStepY, _rows);
+        final h = math.max(constraints.maxHeight, minH);
         final gridSize = Size(kCols * _handsetStepX, h);
         body = Stack(
           children: [
@@ -2170,6 +2189,11 @@ class _HarnessPageState extends State<HarnessPage>
             ),
           ],
         );
+        if (h > constraints.maxHeight) {
+          body = SingleChildScrollView(
+            child: SizedBox(height: h, child: body),
+          );
+        }
       }
 
       return Semantics(

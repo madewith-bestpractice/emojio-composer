@@ -105,6 +105,10 @@ flutter:
     - family: PressStart2P
       fonts:
         - asset: assets/fonts/PressStart2P-Regular.ttf
+    # Treble clef from Bravura (SIL OFL 1.1, see assets/fonts/EmojioClef-OFL.txt).
+    - family: EmojioClef
+      fonts:
+        - asset: assets/fonts/EmojioClef.otf
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
