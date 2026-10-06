@@ -39,6 +39,9 @@ class TrialManager {
 
   bool get active => remaining > Duration.zero;
 
+  /// First launch, or null before [ensureStarted] has run.
+  DateTime? get startedAt => _start;
+
   /// Whole days left, rounded up (so ">0" reads as "1 day left", not "0").
   int get daysLeft => (remaining.inHours / 24).ceil();
 }

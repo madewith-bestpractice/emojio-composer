@@ -24,6 +24,7 @@ import 'monetization/paywall.dart';
 import 'monetization/purchases.dart';
 import 'monetization/trial.dart';
 import 'picker.dart';
+import 'review_prompt.dart';
 import 'song.dart';
 import 'song_library.dart';
 import 'splash.dart';
@@ -83,6 +84,8 @@ class _HarnessPageState extends State<HarnessPage>
   final _engine = VoiceEngine();
   final _library = SongLibrary();
   final _trial = TrialManager();
+  final _reviewPrompt = ReviewPrompt();
+  bool _paywallSeen = false; // this session; no rating prompt after a paywall
   final _purchases = PurchaseManager();
   final _midi = MidiManager();
   MidiClockOut?
@@ -121,8 +124,15 @@ class _HarnessPageState extends State<HarnessPage>
   Future<bool> _requirePremium(PremiumFeature f) async {
     if (_access.allows(f)) return true;
     if (_playing) _togglePlay();
+    _paywallSeen = true;
     return presentEmojioPaywall(context, _purchases, reason: f);
   }
+
+  /// A song saved, exported or shared: maybe ask for a store rating.
+  void _noteSuccess() => _reviewPrompt.noteSuccess(
+    installed: _trial.startedAt,
+    paywallSeen: _paywallSeen,
+  );
 
   VoiceManifest? _manifest;
   String? _bootError;
@@ -646,6 +656,7 @@ class _HarnessPageState extends State<HarnessPage>
       final file = await _renderWav();
       _dismissProgress();
       await _shareFile(file.path, 'audio/wav');
+      _noteSuccess();
     } catch (e, st) {
       debugPrint('audio export failed: $e\n$st');
       _dismissProgress();
@@ -692,6 +703,7 @@ class _HarnessPageState extends State<HarnessPage>
           sharePositionOrigin: origin,
         ),
       );
+      _noteSuccess();
     } catch (e, st) {
       debugPrint('share failed: $e\n$st');
       _dismissProgress();
@@ -783,6 +795,7 @@ class _HarnessPageState extends State<HarnessPage>
       await FlutterQuickVideoEncoder.finish();
       _dismissProgress();
       await _shareFile(path, 'video/mp4');
+      _noteSuccess();
     } catch (e, st) {
       debugPrint('video export failed: $e\n$st');
       _dismissProgress();
@@ -1221,6 +1234,7 @@ class _HarnessPageState extends State<HarnessPage>
         duration: const Duration(seconds: 1),
       ),
     );
+    _noteSuccess();
   }
 
   Future<String?> _promptName({required String initial}) => showDialog<String>(
@@ -1340,6 +1354,7 @@ class _HarnessPageState extends State<HarnessPage>
   // banner). Fire-and-forget: the purchase manager's customer-info listener
   // updates state on completion.
   void _openPaywall() {
+    _paywallSeen = true;
     presentEmojioPaywall(context, _purchases);
   }
 

@@ -110,6 +110,18 @@ Emojio is now free!
 • New players get Premium free for 3 days.
 • Already bought the Lifetime Unlock? You have Premium — nothing to do.
 
+## ASO copy (2026-10-06 research pass)
+
+App Store (set on 1.1.0, not live until approved):
+- Name (unchanged, 25): Emojio: Emoji Music Maker
+- Subtitle (26): Kids Song & Beat Sequencer
+- Keywords (98): melody,composer,compose,piano,drum,instrument,rhythm,loop,tune,midi,game,beginner,step,family,band
+- Promotional text (142): Now free to play! Drop emoji on the staff and hear your song come alive, no music reading needed. New players get every sound free for 3 days.
+
+Google Play (apply with the Android 1.1.0 release):
+- Title (unchanged, 25): Emojio: Emoji Music Maker
+- Short description (77): Every emoji is an instrument. Tap stickers onto a staff to make songs & beats
+
 ## Status
 
 - 2026-10-06: iOS and Mac 1.1.0 versions created in App Store Connect with
@@ -117,5 +129,6 @@ Emojio is now free!
   are submitted and approved.
 - The IAP display text could not be set through the API, because Apple won't
   edit an active IAP's localization there. Change it on the website if wanted.
+- 2026-10-06: App Store subtitle, keywords and promotional text set on 1.1.0.
 - Play is not applied yet. A committed Play edit goes live at once, so apply it
   together with the Android 1.1.0 release.
