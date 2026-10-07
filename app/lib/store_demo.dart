@@ -7,7 +7,8 @@ import 'song.dart';
 
 /// The store-screenshot setup this launch runs, or null (always null in a
 /// release build, so a shipped app can't be put in this mode): `compose`,
-/// `play`, `picker`, `library`, `export` or `midi`. Set by [loadStoreDemo].
+/// `play`, `picker`, `library`, `export`, `midi` or `paywall`. Set by
+/// [loadStoreDemo].
 String? storeDemo;
 
 /// Reads the setup from the EMOJIO_DEMO environment variable or, since iOS

@@ -1,16 +1,18 @@
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
-import 'package:purchases_ui_flutter/purchases_ui_flutter.dart';
 import '../theme.dart';
 import 'access.dart';
 import 'purchases.dart';
 import 'trial.dart';
 
-/// Emojio's own Premium sheet. It names the feature that opened it (when there
-/// is one), lists everything Premium adds, and always renders *something*: a
-/// real buy button when a product loaded, and a plain message plus a retry when
-/// one didn't — so a failed product load never reads as a dead tap.
+/// Emojio's own Premium sheet, and the only paywall: RevenueCat supplies the
+/// product, price, purchase and restore; the sheet is ours. It names the
+/// feature that opened it (when there is one), lists everything Premium adds,
+/// and always renders *something*: a real buy button when a product loaded,
+/// and a plain message plus a retry when one didn't — so a failed product load
+/// never reads as a dead tap. Someone who already owns Premium gets a thank-you
+/// with Restore instead of a buy button.
 ///
 /// The copy speaks to the grown-up holding the iPad: the sheet usually opens
 /// because a child tapped a locked sticker.
@@ -19,7 +21,7 @@ class UnlockSheet extends StatefulWidget {
   final VoidCallback onClose;
 
   /// The locked feature the user just reached for, or null when they opened
-  /// Premium on purpose (header button, Customer Center fallback).
+  /// Premium on purpose (the header button, or a long-press on the logo).
   final PremiumFeature? reason;
 
   const UnlockSheet({
@@ -35,6 +37,7 @@ class UnlockSheet extends StatefulWidget {
 
 class _UnlockSheetState extends State<UnlockSheet> {
   PurchaseManager get _p => widget.purchases;
+  late final bool _ownedAtOpen = _p.unlocked;
 
   @override
   void initState() {
@@ -52,11 +55,54 @@ class _UnlockSheetState extends State<UnlockSheet> {
     if (!mounted) return;
     setState(() {});
     // Bought or restored from this sheet — dismiss back to the composer.
-    if (_p.unlocked) widget.onClose();
+    if (_p.unlocked && !_ownedAtOpen) widget.onClose();
   }
+
+  /// Already Premium (opened from the logo): no buy button, just thanks,
+  /// Restore for a new device, and where to ask for help.
+  Widget _owned() => Container(
+    color: Toy.bg,
+    padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Text('🎉', style: TextStyle(fontSize: 44)),
+        const SizedBox(height: 14),
+        Text('YOU HAVE PREMIUM', style: Toy.label(13)),
+        const SizedBox(height: 10),
+        const Text(
+          'Thanks for supporting Emojio! Every sound, video export, MIDI, '
+          'Pencil pressure and unlimited songs are yours, forever.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 14, color: Toy.text),
+        ),
+        const SizedBox(height: 18),
+        ToyButton(
+          label: 'Restore Purchase',
+          emoji: '♻️',
+          color: Colors.white,
+          textColor: Toy.text,
+          fontSize: 9,
+          onPressed: _p.restore,
+        ),
+        const SizedBox(height: 14),
+        const SelectableText(
+          'Questions? brendan@madewithbestpractice.com',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 12, color: Colors.black54),
+        ),
+        const SizedBox(height: 18),
+        TextButton(
+          onPressed: widget.onClose,
+          child: Text('Done', style: Toy.label(9)),
+        ),
+      ],
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
+    if (_p.unlocked) return _owned();
     final price = _p.priceLabel;
     final reason = widget.reason;
     return Container(
@@ -195,49 +241,25 @@ Future<void> _showUnlockSheet(BuildContext context, PurchaseManager purchases,
     );
 
 /// Opens the purchase flow and resolves once it's dismissed; true if the user
-/// now has the unlock.
-///
-/// From a locked feature ([reason] set) it shows [UnlockSheet], which can say
-/// which feature was reached for. Opened on purpose (the header Premium button)
-/// it prefers RevenueCat's dashboard paywall and falls back to [UnlockSheet]
-/// when that can't be used — the SDK isn't configured, no product loaded, or
-/// the native presentation returned an error. Every path ends with something
-/// on screen; none of them no-op.
+/// now has the unlock. [reason] is the locked feature that opened it, if any.
 Future<bool> presentEmojioPaywall(
     BuildContext context, PurchaseManager purchases,
     {PremiumFeature? reason}) async {
-  // Presenting before configure() trips a native `Purchases.shared` assertion
-  // (SIGTRAP) that a Dart try/catch can't catch, so gate on it.
-  final configured = await Purchases.isConfigured;
   // One retry: the offering may have failed to load at boot (e.g. offline
   // launch) and since recovered.
-  if (configured && !purchases.canBuy) await purchases.reload();
-
-  if (reason == null && configured && purchases.canBuy) {
-    final result = await RevenueCatUI.presentPaywall(displayCloseButton: true);
-    if (result == PaywallResult.purchased || result == PaywallResult.restored) {
-      return true;
-    }
-    if (result != PaywallResult.error) return purchases.unlocked;
-  }
+  if (await Purchases.isConfigured && !purchases.canBuy) await purchases.reload();
   if (!context.mounted) return purchases.unlocked;
   await _showUnlockSheet(context, purchases, reason: reason);
   return purchases.unlocked;
 }
 
-/// Opens the RevenueCat Customer Center (restore, manage the unlock, contact
-/// support). Falls back to [UnlockSheet], which carries its own Restore button,
-/// so restoring is always reachable — Guideline 3.1.1 requires it for a
+/// The long-press on the logo: the same sheet, which shows a thank-you with
+/// Restore to someone who owns Premium. Restore is reachable from here and from
+/// the Premium sheet at all times — Guideline 3.1.1 requires it for a
 /// non-consumable.
-Future<void> presentEmojioCustomerCenter(
-    BuildContext context, PurchaseManager purchases) async {
-  if (await Purchases.isConfigured) {
-    await RevenueCatUI.presentCustomerCenter();
-    return;
-  }
-  if (!context.mounted) return;
-  await _showUnlockSheet(context, purchases);
-}
+Future<void> presentEmojioPurchases(
+        BuildContext context, PurchaseManager purchases) =>
+    _showUnlockSheet(context, purchases);
 
 /// Slim ribbon shown during the reverse trial (Premium free for the first few
 /// days), so the drop back to the free tier is never a surprise. Carries a real

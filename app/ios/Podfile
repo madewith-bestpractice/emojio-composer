@@ -1,5 +1,4 @@
-# Minimum iOS 15.0 — required by RevenueCatUI (purchases_ui_flutter) for the
-# paywall + Customer Center. (Other plugins need only 13.x.)
+# Minimum iOS 15.0 — the oldest current Xcode will build for.
 platform :ios, '15.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.

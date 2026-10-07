@@ -1327,6 +1327,8 @@ class _HarnessPageState extends State<HarnessPage>
         await _openExport();
       case 'midi':
         await _openMidi();
+      case 'paywall':
+        _openPaywall();
     }
   }
 
@@ -1398,8 +1400,8 @@ class _HarnessPageState extends State<HarnessPage>
     presentEmojioPaywall(context, _purchases);
   }
 
-  void _openCustomerCenter() {
-    presentEmojioCustomerCenter(context, _purchases);
+  void _openPurchases() {
+    presentEmojioPurchases(context, _purchases);
   }
 
   @override
@@ -1436,10 +1438,10 @@ class _HarnessPageState extends State<HarnessPage>
     button: true,
     label: 'Emojio. Long-press to manage your purchase',
     child: GestureDetector(
-      // Long-press the brand to open the RevenueCat Customer Center
-      // (restore / manage / support) — reachable even after unlocking.
+      // Long-press the brand for the purchase sheet (restore, or thanks and
+      // support once owned) — reachable even after unlocking.
       behavior: HitTestBehavior.opaque,
-      onLongPress: _openCustomerCenter,
+      onLongPress: _openPurchases,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

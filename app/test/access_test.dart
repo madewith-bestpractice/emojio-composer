@@ -74,4 +74,35 @@ void main() {
     await tester.tap(find.text('Not now'));
     expect(closed, isTrue);
   });
+
+  testWidgets('UnlockSheet opened on purpose sells Premium as a whole',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: UnlockSheet(purchases: PurchaseManager(), onClose: () {}),
+      ),
+    ));
+    expect(find.text('EMOJIO PREMIUM'), findsOneWidget);
+    expect(find.text('RESTORE PURCHASE'), findsOneWidget);
+  });
+
+  testWidgets('UnlockSheet thanks an owner instead of selling to them',
+      (tester) async {
+    var closed = false;
+    final owner = PurchaseManager()..unlocked = true;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: UnlockSheet(purchases: owner, onClose: () => closed = true),
+      ),
+    ));
+    expect(find.text('YOU HAVE PREMIUM'), findsOneWidget);
+    expect(find.textContaining('GET PREMIUM'), findsNothing);
+    expect(find.text('RESTORE PURCHASE'), findsOneWidget);
+    // Opened while owned, so a purchase update doesn't slam it shut.
+    owner.notifyListeners();
+    await tester.pump();
+    expect(closed, isFalse);
+    await tester.tap(find.text('Done'));
+    expect(closed, isTrue);
+  });
 }
