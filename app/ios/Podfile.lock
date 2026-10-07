@@ -1,99 +1,22 @@
 PODS:
-  - app_links (7.0.0):
-    - Flutter
-  - audio_session (0.0.1):
-    - Flutter
   - Flutter (1.0.0)
-  - flutter_midi_command_darwin (1.0.0):
-    - Flutter
-    - FlutterMacOS
-  - flutter_native_splash (2.4.3):
-    - Flutter
   - flutter_quick_video_encoder (0.0.1):
-    - Flutter
-  - flutter_secure_storage_darwin (10.0.0):
-    - Flutter
-    - FlutterMacOS
-  - flutter_soloud (0.0.1):
-    - Flutter
-  - purchases_flutter (10.4.1):
-    - Flutter
-    - PurchasesHybridCommon (= 18.19.0)
-  - purchases_ui_flutter (10.4.1):
-    - Flutter
-    - PurchasesHybridCommonUI (= 18.19.0)
-  - PurchasesHybridCommon (18.19.0):
-    - RevenueCat (= 5.80.2)
-  - PurchasesHybridCommonUI (18.19.0):
-    - PurchasesHybridCommon (= 18.19.0)
-    - RevenueCatUI (= 5.80.2)
-  - RevenueCat (5.80.2)
-  - RevenueCatUI (5.80.2):
-    - RevenueCat (= 5.80.2)
-  - share_plus (0.0.1):
     - Flutter
 
 DEPENDENCIES:
-  - app_links (from `.symlinks/plugins/app_links/ios`)
-  - audio_session (from `.symlinks/plugins/audio_session/ios`)
   - Flutter (from `Flutter`)
-  - flutter_midi_command_darwin (from `.symlinks/plugins/flutter_midi_command_darwin/darwin`)
-  - flutter_native_splash (from `.symlinks/plugins/flutter_native_splash/ios`)
   - flutter_quick_video_encoder (from `.symlinks/plugins/flutter_quick_video_encoder/ios`)
-  - flutter_secure_storage_darwin (from `.symlinks/plugins/flutter_secure_storage_darwin/darwin`)
-  - flutter_soloud (from `.symlinks/plugins/flutter_soloud/ios`)
-  - purchases_flutter (from `.symlinks/plugins/purchases_flutter/ios`)
-  - purchases_ui_flutter (from `.symlinks/plugins/purchases_ui_flutter/ios`)
-  - share_plus (from `.symlinks/plugins/share_plus/ios`)
-
-SPEC REPOS:
-  trunk:
-    - PurchasesHybridCommon
-    - PurchasesHybridCommonUI
-    - RevenueCat
-    - RevenueCatUI
 
 EXTERNAL SOURCES:
-  app_links:
-    :path: ".symlinks/plugins/app_links/ios"
-  audio_session:
-    :path: ".symlinks/plugins/audio_session/ios"
   Flutter:
     :path: Flutter
-  flutter_midi_command_darwin:
-    :path: ".symlinks/plugins/flutter_midi_command_darwin/darwin"
-  flutter_native_splash:
-    :path: ".symlinks/plugins/flutter_native_splash/ios"
   flutter_quick_video_encoder:
     :path: ".symlinks/plugins/flutter_quick_video_encoder/ios"
-  flutter_secure_storage_darwin:
-    :path: ".symlinks/plugins/flutter_secure_storage_darwin/darwin"
-  flutter_soloud:
-    :path: ".symlinks/plugins/flutter_soloud/ios"
-  purchases_flutter:
-    :path: ".symlinks/plugins/purchases_flutter/ios"
-  purchases_ui_flutter:
-    :path: ".symlinks/plugins/purchases_ui_flutter/ios"
-  share_plus:
-    :path: ".symlinks/plugins/share_plus/ios"
 
 SPEC CHECKSUMS:
-  app_links: a754cbec3c255bd4bbb4d236ecc06f28cd9a7ce8
-  audio_session: 9bb7f6c970f21241b19f5a3658097ae459681ba0
-  Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
-  flutter_midi_command_darwin: 6afc0c0eb03f1a60a8a1704240e3bcfe68b76a51
-  flutter_native_splash: c32d145d68aeda5502d5f543ee38c192065986cf
+  Flutter: 71a624a5bc0c04062bf19101d501e466baf2fb47
   flutter_quick_video_encoder: c012b1523f40093feeffa90cebfe71b32b7b6d25
-  flutter_secure_storage_darwin: acdb3f316ed05a3e68f856e0353b133eec373a23
-  flutter_soloud: d9969a9777b511239e85da6e108e05b429207baf
-  purchases_flutter: 1bfc08dbcd8f55c6e79dfc055a76fe2081a2b729
-  purchases_ui_flutter: 63ddcc72cf0ae40f68da66ff650fad07a68f3913
-  PurchasesHybridCommon: 1eb67a6c8997233b35ed9b4eee8205dd8dd92890
-  PurchasesHybridCommonUI: e990fdbfdcd607bbb240ac237e7f208b2fb2d893
-  RevenueCat: b772273e51fa103a2ecc644439dd54a5dec199f3
-  RevenueCatUI: 89a3f81665e6f3e2b70a15403e91683ff0959952
-  share_plus: 50da8cb520a8f0f65671c6c6a99b3617ed10a58a
 
-PODFILE CHECKSUM: 164802c75952f370344870163e7e01a4131d0ea0
+PODFILE CHECKSUM: 21200d746ac2a03c503a2a79f9250d8ab7ff42a5
 
 COCOAPODS: 1.16.2

@@ -1,6 +1,8 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-/// Tracks the self-implemented free trial. The first-launch timestamp lives in
+/// Tracks the reverse trial: Premium is free for the first [trialDays] days,
+/// then the app drops to the free tier (never to a wall). The first-launch
+/// timestamp lives in
 /// the **Keychain** (via flutter_secure_storage), which survives app deletion
 /// on iOS — so deleting/reinstalling can't reset the trial, and no server is
 /// needed. (Guideline 3.1.1 sanctions a developer-run trial on a non-consumable.)
@@ -36,6 +38,9 @@ class TrialManager {
   }
 
   bool get active => remaining > Duration.zero;
+
+  /// First launch, or null before [ensureStarted] has run.
+  DateTime? get startedAt => _start;
 
   /// Whole days left, rounded up (so ">0" reads as "1 day left", not "0").
   int get daysLeft => (remaining.inHours / 24).ceil();

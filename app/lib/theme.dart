@@ -32,6 +32,7 @@ class ToyButton extends StatefulWidget {
   final EdgeInsets padding;
   final double radius; // corner radius: 30 = pill, smaller = squircle chip
   final String? tooltip; // accessible name + long-press hint (needed for icon-only chips)
+  final bool locked; // a Premium feature the user doesn't have yet: trailing 🔒
 
   const ToyButton({
     super.key,
@@ -44,6 +45,7 @@ class ToyButton extends StatefulWidget {
     this.padding = const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
     this.radius = 30,
     this.tooltip,
+    this.locked = false,
   });
 
   @override
@@ -91,6 +93,10 @@ class _ToyButtonState extends State<ToyButton> {
             ],
             if (widget.label != null)
               Text(widget.label!.toUpperCase(), style: Toy.label(widget.fontSize, widget.textColor)),
+            if (widget.locked) ...[
+              const SizedBox(width: 6),
+              Text('🔒', style: TextStyle(fontSize: widget.fontSize)),
+            ],
           ],
         ),
       ),
@@ -106,7 +112,9 @@ class _ToyButtonState extends State<ToyButton> {
     return Semantics(
       button: true,
       enabled: enabled,
-      label: widget.tooltip ?? widget.label,
+      label: widget.locked
+          ? '${widget.tooltip ?? widget.label}, Premium'
+          : widget.tooltip ?? widget.label,
       onTap: enabled ? widget.onPressed : null,
       child: ExcludeSemantics(child: visual),
     );

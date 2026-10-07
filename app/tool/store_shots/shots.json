@@ -1,0 +1,105 @@
+{
+  "about": "Store screenshot sets for Emojio: which raw capture goes in which store slot, in upload order, with its caption. Raw captures come from the simulator with the debug-only EMOJIO_DEMO hook (lib/store_demo.dart; see capture.sh). build.py frames and lints them. Captions follow the 2026-10 ASO pass.",
+  "frames": {
+    "play": {
+      "eyebrow": "EMOJI MUSIC",
+      "headline": "Every emoji is an <b>instrument</b>",
+      "subline": "Drop stickers on the staff and press play"
+    },
+    "compose": {
+      "eyebrow": "COMPOSE",
+      "headline": "Tap to place. Press play. <b>It's a song!</b>",
+      "subline": "No music reading needed"
+    },
+    "picker": {
+      "eyebrow": "SOUNDS",
+      "headline": "152 emoji to <b>play</b>",
+      "subline": "Faces, animals, music and drums included, more with Premium"
+    },
+    "library": {
+      "eyebrow": "SAVE &amp; SHARE",
+      "headline": "Save your songs. <b>Share a link.</b>",
+      "subline": "Keep 3 songs, or as many as you like with Premium"
+    },
+    "export": {
+      "eyebrow": "VIDEO",
+      "headline": "Turn your tune into a <b>video</b>",
+      "subline": "MP4 video with Premium, WAV audio for everyone",
+      "premium": true
+    },
+    "midi": {
+      "eyebrow": "PLAY LIVE",
+      "headline": "Plug in a <b>MIDI keyboard</b>",
+      "subline": "Play soft or loud with Apple Pencil",
+      "subline_play": "Play soft or loud with a stylus",
+      "premium": true,
+      "subline_mac": "Play live, record into the grid, sync to MIDI clock"
+    }
+  },
+  "sets": {
+    "appstore-iphone": {
+      "store": "appstore",
+      "raw": "iphone",
+      "size": [
+        1320,
+        2868
+      ],
+      "frames": [
+        "play",
+        "compose",
+        "picker",
+        "library",
+        "export",
+        "midi"
+      ]
+    },
+    "appstore-ipad": {
+      "store": "appstore",
+      "raw": "ipad",
+      "size": [
+        2064,
+        2752
+      ],
+      "frames": [
+        "play",
+        "compose",
+        "picker",
+        "library",
+        "export",
+        "midi"
+      ]
+    },
+    "play-phone": {
+      "store": "play",
+      "raw": "iphone",
+      "size": [
+        1440,
+        2560
+      ],
+      "crop_top": 0.065,
+      "frames": [
+        "play",
+        "compose",
+        "picker",
+        "library",
+        "export",
+        "midi"
+      ]
+    },
+    "appstore-mac": {
+      "store": "appstore",
+      "raw": "mac",
+      "size": [
+        2880,
+        1800
+      ],
+      "frames": [
+        "play",
+        "compose",
+        "picker",
+        "export",
+        "midi"
+      ]
+    }
+  }
+}

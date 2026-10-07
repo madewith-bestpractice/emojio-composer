@@ -19,24 +19,40 @@ import 'midi/clock_out.dart';
 import 'midi/host_time.dart';
 import 'midi/midi_manager.dart';
 import 'midi/midi_panel.dart';
+import 'monetization/access.dart';
 import 'monetization/paywall.dart';
 import 'monetization/purchases.dart';
 import 'monetization/trial.dart';
 import 'picker.dart';
+import 'review_prompt.dart';
 import 'song.dart';
 import 'song_library.dart';
 import 'splash.dart';
 import 'staff_painter.dart';
+import 'store_demo.dart';
 import 'tempo_sheet.dart';
 import 'theme.dart';
 import 'voice_engine.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  SystemChrome.setPreferredOrientations(const [
-    DeviceOrientation.landscapeLeft,
-    DeviceOrientation.landscapeRight,
-  ]);
+  // Tablets compose in landscape (iPad ignores this anyway). A phone stands
+  // upright: on its side there's too little height left for 15 staff rows
+  // under the header and palette.
+  final display = ui.PlatformDispatcher.instance.displays.firstOrNull;
+  final shortest = display == null || display.devicePixelRatio == 0
+      ? 0.0
+      : display.size.shortestSide / display.devicePixelRatio;
+  if (shortest > 0) {
+    SystemChrome.setPreferredOrientations(
+      shortest < 600
+          ? const [DeviceOrientation.portraitUp]
+          : const [
+              DeviceOrientation.landscapeLeft,
+              DeviceOrientation.landscapeRight,
+            ],
+    );
+  }
   runApp(const EmojioApp());
 }
 
@@ -69,6 +85,8 @@ class _HarnessPageState extends State<HarnessPage>
   final _engine = VoiceEngine();
   final _library = SongLibrary();
   final _trial = TrialManager();
+  final _reviewPrompt = ReviewPrompt();
+  bool _paywallSeen = false; // this session; no rating prompt after a paywall
   final _purchases = PurchaseManager();
   final _midi = MidiManager();
   MidiClockOut?
@@ -95,9 +113,30 @@ class _HarnessPageState extends State<HarnessPage>
   int _midiDevices =
       0; // tracked so device connect/disconnect rebuilds the page
   int _cursorStep = 0; // MIDI shuttle scrub position (shown when stopped)
+  // The scrub cursor only shows once a MIDI controller has moved it: without
+  // one it's a stray wash beside the gutter.
+  bool _shuttled = false;
   int _extClock = 0; // MIDI-clock pulse counter (6 per 16th step)
 
-  bool get _hasAccess => _purchases.unlocked || _trial.active;
+  /// Premium with the lifetime unlock, or during the first-days reverse trial;
+  /// the free tier otherwise. Read fresh each time, so the trial lapsing or a
+  /// purchase landing takes effect on the next tap.
+  Access get _access => Access(premium: _purchases.unlocked || _trial.active);
+
+  /// True if [f] is available — otherwise opens the paywall naming it and
+  /// resolves true only if the user unlocks there.
+  Future<bool> _requirePremium(PremiumFeature f) async {
+    if (_access.allows(f)) return true;
+    if (_playing) _togglePlay();
+    _paywallSeen = true;
+    return presentEmojioPaywall(context, _purchases, reason: f);
+  }
+
+  /// A song saved, exported or shared: maybe ask for a store rating.
+  void _noteSuccess() => _reviewPrompt.noteSuccess(
+    installed: _trial.startedAt,
+    paywallSeen: _paywallSeen,
+  );
 
   VoiceManifest? _manifest;
   String? _bootError;
@@ -170,10 +209,9 @@ class _HarnessPageState extends State<HarnessPage>
         debugPrint('audio session config failed: $e');
       }
       // Keychain reads can fail (-34018 when entitlements are missing). Let it:
-      // an unwritable trial start leaves the trial reading as active, which
-      // opens the app with the purchase reachable. Letting it throw here would
-      // abort the rest of boot and strand the user on the error screen with no
-      // way to buy anything.
+      // an unwritable trial start leaves the reverse trial reading as active,
+      // so the session runs as Premium. Letting it throw here would abort the
+      // rest of boot and strand the user on the error screen.
       try {
         await _trial.ensureStarted();
       } catch (e) {
@@ -181,24 +219,44 @@ class _HarnessPageState extends State<HarnessPage>
       }
       _purchases.addListener(_onMonetizationChange);
       await _purchases.init();
-      _midi.onNote = _onMidiNote;
-      _midi.onAction = _doMidiAction;
-      _midi.onShuttle = _shuttle;
-      _midi.onPaletteSlot = _selectSlot;
-      _midi.onClock = _extClockStep;
-      _midi.onStart = _extStart;
-      _midi.onContinue = () {
-        if (_midi.externalSync) _playing = true;
+      // MIDI is Premium: without it, incoming events are ignored.
+      _midi.onNote = (e) {
+        if (_midiOn) _onMidiNote(e);
       };
-      _midi.onStop = _extStop;
-      _midi.onSongPosition = _extSongPos;
+      _midi.onAction = (a) {
+        if (_midiOn) _doMidiAction(a);
+      };
+      _midi.onShuttle = (d) {
+        if (_midiOn) _shuttle(d);
+      };
+      _midi.onPaletteSlot = (i) {
+        if (_midiOn) _selectSlot(i);
+      };
+      _midi.onClock = () {
+        if (_midiOn) _extClockStep();
+      };
+      _midi.onStart = () {
+        if (_midiOn) _extStart();
+      };
+      _midi.onContinue = () {
+        if (_midiOn && _midi.externalSync) _playing = true;
+      };
+      _midi.onStop = () {
+        if (_midiOn) _extStop();
+      };
+      _midi.onSongPosition = (b) {
+        if (_midiOn) _extSongPos(b);
+      };
       await _midi.init();
       _midiDevices = _midi.devices.length;
       _midi.addListener(_onMidiDevices);
       final m = await VoiceManifest.load();
       await _engine.init(m);
       final playable = m.playableEmojis();
-      final shuffled = List.of(playable)..shuffle(_rng);
+      // Free users start with sounds they can pick themselves.
+      final starters = playable.where(_access.canUseVoice).toList();
+      final shuffled = List.of(starters.isEmpty ? playable : starters)
+        ..shuffle(_rng);
       setState(() {
         _manifest = m;
         _playable = playable.toSet();
@@ -207,6 +265,9 @@ class _HarnessPageState extends State<HarnessPage>
       });
       _ticker.start();
       await _initDeepLinks();
+      await loadStoreDemo();
+      final demo = storeDemo;
+      if (demo != null) await _runStoreDemo(demo);
     } catch (e, st) {
       debugPrint('boot failed: $e\n$st');
       setState(() => _bootError = '$e');
@@ -227,8 +288,10 @@ class _HarnessPageState extends State<HarnessPage>
     _syncClockOut();
   }
 
+  bool get _midiOn => _access.allows(PremiumFeature.midi);
+
   bool get _clockOutShouldRun =>
-      _playing && _midi.sendClock && !_midi.externalSync;
+      _playing && _midiOn && _midi.sendClock && !_midi.externalSync;
 
   // Start/stop the clock master to match the transport + settings. Anchored at
   // the same play-press instant as _playStartMs, so the app's audio and the
@@ -281,7 +344,7 @@ class _HarnessPageState extends State<HarnessPage>
         velocity: n.velocity,
         pitchOffset: n.pitchOffset,
       );
-      if (_midi.outEnabled && _manifest != null) {
+      if (_midi.outEnabled && _midiOn && _manifest != null) {
         final ev = _manifest!.emojiVoices[n.emoji];
         _midi.sendNote(
           _engine.midiForRow(n.gridY) + (ev?.semi ?? 0) + n.pitchOffset,
@@ -405,9 +468,10 @@ class _HarnessPageState extends State<HarnessPage>
   }
 
   void _shuttle(int delta) {
-    setState(
-      () => _cursorStep = ((_cursorStep + delta) % kCols + kCols) % kCols,
-    );
+    setState(() {
+      _shuttled = true;
+      _cursorStep = ((_cursorStep + delta) % kCols + kCols) % kCols;
+    });
     for (final n in _notes) {
       if (n.gridX == _cursorStep) {
         _engine.playEmoji(
@@ -453,19 +517,22 @@ class _HarnessPageState extends State<HarnessPage>
     return (bestRow, bestOffset);
   }
 
-  void _openMidi() => showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
-    backgroundColor: Colors.white,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-    ),
-    builder: (_) => FractionallySizedBox(
-      heightFactor: 0.88,
-      child: MidiPanel(midi: _midi, palette: _palette),
-    ),
-  );
+  Future<void> _openMidi() async {
+    if (!await _requirePremium(PremiumFeature.midi) || !mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => FractionallySizedBox(
+        heightFactor: 0.88,
+        child: MidiPanel(midi: _midi, palette: _palette),
+      ),
+    );
+  }
 
   // ---- export ----
   Future<void> _openExport() async {
@@ -503,9 +570,12 @@ class _HarnessPageState extends State<HarnessPage>
               color: Toy.accent,
               fontSize: 11,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-              onPressed: () {
+              locked: !_access.allows(PremiumFeature.videoExport),
+              onPressed: () async {
                 Navigator.pop(ctx);
-                _exportVideo();
+                if (await _requirePremium(PremiumFeature.videoExport)) {
+                  _exportVideo();
+                }
               },
             ),
             const SizedBox(height: 10),
@@ -594,6 +664,7 @@ class _HarnessPageState extends State<HarnessPage>
       final file = await _renderWav();
       _dismissProgress();
       await _shareFile(file.path, 'audio/wav');
+      _noteSuccess();
     } catch (e, st) {
       debugPrint('audio export failed: $e\n$st');
       _dismissProgress();
@@ -640,6 +711,7 @@ class _HarnessPageState extends State<HarnessPage>
           sharePositionOrigin: origin,
         ),
       );
+      _noteSuccess();
     } catch (e, st) {
       debugPrint('share failed: $e\n$st');
       _dismissProgress();
@@ -731,6 +803,7 @@ class _HarnessPageState extends State<HarnessPage>
       await FlutterQuickVideoEncoder.finish();
       _dismissProgress();
       await _shareFile(path, 'video/mp4');
+      _noteSuccess();
     } catch (e, st) {
       debugPrint('video export failed: $e\n$st');
       _dismissProgress();
@@ -759,6 +832,7 @@ class _HarnessPageState extends State<HarnessPage>
       tMs: tMs,
       rowLabels: rowLabels,
       showClef: showClef,
+      ledgers: showClef,
       bgColor: const Color(0xFFFFF696), // brand yellow
     ).paint(Canvas(recorder), Size(width.toDouble(), height.toDouble()));
     final img = await recorder.endRecording().toImage(width, height);
@@ -1061,12 +1135,20 @@ class _HarnessPageState extends State<HarnessPage>
     final picked = await showEmojiPicker(
       context,
       playable: _playable,
+      locked: _access.lockedAmong(_playable),
       // Hear the sticker when it's chosen (or hovered with Apple Pencil), at a
       // middle pitch.
       onPreview: (e) =>
           _engine.playEmoji(e, _rows ~/ 2, pitchOffset: _selectedPitchOffset),
     );
-    if (picked != null) _addToPalette(picked);
+    if (picked == null || !mounted) return;
+    // A locked sticker still previews in the picker; choosing one offers
+    // Premium, and adds it straight away if the user unlocks there.
+    if (!_access.canUseVoice(picked) &&
+        !await _requirePremium(PremiumFeature.voices)) {
+      return;
+    }
+    _addToPalette(picked);
   }
 
   // ---- library ----
@@ -1119,6 +1201,15 @@ class _HarnessPageState extends State<HarnessPage>
     // dialog + keyboard don't compete with live playback for the CPU — that
     // contention was starving the audio thread (crackle/drop-outs).
     if (_playing) _togglePlay();
+    // Free keeps a few songs. Songs already saved past the limit (e.g. during
+    // the trial) are never touched — only a new save asks for Premium.
+    final saved = (await _library.list()).length;
+    if (!mounted) return;
+    if (!_access.canSaveAnother(saved) &&
+        !await _requirePremium(PremiumFeature.unlimitedSongs)) {
+      return;
+    }
+    if (!mounted) return;
     // Every save writes a NEW song file rather than overwriting the last one,
     // pre-filled with a generated name the user can keep or edit.
     final name = await _promptName(initial: _suggestSongName());
@@ -1151,6 +1242,7 @@ class _HarnessPageState extends State<HarnessPage>
         duration: const Duration(seconds: 1),
       ),
     );
+    _noteSuccess();
   }
 
   Future<String?> _promptName({required String initial}) => showDialog<String>(
@@ -1204,6 +1296,40 @@ class _HarnessPageState extends State<HarnessPage>
     if (shared == null || !mounted) return;
     _loadShared(shared);
     _snack('Loaded shared song!');
+  }
+
+  /// Debug builds only: sets up one store screenshot (see store_demo.dart).
+  Future<void> _runStoreDemo(String mode) async {
+    _loadShared(demoSong());
+    setState(() => _selected = '🐸');
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    if (!mounted) return;
+    switch (mode) {
+      case 'play':
+        _togglePlay();
+      case 'picker':
+        await _openPicker();
+      case 'library':
+        if ((await _library.list()).isEmpty) {
+          for (final (name, song) in demoLibrary().reversed) {
+            await _library.save(
+              Song.fresh(
+                name: name,
+                bpm: song.bpm,
+                palette: song.palette,
+                selectedEmoji: song.palette.first,
+              )..notes = song.notes,
+            );
+          }
+        }
+        await _openLibrary();
+      case 'export':
+        await _openExport();
+      case 'midi':
+        await _openMidi();
+      case 'paywall':
+        _openPaywall();
+    }
   }
 
   // Like _loadSong but for an incoming link: no id/name, so it behaves as a
@@ -1266,23 +1392,22 @@ class _HarnessPageState extends State<HarnessPage>
     super.dispose();
   }
 
-  // Dismissible paywall (from the header Unlock button or the trial banner).
-  // Fire-and-forget: the purchase manager's customer-info listener updates
-  // state on completion.
+  // Premium paywall opened on purpose (the header Premium button or the trial
+  // banner). Fire-and-forget: the purchase manager's customer-info listener
+  // updates state on completion.
   void _openPaywall() {
+    _paywallSeen = true;
     presentEmojioPaywall(context, _purchases);
   }
 
-  void _openCustomerCenter() {
-    presentEmojioCustomerCenter(context, _purchases);
+  void _openPurchases() {
+    presentEmojioPurchases(context, _purchases);
   }
 
   @override
   Widget build(BuildContext context) {
     if (_bootError != null) return _errorScreen(_bootError!);
     if (_manifest == null) return const SplashScreen();
-    // Hard wall once the 3-day trial ends and the app isn't unlocked.
-    if (!_hasAccess) return RcPaywall(purchases: _purchases);
     // Edge-to-edge: the coloured bars run to every screen edge. The blue header
     // owns the top (including the status-bar inset), so the top of the screen is
     // always blue; the trial ribbon, if any, sits just beneath it.
@@ -1292,7 +1417,7 @@ class _HarnessPageState extends State<HarnessPage>
         crossAxisAlignment: CrossAxisAlignment.stretch, // bars span full width
         children: [
           _header(topInset: topInset),
-          if (!_purchases.unlocked)
+          if (!_purchases.unlocked && _trial.active && storeDemo == null)
             TrialBanner(trial: _trial, onTap: _openPaywall),
           _paletteBar(),
           Expanded(child: _staff()),
@@ -1313,10 +1438,10 @@ class _HarnessPageState extends State<HarnessPage>
     button: true,
     label: 'Emojio. Long-press to manage your purchase',
     child: GestureDetector(
-      // Long-press the brand to open the RevenueCat Customer Center
-      // (restore / manage / support) — reachable even after unlocking.
+      // Long-press the brand for the purchase sheet (restore, or thanks and
+      // support once owned) — reachable even after unlocking.
       behavior: HitTestBehavior.opaque,
-      onLongPress: _openCustomerCenter,
+      onLongPress: _openPurchases,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -1359,6 +1484,7 @@ class _HarnessPageState extends State<HarnessPage>
     required Color color,
     Color textColor = Colors.white,
     String? tooltip,
+    bool locked = false,
     required VoidCallback onPressed,
   }) => ToyButton(
     key: key,
@@ -1367,6 +1493,7 @@ class _HarnessPageState extends State<HarnessPage>
     color: color,
     textColor: textColor,
     tooltip: tooltip,
+    locked: locked,
     fontSize: _barFont,
     radius: _barRadius,
     padding: _barPad,
@@ -1388,12 +1515,12 @@ class _HarnessPageState extends State<HarnessPage>
   List<Widget> _actionButtons() => [
     // Purchase entry point, first so it survives the row scrolling on a
     // handset. The trial ribbon alone wasn't findable — App Review rejected
-    // 1.0 for it — so the unlock also lives here, shaped like every other
-    // button in the app.
+    // 1.0 for it — so Premium also lives here, shaped like every other button
+    // in the app, and shows whenever the unlock isn't owned (trial included).
     if (!_purchases.unlocked)
       _barButton(
-        label: 'Unlock',
-        emoji: '🔓',
+        label: 'Premium',
+        emoji: '⭐',
         color: Toy.accent,
         onPressed: _openPaywall,
       ),
@@ -1449,6 +1576,7 @@ class _HarnessPageState extends State<HarnessPage>
       label: 'MIDI',
       emoji: '🎹',
       color: Toy.green,
+      locked: !_midiOn,
       onPressed: _openMidi,
     ),
   ];
@@ -1930,8 +2058,11 @@ class _HarnessPageState extends State<HarnessPage>
   );
 
   // Capture Apple Pencil pressure (finger/mouse report no useful pressure -> full).
+  // Pressure-to-volume is Premium; free notes all play at full volume.
   void _capturePressure(PointerEvent e) {
-    _lastPressure = e.kind == PointerDeviceKind.stylus
+    _lastPressure =
+        e.kind == PointerDeviceKind.stylus &&
+            _access.allows(PremiumFeature.pencil)
         ? e.pressure.clamp(0.0, 1.0)
         : 1.0;
   }
@@ -1939,6 +2070,10 @@ class _HarnessPageState extends State<HarnessPage>
   // Handset column width — big enough to tap and to keep the emoji from
   // colliding; 16 of these overflow a phone, so the grid scrolls horizontally.
   static const double _handsetStepX = 64.0;
+  // Blank staff before the first column, so at rest it sits clear of the
+  // gutter's torn edge, which overhangs the grid by up to 16.
+  static const double _handsetLead = 16.0;
+  static const double _handsetMinStepY = 24.0;
 
   Widget _staff() => LayoutBuilder(
     builder: (context, constraints) {
@@ -1951,7 +2086,8 @@ class _HarnessPageState extends State<HarnessPage>
       final showClef = _engine.scaleMode == ScaleMode.free;
 
       // The note grid. On handset the clef/labels live in a pinned gutter,
-      // so the grid draws with padLeft 0 and a fixed column width.
+      // so the grid draws with only a short lead (clear of the torn edge) and
+      // a fixed column width.
       StaffPainter gridPainter({
         required bool withGutter,
         double? fixedStepX,
@@ -1963,13 +2099,14 @@ class _HarnessPageState extends State<HarnessPage>
         currentStep: _currentStep,
         playheadFrac: _playheadFrac,
         tMs: _nowMs,
-        cursorStep: _playing ? -1 : _cursorStep,
+        cursorStep: _playing || !_shuttled ? -1 : _cursorStep,
         rowLabels: withGutter ? labels : null,
         showClef: withGutter && showClef,
         reduceMotion: reduceMotion,
-        padLeft: withGutter ? 88.0 : 0.0,
+        padLeft: withGutter ? 88.0 : _handsetLead,
         drawGutter: withGutter,
         fixedStepX: fixedStepX,
+        ledgers: showClef,
       );
 
       Widget grid(Size size, {double? fixedStepX, required bool withGutter}) =>
@@ -2017,8 +2154,11 @@ class _HarnessPageState extends State<HarnessPage>
         // Handset: frozen clef/label gutter + a horizontally-scrolling grid.
         // Drag scrolls; a tap places/removes a note (no drag-paint, so the
         // scroll and the placement gestures never fight).
-        final h = constraints.maxHeight;
-        final gridSize = Size(kCols * _handsetStepX, h);
+        // Never squeeze the rows below a tappable pitch: if the staff is too
+        // short for that, it scrolls up and down as well as sideways.
+        final minH = staffHeightForStep(_handsetMinStepY, _rows);
+        final h = math.max(constraints.maxHeight, minH);
+        final gridSize = Size(_handsetLead + kCols * _handsetStepX, h);
         body = Stack(
           children: [
             Row(
@@ -2053,7 +2193,7 @@ class _HarnessPageState extends State<HarnessPage>
                         onTapUp: (d) => _toggleAt(
                           d.localPosition,
                           gridSize,
-                          padLeft: 0,
+                          padLeft: _handsetLead,
                           fixedStepX: _handsetStepX,
                           globalPosition: d.globalPosition,
                         ),
@@ -2062,13 +2202,13 @@ class _HarnessPageState extends State<HarnessPage>
                         onLongPressStart: (d) => _grabAt(
                           d.localPosition,
                           gridSize,
-                          padLeft: 0,
+                          padLeft: _handsetLead,
                           fixedStepX: _handsetStepX,
                         ),
                         onLongPressMoveUpdate: (d) => _dragTo(
                           d.localPosition,
                           gridSize,
-                          padLeft: 0,
+                          padLeft: _handsetLead,
                           fixedStepX: _handsetStepX,
                         ),
                         onLongPressEnd: (_) => _dropNote(),
@@ -2084,32 +2224,25 @@ class _HarnessPageState extends State<HarnessPage>
               ],
             ),
             // Torn-paper right edge of the clef gutter — the notes read as
-            // scrolling under the ripped edge of the staff paper. Hidden at
-            // rest (nothing has slid under yet); it fades in over the first
-            // few pixels of scroll.
+            // scrolling under the ripped edge of the staff paper. Always
+            // shown: the handset grid always runs wider than the screen, and
+            // the rip is what says the staff scrolls.
             Positioned(
               left: StaffMetrics.gutter - 8,
               top: 0,
               bottom: 0,
               width: 24,
               child: IgnorePointer(
-                child: AnimatedBuilder(
-                  animation: _handsetScroll,
-                  builder: (context, _) {
-                    final off = _handsetScroll.hasClients
-                        ? _handsetScroll.offset
-                        : 0.0;
-                    final op = (off / 16).clamp(0.0, 1.0);
-                    return Opacity(
-                      opacity: op,
-                      child: CustomPaint(painter: TornEdgePainter(rows: _rows)),
-                    );
-                  },
-                ),
+                child: CustomPaint(painter: TornEdgePainter(rows: _rows)),
               ),
             ),
           ],
         );
+        if (h > constraints.maxHeight) {
+          body = SingleChildScrollView(
+            child: SizedBox(height: h, child: body),
+          );
+        }
       }
 
       return Semantics(

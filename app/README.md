@@ -22,8 +22,14 @@ original Tone.js voices, baked to samples and played natively via
 - **Accessibility** — VoiceOver labels on every control, Reduce Motion, and an
   Increase-Contrast response.
 - **MIDI (iPad, USB-first)** — see below.
-- **Monetization** — 3-day Keychain trial → single non-consumable "unlock
-  forever" IAP (StoreKit 2). Paywall + trial banner.
+- **Monetization** — free app + **Premium** (the single non-consumable
+  `emojio.unlock_forever`, via RevenueCat entitlement `Emojio Genius`). Free:
+  the composer, four sound categories (Faces, Animals, Music, Drum Kit), share
+  links, WAV export, 3 saved songs. Premium: every sound, MP4 export, MIDI,
+  Pencil pressure, unlimited songs. New users get Premium free for 3 days (a
+  Keychain-stamped reverse trial), then drop to free — never a wall. The split
+  lives in `lib/monetization/access.dart`; locked features open a paywall that
+  names them.
 
 ## MIDI
 Opens via the `🎹 MIDI` header button, which appears only when a controller is
@@ -103,7 +109,7 @@ flutter run -d <ipad-id>      # on iPad; plug in a USB-MIDI controller to test M
 - `lib/song.dart`, `lib/song_library.dart` — local song storage.
 - `lib/picker.dart`, `lib/categories.dart`, `lib/theme.dart` — palette/picker + toy theme.
 - `lib/midi/` — MIDI manager + panel.
-- `lib/monetization/` — trial, purchases, paywall.
+- `lib/monetization/` — access (free/Premium split), trial, purchases, paywall.
 - `lib/main.dart` — app shell + transport + wiring.
 
 ## Known simplifications (tech debt)

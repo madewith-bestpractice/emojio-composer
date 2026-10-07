@@ -23,6 +23,32 @@ class Note {
   });
 }
 
+/// Space above the top row and below the bottom one. 40pt on a tablet; a short
+/// phone staff gets less so its rows aren't squeezed to nothing.
+double staffMarginY(double height) => (height * 0.06).clamp(16.0, 40.0);
+
+/// The staff height whose rows come out exactly [stepY] apart, margins
+/// included (the inverse of [StaffMetrics]'s row spacing).
+double staffHeightForStep(double stepY, int rows) {
+  final inner = (rows - 1) * stepY;
+  // The margin is 16 on a short staff, 6% of the height mid-range, 40 when tall.
+  for (final h in [inner + 32, inner / 0.88, inner + 80]) {
+    if ((staffMarginY(h) * 2 - (h - inner)).abs() < 1e-6) return h;
+  }
+  return inner + 80;
+}
+
+/// Rows (indices into the manifest scale, G5 at the top) that carry the five
+/// treble-staff lines, F5 D5 B4 G4 E4. The other odd rows (C4, A3) sit on
+/// ledger lines.
+const kStaffLineRows = {1, 3, 5, 7, 9};
+
+/// The treble clef's curl wraps the G4 line.
+const kGLineRow = 7;
+
+/// Ledger lines a note on [row] needs: every odd row between the staff and it.
+List<int> ledgerRowsFor(int row) => [for (var r = 11; r <= row; r += 2) r];
+
 /// Geometry shared by the painter and hit-testing so taps line up with pixels.
 class StaffMetrics {
   final double width, height, padLeft, marginY, stepX, stepY;
@@ -48,7 +74,7 @@ class StaffMetrics {
     double padLeft = 88.0,
     double? fixedStepX,
   }) {
-    const marginY = 40.0;
+    final marginY = staffMarginY(size.height);
     return StaffMetrics._(
       size.width,
       size.height,
@@ -61,8 +87,9 @@ class StaffMetrics {
     );
   }
 
-  /// The pinned clef/label gutter is 88pt wide.
-  static const double gutter = 88.0;
+  /// The pinned handset clef/label gutter: wide enough for a treble clef that
+  /// spans the staff.
+  static const double gutter = 112.0;
 
   Offset cellCenter(int gx, int gy) =>
       Offset(padLeft + gx * stepX + stepX / 2, marginY + gy * stepY);
@@ -96,9 +123,7 @@ class StaffPainter extends CustomPainter {
   final bool
   drawGutter; // false = grid only (clef/labels live in a pinned gutter)
   final double? fixedStepX; // pin a column width (handset horizontal scroll)
-
-  // Rows that get a bold staff line (matches the web app's MAIN_STAFF_LINES).
-  static const _mainLines = {1, 3, 5, 7, 9, 11, 13};
+  final bool ledgers; // free (treble) mode: ledger lines under low notes
 
   StaffPainter({
     required this.notes,
@@ -116,6 +141,7 @@ class StaffPainter extends CustomPainter {
     this.padLeft = 88.0,
     this.drawGutter = true,
     this.fixedStepX,
+    this.ledgers = false,
   });
 
   @override
@@ -139,30 +165,27 @@ class StaffPainter extends CustomPainter {
     final grid = Paint()
       ..color = const Color(0xFFE0F7FA)
       ..strokeWidth = 1;
+    // Every 4th line is a beat (16 steps = one bar of 4/4).
+    final beat = Paint()
+      ..color = const Color(0xFFB2EBF2)
+      ..strokeWidth = 2;
     for (var i = 0; i <= cols; i++) {
       final x = m.padLeft + i * m.stepX;
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), grid);
+      final onBeat = i % 4 == 0 && i > 0 && i < cols;
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), onBeat ? beat : grid);
     }
 
-    // Horizontal staff lines (only odd rows, per the app)
-    for (var i = 0; i < rows; i++) {
-      if (i.isOdd) {
-        final y = m.marginY + i * m.stepY;
-        final main = _mainLines.contains(i);
-        final p = Paint()
-          ..color = main ? const Color(0xFF90A4AE) : const Color(0xFFECEFF1)
-          ..strokeWidth = main ? 4 : 2
-          ..strokeCap = StrokeCap.round;
-        canvas.drawLine(Offset(lineL, y), Offset(lineR, y), p);
-      }
-    }
+    paintStaffLines(canvas, lineL, lineR, m.stepY, rows, m.marginY);
+    _paintEndRepeat(canvas, lineR, m);
 
     // Treble clef (Free mode) or per-row pitch labels (scale mode).
     if (showClef) {
-      _paintClef(
+      paintClef(
         canvas,
-        m.stepY * 11,
-        Offset(m.padLeft / 2 - m.stepY * 2.4, m.marginY + m.stepY * 2.5),
+        stepY: m.stepY,
+        marginY: m.marginY,
+        gutter: m.padLeft,
+        maxWidth: m.padLeft * 1.25,
         playing: isPlaying,
         tMs: tMs,
       );
@@ -214,8 +237,25 @@ class StaffPainter extends CustomPainter {
       );
     }
 
-    // Notes
+    // Notes. Ledger lines go down first so every note sits on top of them.
     final size0 = m.stepY * 1.9;
+    if (ledgers) {
+      final ledger = Paint()
+        ..color = const Color(0xFF90A4AE)
+        ..strokeWidth = 3
+        ..strokeCap = StrokeCap.round;
+      for (final n in notes) {
+        final cx = m.cellCenter(n.gridX, n.gridY).dx;
+        for (final r in ledgerRowsFor(n.gridY)) {
+          final y = m.marginY + r * m.stepY;
+          canvas.drawLine(
+            Offset(cx - size0 * 0.65, y),
+            Offset(cx + size0 * 0.65, y),
+            ledger,
+          );
+        }
+      }
+    }
     for (final n in notes) {
       final c = m.cellCenter(n.gridX, n.gridY);
       final active = isPlaying && n.gridX == currentStep;
@@ -306,17 +346,19 @@ class StaffGutterPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (size.width <= 0 || size.height <= 0 || rows < 2) return;
-    const marginY = 40.0;
+    final marginY = staffMarginY(size.height);
     final stepY = (size.height - marginY * 2) / (rows - 1);
     canvas.drawRect(Offset.zero & size, Paint()..color = Colors.white);
 
-    // Line stubs (odd rows) that meet the scrolling grid flush at the right edge.
-    paintStaffLines(canvas, 20, size.width, stepY, rows);
+    // Line stubs that meet the scrolling grid flush at the right edge.
+    paintStaffLines(canvas, 20, size.width, stepY, rows, marginY);
     if (showClef) {
-      _paintClef(
+      paintClef(
         canvas,
-        stepY * 11,
-        Offset(size.width / 2 - stepY * 2.4, marginY + stepY * 2.5),
+        stepY: stepY,
+        marginY: marginY,
+        gutter: size.width - 8, // the torn edge's paper starts 8 in
+        maxWidth: size.width - 16,
         playing: isPlaying,
         tMs: tMs,
       );
@@ -346,31 +388,48 @@ class StaffGutterPainter extends CustomPainter {
       old.rowLabels != rowLabels;
 }
 
-/// The staff's ruled lines: odd rows only, with the seven "main" ones heavy.
-/// Shared so the pinned gutter and the torn edge that continues it can't drift
-/// apart.
-const _kMainLines = {1, 3, 5, 7, 9, 11, 13};
-
+/// The staff's ruled lines: the five treble-staff lines solid, and the ledger
+/// rows below (C4, A3) as faint dashed guides so those rows are still easy to
+/// aim at. Shared so the grid, the pinned gutter and the torn edge that
+/// continues it can't drift apart.
 void paintStaffLines(
   Canvas canvas,
   double x0,
   double x1,
   double stepY,
   int rows,
+  double marginY,
 ) {
-  const marginY = 40.0;
-  for (var i = 0; i < rows; i++) {
-    if (!i.isOdd) continue;
+  final line = Paint()
+    ..color = const Color(0xFF90A4AE)
+    ..strokeWidth = 4
+    ..strokeCap = StrokeCap.round;
+  final guide = Paint()
+    ..color = const Color(0xFFCFD8DC)
+    ..strokeWidth = 2;
+  for (var i = 1; i < rows; i += 2) {
     final y = marginY + i * stepY;
-    final main = _kMainLines.contains(i);
-    canvas.drawLine(
-      Offset(x0, y),
-      Offset(x1, y),
-      Paint()
-        ..color = main ? const Color(0xFF90A4AE) : const Color(0xFFECEFF1)
-        ..strokeWidth = main ? 4 : 2
-        ..strokeCap = StrokeCap.round,
-    );
+    if (kStaffLineRows.contains(i)) {
+      canvas.drawLine(Offset(x0, y), Offset(x1, y), line);
+    } else {
+      for (var x = x0; x < x1; x += 14) {
+        canvas.drawLine(Offset(x, y), Offset(math.min(x + 7, x1), y), guide);
+      }
+    }
+  }
+}
+
+/// End-repeat barline at [x]: dots, a thin line and a thick one across the
+/// five staff lines, since the 16 steps loop.
+void _paintEndRepeat(Canvas canvas, double x, StaffMetrics m) {
+  final ink = Paint()..color = const Color(0xFF90A4AE);
+  final top = m.marginY + kStaffLineRows.first * m.stepY;
+  final bottom = m.marginY + kStaffLineRows.last * m.stepY;
+  canvas.drawRect(Rect.fromLTRB(x - 6, top, x, bottom), ink);
+  canvas.drawRect(Rect.fromLTRB(x - 12, top, x - 10, bottom), ink);
+  final r = (m.stepY * 0.22).clamp(2.5, 6.0).toDouble();
+  for (final row in const [4, 6]) {
+    canvas.drawCircle(Offset(x - 20, m.marginY + row * m.stepY), r, ink);
   }
 }
 
@@ -443,12 +502,14 @@ class TornEdgePainter extends CustomPainter {
     if (rows < 2 || size.height <= 0) return;
     canvas.save();
     canvas.clipPath(path);
+    final marginY = staffMarginY(size.height);
     paintStaffLines(
       canvas,
       0,
       size.width,
-      (size.height - 80) / (rows - 1),
+      (size.height - marginY * 2) / (rows - 1),
       rows,
+      marginY,
     );
     canvas.restore();
   }
@@ -471,16 +532,31 @@ const List<Color> _clefRainbow = [
   Color(0xD9FF5E7E), // back to pink-red
 ];
 
-/// Paints the treble clef. While [playing], tints it with a gentle, slowly
-/// rotating rainbow (a full turn every ~5s); otherwise draws it in solid ink.
-void _paintClef(
-  Canvas canvas,
-  double fontSize,
-  Offset offset, {
+/// Paints the treble clef with its curl on the G line, as in real notation.
+/// The glyph is Bravura's (bundled as EmojioClef): SMuFL puts the G line on the
+/// baseline and the outline spans 2.684 x 7.024 staff spaces. Where the staff
+/// is tall it's drawn under true size, no wider than [maxWidth], so it doesn't
+/// cover the first columns. While [playing], tints it
+/// with a gentle, slowly rotating rainbow (a full turn every ~5s); otherwise
+/// draws it in solid ink.
+void paintClef(
+  Canvas canvas, {
+  required double stepY,
+  required double marginY,
+  required double gutter,
+  required double maxWidth,
   required bool playing,
   required int tMs,
 }) {
-  final tp = _staffGlyph('𝄞', fontSize, const Color(0xFF37474F));
+  // One clef staff space: 1.5 rows (a touch under the true two, so the clef
+  // stays inside the margins), capped at [maxWidth].
+  final space = math.min(stepY * 1.5, maxWidth / 2.684);
+  final tp = _clefGlyph(space * 4); // SMuFL: 1 em = 4 staff spaces
+  final baseline = tp.computeDistanceToActualBaseline(TextBaseline.alphabetic);
+  final offset = Offset(
+    math.max(4.0, (gutter - tp.width) / 2),
+    marginY + kGLineRow * stepY - baseline,
+  );
   if (!playing) {
     tp.paint(canvas, offset);
     return;
@@ -500,6 +576,25 @@ void _paintClef(
       ..blendMode = BlendMode.srcATop,
   );
   canvas.restore();
+}
+
+final Map<double, TextPainter> _clefCache = {};
+TextPainter _clefGlyph(double fontSize) {
+  final fs = fontSize.roundToDouble();
+  return _clefCache.putIfAbsent(
+    fs,
+    () => TextPainter(
+      text: TextSpan(
+        text: '\uE050', // SMuFL gClef
+        style: TextStyle(
+          fontFamily: 'EmojioClef',
+          fontSize: fs,
+          color: const Color(0xFF37474F),
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout(),
+  );
 }
 
 final Map<String, TextPainter> _glyphCache = {};
