@@ -1,65 +1,109 @@
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:in_app_review/in_app_review.dart';
+import 'package:path_provider/path_provider.dart';
 
-/// Asks for a store rating after the player has had a few wins — a song saved,
-/// exported or shared — and never on first launch, never in a session that
-/// showed the paywall, and at most once every [cooldown]. The OS has the final
-/// say (iOS shows the sheet at most 3 times a year), and it never says whether
-/// the sheet appeared, so this only counts that we asked.
+import 'app_version.dart';
+
+/// Asks for a store rating at a genuine success moment: the first song saved,
+/// exported or shared, or a song the player listened to all the way through
+/// (see [playedThrough]). It asks at most once per app version and
+/// [minGap] apart, and not right after a paywall. The OS has the final say
+/// (iOS and macOS show the sheet at most 3 times a year; Play has its own
+/// quota) and never says whether the sheet appeared, so this only records
+/// that we asked.
+///
+/// State lives in a small JSON file in the app-support directory rather than
+/// the Keychain, so a keychain that can't be written (macOS without an access
+/// group, say) can't silently turn the prompt off.
 class ReviewPrompt {
-  static const successesNeeded = 3;
-  static const minAge = Duration(days: 1);
-  static const cooldown = Duration(days: 120);
-  static const _countKey = 'emojio.review.successes';
-  static const _askedKey = 'emojio.review.asked_ms';
+  static const minGap = Duration(days: 30);
+  static const paywallQuiet = Duration(minutes: 2);
 
-  final FlutterSecureStorage _store;
+  /// A listen counts once the song has this many notes on the staff...
+  static const minNotes = 8;
+
+  /// ...and has looped all the way through this many times before Stop.
+  static const minLoops = 2;
+
+  final Future<File> Function() _file;
   final InAppReview _review;
+  final String _version;
 
-  ReviewPrompt({FlutterSecureStorage? store, InAppReview? review})
-    : _store = store ?? const FlutterSecureStorage(),
-      _review = review ?? InAppReview.instance;
+  /// Set once this session has asked, so a burst of wins asks once.
+  bool _askedThisSession = false;
+
+  ReviewPrompt({
+    Future<File> Function()? file,
+    InAppReview? review,
+    String version = kAppVersion,
+  }) : _file = file ?? _defaultFile,
+       _review = review ?? InAppReview.instance,
+       _version = version;
+
+  static Future<File> _defaultFile() async => File(
+    '${(await getApplicationSupportDirectory()).path}/review_prompt.json',
+  );
+
+  /// Whether a stop after [stepsPlayed] steps of a [noteCount]-note song is a
+  /// finished listen, worth treating like a save.
+  static bool playedThrough({
+    required int noteCount,
+    required int stepsPlayed,
+    required int stepsPerLoop,
+  }) => noteCount >= minNotes && stepsPlayed >= minLoops * stepsPerLoop;
 
   /// Whether a win right now should ask. Pure, so the rules are testable.
   static bool shouldAsk({
-    required int successes,
-    required DateTime? installed,
+    required String version,
+    required String? askedVersion,
     required DateTime? lastAsked,
     required DateTime now,
-    required bool paywallSeen,
+    DateTime? paywallAt,
   }) {
-    if (paywallSeen || installed == null) return false;
-    if (successes < successesNeeded) return false;
-    if (now.difference(installed) < minAge) return false;
-    return lastAsked == null || now.difference(lastAsked) >= cooldown;
+    if (askedVersion == version) return false;
+    if (paywallAt != null && now.difference(paywallAt) < paywallQuiet) {
+      return false;
+    }
+    return lastAsked == null || now.difference(lastAsked) >= minGap;
   }
 
   /// Records a win and asks for a rating if [shouldAsk] says it's time.
-  Future<void> noteSuccess({
-    required DateTime? installed,
-    required bool paywallSeen,
-  }) async {
+  /// [paywallAt] is when this session last showed the paywall, if it did.
+  Future<void> noteSuccess({DateTime? paywallAt}) async {
+    if (_askedThisSession) return;
     try {
-      final successes =
-          (int.tryParse(await _store.read(key: _countKey) ?? '') ?? 0) + 1;
-      await _store.write(key: _countKey, value: '$successes');
-      final askedMs = int.tryParse(await _store.read(key: _askedKey) ?? '');
+      final file = await _file();
+      var state = <String, dynamic>{};
+      if (await file.exists()) {
+        try {
+          state = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+        } catch (_) {
+          // Unreadable: start over rather than never asking again.
+        }
+      }
+      final askedMs = state['asked_ms'];
       final now = DateTime.now();
       if (!shouldAsk(
-        successes: successes,
-        installed: installed,
-        lastAsked: askedMs == null
-            ? null
-            : DateTime.fromMillisecondsSinceEpoch(askedMs),
+        version: _version,
+        askedVersion: state['asked_version'] as String?,
+        lastAsked: askedMs is int
+            ? DateTime.fromMillisecondsSinceEpoch(askedMs)
+            : null,
         now: now,
-        paywallSeen: paywallSeen,
+        paywallAt: paywallAt,
       )) {
         return;
       }
       if (!await _review.isAvailable()) return;
-      await _store.write(
-        key: _askedKey,
-        value: '${now.millisecondsSinceEpoch}',
+      _askedThisSession = true;
+      await file.parent.create(recursive: true);
+      await file.writeAsString(
+        jsonEncode({
+          'asked_version': _version,
+          'asked_ms': now.millisecondsSinceEpoch,
+        }),
       );
       await _review.requestReview();
     } catch (_) {

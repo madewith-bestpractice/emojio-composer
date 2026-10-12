@@ -86,7 +86,7 @@ class _HarnessPageState extends State<HarnessPage>
   final _library = SongLibrary();
   final _trial = TrialManager();
   final _reviewPrompt = ReviewPrompt();
-  bool _paywallSeen = false; // this session; no rating prompt after a paywall
+  DateTime? _paywallAt; // last paywall shown; no rating prompt right after
   final _purchases = PurchaseManager();
   final _midi = MidiManager();
   MidiClockOut?
@@ -128,15 +128,29 @@ class _HarnessPageState extends State<HarnessPage>
   Future<bool> _requirePremium(PremiumFeature f) async {
     if (_access.allows(f)) return true;
     if (_playing) _togglePlay();
-    _paywallSeen = true;
+    _paywallAt = DateTime.now();
     return presentEmojioPaywall(context, _purchases, reason: f);
   }
 
-  /// A song saved, exported or shared: maybe ask for a store rating.
-  void _noteSuccess() => _reviewPrompt.noteSuccess(
-    installed: _trial.startedAt,
-    paywallSeen: _paywallSeen,
-  );
+  /// A song saved, exported, shared or listened to all the way through: maybe
+  /// ask for a store rating (see ReviewPrompt for the rules).
+  void _noteSuccess() => _reviewPrompt.noteSuccess(paywallAt: _paywallAt);
+
+  /// Play/Stop pressed by the player (button or MIDI). A Stop after a full
+  /// listen of a real song counts as a win; the app's own stops (before a
+  /// dialog, the paywall, an export) go through [_togglePlay] and never do.
+  void _playStopPressed() {
+    final finishedListen =
+        _playing &&
+        !_midi.externalSync &&
+        ReviewPrompt.playedThrough(
+          noteCount: _notes.length,
+          stepsPlayed: _globalStep,
+          stepsPerLoop: kCols,
+        );
+    _togglePlay();
+    if (finishedListen) _noteSuccess();
+  }
 
   VoiceManifest? _manifest;
   String? _bootError;
@@ -403,7 +417,7 @@ class _HarnessPageState extends State<HarnessPage>
   void _doMidiAction(MidiAction a) {
     switch (a) {
       case MidiAction.playStop:
-        _togglePlay();
+        _playStopPressed();
       case MidiAction.clear:
         _snapshotForUndo();
         setState(_notes.clear);
@@ -1396,7 +1410,7 @@ class _HarnessPageState extends State<HarnessPage>
   // banner). Fire-and-forget: the purchase manager's customer-info listener
   // updates state on completion.
   void _openPaywall() {
-    _paywallSeen = true;
+    _paywallAt = DateTime.now();
     presentEmojioPaywall(context, _purchases);
   }
 
@@ -1505,7 +1519,7 @@ class _HarnessPageState extends State<HarnessPage>
     label: _playing ? 'Stop' : 'Play',
     emoji: _playing ? '⏹️' : '▶️',
     color: _playing ? Toy.red : Toy.green,
-    onPressed: _togglePlay,
+    onPressed: _playStopPressed,
   );
 
   // Creative + utility actions, in the order the user set: Play (prepended)
