@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
-import 'package:purchases_flutter/purchases_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../theme.dart';
 import 'access.dart';
 import 'purchases.dart';
@@ -16,6 +16,9 @@ import 'trial.dart';
 ///
 /// The copy speaks to the grown-up holding the iPad: the sheet usually opens
 /// because a child tapped a locked sticker.
+const kTermsUrl = 'https://emojio-composer.madewithbestpractice.com/terms';
+const kPrivacyUrl = 'https://emojio-composer.madewithbestpractice.com/privacy';
+
 class UnlockSheet extends StatefulWidget {
   final PurchaseManager purchases;
   final VoidCallback onClose;
@@ -37,12 +40,24 @@ class UnlockSheet extends StatefulWidget {
 
 class _UnlockSheetState extends State<UnlockSheet> {
   PurchaseManager get _p => widget.purchases;
-  late final bool _ownedAtOpen = _p.unlocked;
+  // Read in initState: a `late final` initializer would only run on first
+  // use, after the purchase had landed, and the sheet would never close.
+  late final bool _ownedAtOpen;
 
   @override
   void initState() {
     super.initState();
+    _ownedAtOpen = _p.unlocked;
     _p.addListener(_onChange);
+    // Clear a stale note from an earlier visit, and give a product that failed
+    // to load at boot (an offline launch, say) another go — the sheet shows a
+    // spinner meanwhile instead of a greyed-out button.
+    _p.notice = null;
+    if (!_p.canBuy && !_p.unlocked) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _p.reload();
+      });
+    }
   }
 
   @override
@@ -58,52 +73,134 @@ class _UnlockSheetState extends State<UnlockSheet> {
     if (_p.unlocked && !_ownedAtOpen) widget.onClose();
   }
 
-  /// Already Premium (opened from the logo): no buy button, just thanks,
-  /// Restore for a new device, and where to ask for help.
-  Widget _owned() => Container(
-    color: Toy.bg,
-    padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Text('🎉', style: TextStyle(fontSize: 44)),
-        const SizedBox(height: 14),
-        Text('YOU HAVE PREMIUM', style: Toy.label(13)),
-        const SizedBox(height: 10),
-        const Text(
-          'Thanks for supporting Emojio! Every sound, video export, MIDI, '
-          'Pencil pressure and unlimited songs are yours, forever.',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 14, color: Toy.text),
-        ),
-        const SizedBox(height: 18),
-        ToyButton(
+  Widget _restoreButton() => _p.restoring
+      ? const Padding(
+          padding: EdgeInsets.symmetric(vertical: 8),
+          child: SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(strokeWidth: 3, color: Toy.text),
+          ),
+        )
+      : ToyButton(
           label: 'Restore Purchase',
           emoji: '♻️',
           color: Colors.white,
           textColor: Toy.text,
           fontSize: 9,
           onPressed: _p.restore,
-        ),
-        const SizedBox(height: 14),
-        const SelectableText(
-          'Questions? brendan@madewithbestpractice.com',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 12, color: Colors.black54),
-        ),
-        const SizedBox(height: 18),
+        );
+
+  /// Terms and Privacy, opened in the browser.
+  Widget _legal() => Wrap(
+    alignment: WrapAlignment.center,
+    children: [
+      for (final (label, url) in const [
+        ('Terms of Use', kTermsUrl),
+        ('Privacy Policy', kPrivacyUrl),
+      ])
         TextButton(
-          onPressed: widget.onClose,
-          child: Text('Done', style: Toy.label(9)),
+          onPressed: () =>
+              launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Colors.black54,
+              decoration: TextDecoration.underline,
+            ),
+          ),
         ),
-      ],
+    ],
+  );
+
+  Widget _note(String text, [Color color = Toy.text]) => Padding(
+    padding: const EdgeInsets.only(top: 16),
+    child: Text(text, textAlign: TextAlign.center, style: Toy.label(8, color)),
+  );
+
+  /// Already Premium (opened from the logo): no buy button, just thanks,
+  /// Restore for a new device, and where to ask for help.
+  Widget _owned() => Container(
+    color: Toy.bg,
+    padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+    child: SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('🎉', style: TextStyle(fontSize: 44)),
+          const SizedBox(height: 14),
+          Text('YOU HAVE PREMIUM', style: Toy.label(13)),
+          const SizedBox(height: 10),
+          const Text(
+            'Thanks for supporting Emojio! Every sound, video export, MIDI, '
+            'Pencil pressure and unlimited songs are yours, forever.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 14, color: Toy.text),
+          ),
+          const SizedBox(height: 18),
+          _restoreButton(),
+          const SizedBox(height: 14),
+          const SelectableText(
+            'Questions? brendan@madewithbestpractice.com',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 12, color: Colors.black54),
+          ),
+          const SizedBox(height: 18),
+          TextButton(
+            onPressed: widget.onClose,
+            child: Text('Done', style: Toy.label(9)),
+          ),
+        ],
+      ),
     ),
   );
+
+  /// The buy button, or what stands in for it: a spinner while the product
+  /// loads or the store sheet is up, and a plain message plus a retry when
+  /// the store can't sell right now — never a dead tap.
+  Widget _buyArea() {
+    if (_p.purchasePending || (_p.loading && !_p.canBuy)) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 10),
+        child: CircularProgressIndicator(color: Toy.accent),
+      );
+    }
+    if (!_p.canBuy) {
+      return Column(
+        children: [
+          Text(
+            "Purchases aren't available right now.\n"
+            'Check your connection and try again.',
+            textAlign: TextAlign.center,
+            style: Toy.label(8),
+          ),
+          const SizedBox(height: 12),
+          ToyButton(
+            label: 'Try Again',
+            emoji: '🔄',
+            color: Toy.highlight,
+            textColor: Toy.text,
+            fontSize: 9,
+            onPressed: _p.reload,
+          ),
+        ],
+      );
+    }
+    final price = _p.priceLabel;
+    return ToyButton(
+      label: price.isEmpty ? 'Get Premium' : 'Get Premium — $price',
+      emoji: '✨',
+      color: Toy.accent,
+      fontSize: 11,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      onPressed: _p.buy,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     if (_p.unlocked) return _owned();
-    final price = _p.priceLabel;
     final reason = widget.reason;
     return Container(
       color: Toy.bg,
@@ -123,9 +220,11 @@ class _UnlockSheetState extends State<UnlockSheet> {
             ),
             if (reason != null) ...[
               const SizedBox(height: 10),
-              Text(reason.blurb,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 14, color: Toy.text)),
+              Text(
+                reason.blurb,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 14, color: Toy.text),
+              ),
             ],
             const SizedBox(height: 18),
             // Everything Premium adds, so one purchase reads as worth it.
@@ -150,72 +249,40 @@ class _UnlockSheetState extends State<UnlockSheet> {
             ),
             const SizedBox(height: 14),
             const Text(
-              'For grown-ups: one payment, yours forever.\nNo subscription.',
+              'For grown-ups: a one-time purchase, yours forever.\n'
+              'No subscription.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 12, color: Colors.black54),
             ),
             const SizedBox(height: 18),
-            if (_p.purchasePending)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 10),
-                child: CircularProgressIndicator(color: Toy.accent),
-              )
-            else
-              ToyButton(
-                label: price.isEmpty ? 'Get Premium' : 'Get Premium — $price',
-                emoji: '✨',
-                color: Toy.accent,
-                fontSize: 11,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                // Null when no product loaded: the button greys out rather than
-                // throwing the user into a purchase that can't start.
-                onPressed: _p.canBuy ? _p.buy : null,
+            _buyArea(),
+            if (_p.awaitingApproval)
+              _note(
+                'Waiting for approval. Premium turns on by itself as soon '
+                "as it's approved.",
               ),
             const SizedBox(height: 14),
-            ToyButton(
-              label: 'Restore Purchase',
-              emoji: '♻️',
-              color: Colors.white,
-              textColor: Toy.text,
-              fontSize: 9,
-              onPressed: _p.restore,
-            ),
-            // No product loaded — say so plainly and offer a retry.
-            if (!_p.canBuy) ...[
-              const SizedBox(height: 20),
-              Text(
-                "Purchases aren't available right now.\n"
-                'Please try again in a moment.',
-                textAlign: TextAlign.center,
-                style: Toy.label(8),
-              ),
-              const SizedBox(height: 12),
-              ToyButton(
-                label: 'Try Again',
-                emoji: '🔄',
-                color: Toy.highlight,
-                textColor: Toy.text,
-                fontSize: 9,
-                onPressed: _p.reload,
-              ),
-            ]
-            // A product loaded but the last purchase or restore failed. One
-            // short, human line — never the raw platform exception, which reads
-            // as a crash to a user (or a reviewer).
-            else if (_p.error != null) ...[
-              const SizedBox(height: 18),
-              Text("That didn't go through. Please try again.",
-                  textAlign: TextAlign.center, style: Toy.label(8, Toy.red)),
-            ],
+            _restoreButton(),
+            if (_p.notice != null) _note(_p.notice!),
+            // A purchase or restore failed. One short, human line — never the
+            // raw platform exception, which reads as a crash to a user (or a
+            // reviewer).
+            if (_p.error != null && _p.canBuy)
+              _note("That didn't go through. Please try again.", Toy.red),
             // Developers still get the underlying error to diagnose with; it is
             // compiled out of release builds, so users and reviewers never see
             // it.
             if (kDebugMode && _p.error != null) ...[
               const SizedBox(height: 12),
-              Text(_p.error!,
-                  textAlign: TextAlign.center, style: Toy.label(6, Toy.line)),
+              Text(
+                _p.error!,
+                textAlign: TextAlign.center,
+                style: Toy.label(6, Toy.line),
+              ),
             ],
-            const SizedBox(height: 22),
+            const SizedBox(height: 14),
+            _legal(),
+            const SizedBox(height: 8),
             TextButton(
               onPressed: widget.onClose,
               child: Text('Not now', style: Toy.label(9)),
@@ -227,28 +294,30 @@ class _UnlockSheetState extends State<UnlockSheet> {
   }
 }
 
-Future<void> _showUnlockSheet(BuildContext context, PurchaseManager purchases,
-        {PremiumFeature? reason}) =>
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Toy.bg,
-      isScrollControlled: true,
-      builder: (sheetContext) => UnlockSheet(
-        purchases: purchases,
-        reason: reason,
-        onClose: () => Navigator.of(sheetContext).pop(),
-      ),
-    );
+Future<void> _showUnlockSheet(
+  BuildContext context,
+  PurchaseManager purchases, {
+  PremiumFeature? reason,
+}) => showModalBottomSheet<void>(
+  context: context,
+  backgroundColor: Toy.bg,
+  isScrollControlled: true,
+  builder: (sheetContext) => UnlockSheet(
+    purchases: purchases,
+    reason: reason,
+    onClose: () => Navigator.of(sheetContext).pop(),
+  ),
+);
 
 /// Opens the purchase flow and resolves once it's dismissed; true if the user
 /// now has the unlock. [reason] is the locked feature that opened it, if any.
 Future<bool> presentEmojioPaywall(
-    BuildContext context, PurchaseManager purchases,
-    {PremiumFeature? reason}) async {
-  // One retry: the offering may have failed to load at boot (e.g. offline
-  // launch) and since recovered.
-  if (await Purchases.isConfigured && !purchases.canBuy) await purchases.reload();
-  if (!context.mounted) return purchases.unlocked;
+  BuildContext context,
+  PurchaseManager purchases, {
+  PremiumFeature? reason,
+}) async {
+  // The sheet itself retries a product that failed to load at boot, with a
+  // spinner, so it opens at once even when the store is slow.
   await _showUnlockSheet(context, purchases, reason: reason);
   return purchases.unlocked;
 }
@@ -258,8 +327,9 @@ Future<bool> presentEmojioPaywall(
 /// the Premium sheet at all times — Guideline 3.1.1 requires it for a
 /// non-consumable.
 Future<void> presentEmojioPurchases(
-        BuildContext context, PurchaseManager purchases) =>
-    _showUnlockSheet(context, purchases);
+  BuildContext context,
+  PurchaseManager purchases,
+) => _showUnlockSheet(context, purchases);
 
 /// Slim ribbon shown during the reverse trial (Premium free for the first few
 /// days), so the drop back to the free tier is never a surprise. Carries a real
@@ -285,15 +355,18 @@ class TrialBanner extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                    'Premium free for $d more ${d == 1 ? "day" : "days"}',
-                    style: Toy.label(9)),
+                  'Premium free for $d more ${d == 1 ? "day" : "days"}',
+                  style: Toy.label(9),
+                ),
               ),
               ToyButton(
                 label: 'Keep Premium',
                 color: Toy.accent,
                 fontSize: 9,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 7,
+                ),
                 onPressed: onTap,
               ),
             ],

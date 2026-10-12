@@ -23,7 +23,8 @@ class PurchaseManager extends ChangeNotifier {
   /// serves Android. (From RevenueCat → Project settings → API keys.)
   static const String _appleApiKey = 'appl_JadovrJqnnwnZGlfdTzOCaimYOw';
   static const String _googleApiKey = 'goog_SyBSDZbIchuFAXDAwSDejqxONLx';
-  static String get _apiKey => Platform.isAndroid ? _googleApiKey : _appleApiKey;
+  static String get _apiKey =>
+      Platform.isAndroid ? _googleApiKey : _appleApiKey;
 
   /// MUST exactly match the Entitlement *identifier* in the RevenueCat
   /// dashboard (case- and space-sensitive).
@@ -34,7 +35,24 @@ class PurchaseManager extends ChangeNotifier {
 
   bool available = false;
   bool unlocked = false;
+
+  /// A purchase is in flight (the store sheet is up).
   bool purchasePending = false;
+
+  /// A restore is in flight.
+  bool restoring = false;
+
+  /// The offering is being (re)fetched.
+  bool loading = false;
+
+  /// The store accepted the purchase but is waiting on approval (Ask to Buy,
+  /// or a Play "pending" payment). Premium arrives through the customer-info
+  /// listener once it's approved.
+  bool awaitingApproval = false;
+
+  /// A neutral note for the sheet, e.g. a restore that found nothing.
+  String? notice;
+
   Package? product; // the lifetime package from the current offering
   String? error;
 
@@ -49,8 +67,11 @@ class PurchaseManager extends ChangeNotifier {
   /// permanent and the unlock sheet can offer a retry.
   Future<void> reload() async {
     error = null;
-    if (!available) return;
+    if (!available || loading) return;
+    loading = true;
+    notifyListeners();
     await _loadOffering();
+    loading = false;
     notifyListeners();
   }
 
@@ -60,11 +81,21 @@ class PurchaseManager extends ChangeNotifier {
       await Purchases.configure(PurchasesConfiguration(_apiKey));
       available = true;
       Purchases.addCustomerInfoUpdateListener(_onCustomerInfo);
-      _apply(await Purchases.getCustomerInfo()); // cached → instant, offline-safe
-      await _loadOffering();
+    } catch (e) {
+      error = '$e';
+      notifyListeners();
+      return;
+    }
+    // Separately, so a first launch with no network (no cached customer info)
+    // still tries the offering, and vice versa.
+    try {
+      _apply(
+        await Purchases.getCustomerInfo(),
+      ); // cached → instant, offline-safe
     } catch (e) {
       error = '$e';
     }
+    await _loadOffering();
     notifyListeners();
   }
 
@@ -77,7 +108,8 @@ class PurchaseManager extends ChangeNotifier {
       // offering holds exactly one package — that package. Never fall back to
       // `.first` on a multi-package offering: the store's ordering would then
       // decide what the customer is charged.
-      product = current.lifetime ??
+      product =
+          current.lifetime ??
           current.availablePackages
               .where((p) => p.identifier == productId)
               .firstOrNull ??
@@ -96,6 +128,7 @@ class PurchaseManager extends ChangeNotifier {
 
   void _apply(CustomerInfo info) {
     unlocked = info.entitlements.active.containsKey(entitlementId);
+    if (unlocked) awaitingApproval = false;
   }
 
   /// Buy the lifetime unlock. Silently ignores user cancellation; surfaces real
@@ -108,15 +141,23 @@ class PurchaseManager extends ChangeNotifier {
       return;
     }
     error = null;
+    notice = null;
     purchasePending = true;
     notifyListeners();
     try {
       final result = await Purchases.purchase(PurchaseParams.package(p));
       _apply(result.customerInfo);
     } on PlatformException catch (e) {
-      if (PurchasesErrorHelper.getErrorCode(e) !=
-          PurchasesErrorCode.purchaseCancelledError) {
-        error = e.message;
+      switch (PurchasesErrorHelper.getErrorCode(e)) {
+        case PurchasesErrorCode.purchaseCancelledError:
+          break; // the user backed out: not an error
+        case PurchasesErrorCode.paymentPendingError:
+          awaitingApproval = true;
+        case PurchasesErrorCode.productAlreadyPurchasedError:
+          // Owned on this store account already: restore says so for real.
+          await restore();
+        default:
+          error = e.message ?? '$e';
       }
     } catch (e) {
       error = '$e';
@@ -127,14 +168,25 @@ class PurchaseManager extends ChangeNotifier {
   }
 
   /// Replays past purchases so the entitlement survives reinstall / new device.
+  /// Tells the user when the store account has nothing to restore, so the
+  /// button never looks dead.
   Future<void> restore() async {
+    if (restoring) return;
     error = null;
+    notice = null;
+    restoring = true;
+    notifyListeners();
     try {
       _apply(await Purchases.restorePurchases());
+      if (!unlocked) {
+        notice = 'No earlier purchase was found for this store account.';
+      }
     } catch (e) {
       error = '$e';
+    } finally {
+      restoring = false;
+      notifyListeners();
     }
-    notifyListeners();
   }
 
   @override
