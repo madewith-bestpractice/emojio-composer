@@ -53,6 +53,15 @@ List<int> ledgerRowsFor(int row) => [for (var r = 11; r <= row; r += 2) r];
 class StaffMetrics {
   final double width, height, padLeft, marginY, stepX, stepY;
   final int cols, rows;
+
+  /// Steps before the fold gap ([cols] when there's none), and the gap's width.
+  final int split;
+  final double gap;
+
+  /// The emoji's drawn size (before the play bounce): 1.9 rows tall, unless
+  /// the columns are too narrow for that.
+  final double noteSize;
+
   StaffMetrics._(
     this.width,
     this.height,
@@ -62,28 +71,58 @@ class StaffMetrics {
     this.stepY,
     this.cols,
     this.rows,
+    this.split,
+    this.gap,
+    this.noteSize,
   );
 
   /// [padLeft] is the frozen clef/label gutter (0 for the handset scrolling
   /// grid, which pins that gutter as a separate widget). [fixedStepX] pins a
   /// column width (handset horizontal scroll) instead of dividing the width.
+  ///
+  /// With a [foldX] (a vertical fold, in this staff's coordinates) the steps
+  /// split in half around a [foldGap]-wide gap centred on it: nothing is
+  /// placed or drawn over the fold. The columns stay equal, so the second
+  /// half ends [padLeft] short of the right edge when the fold is centred.
+  ///
+  /// [maxNoteToStep] caps a note's size at that many column widths, for
+  /// columns narrower than the rows are tall. [padRight] keeps the last step
+  /// clear of the end-repeat sign, where the columns are narrow.
   factory StaffMetrics.of(
     Size size,
     int cols,
     int rows, {
     double padLeft = 88.0,
+    double padRight = 0,
     double? fixedStepX,
+    double? foldX,
+    double foldGap = 0,
+    double? maxNoteToStep,
   }) {
     final marginY = staffMarginY(size.height);
+    final stepY = (size.height - marginY * 2) / (rows - 1);
+    final folded = foldX != null && fixedStepX == null && cols >= 2;
+    final split = folded ? cols ~/ 2 : cols;
+    final gap = folded ? foldGap : 0.0;
+    final stepX = folded
+        ? math.max(1.0, (foldX - gap / 2 - padLeft) / split)
+        : fixedStepX ?? (size.width - padLeft - padRight) / cols;
+    var noteSize = stepY * 1.9;
+    if (maxNoteToStep != null) {
+      noteSize = math.min(noteSize, stepX * maxNoteToStep);
+    }
     return StaffMetrics._(
       size.width,
       size.height,
       padLeft,
       marginY,
-      fixedStepX ?? (size.width - padLeft) / cols,
-      (size.height - marginY * 2) / (rows - 1),
+      stepX,
+      stepY,
       cols,
       rows,
+      split,
+      gap,
+      noteSize,
     );
   }
 
@@ -91,17 +130,72 @@ class StaffMetrics {
   /// spans the staff.
   static const double gutter = 112.0;
 
-  Offset cellCenter(int gx, int gy) =>
-      Offset(padLeft + gx * stepX + stepX / 2, marginY + gy * stepY);
+  /// The left edge of step [gx].
+  double colLeft(int gx) => padLeft + gx * stepX + (gx >= split ? gap : 0);
 
-  /// Pixel -> (gridX, gridY), or null if outside the staff area.
+  /// The x of a position [steps] along the bar (0..[cols]), jumping the gap.
+  double xAt(double steps) =>
+      padLeft + steps * stepX + (steps >= split ? gap : 0);
+
+  /// Where the last step ends.
+  double get gridRight => colLeft(cols - 1) + stepX;
+
+  /// The fold gap, if the staff has one.
+  Rect? get gapRect => gap > 0
+      ? Rect.fromLTWH(padLeft + split * stepX, 0, gap, height)
+      : null;
+
+  Offset cellCenter(int gx, int gy) =>
+      Offset(colLeft(gx) + stepX / 2, marginY + gy * stepY);
+
+  /// Pixel -> (gridX, gridY), or null if outside the staff area (or in the
+  /// fold gap).
   (int, int)? hitTest(Offset p) {
     if (p.dx < padLeft) return null;
-    final gx = ((p.dx - padLeft) / stepX).floor();
+    var x = p.dx - padLeft;
+    final firstHalf = split * stepX;
+    if (gap > 0 && x >= firstHalf) {
+      if (x < firstHalf + gap) return null;
+      x -= gap;
+    }
+    final gx = (x / stepX).floor();
     final gy = ((p.dy - marginY) / stepY).round();
     if (gx < 0 || gx >= cols || gy < 0 || gy >= rows) return null;
     return (gx, gy);
   }
+}
+
+/// How a staff is laid out, beyond its size: what [StaffMetrics.of] takes,
+/// so the painter and every hit test build the same metrics.
+@immutable
+class StaffSpec {
+  const StaffSpec({
+    this.padLeft = 88.0,
+    this.padRight = 0,
+    this.fixedStepX,
+    this.foldX,
+    this.foldGap = 0,
+    this.maxNoteToStep,
+  });
+
+  final double padLeft;
+  final double padRight;
+  final double? fixedStepX;
+  final double? foldX;
+  final double foldGap;
+  final double? maxNoteToStep;
+
+  StaffMetrics metrics(Size size, int cols, int rows) => StaffMetrics.of(
+    size,
+    cols,
+    rows,
+    padLeft: padLeft,
+    padRight: padRight,
+    fixedStepX: fixedStepX,
+    foldX: foldX,
+    foldGap: foldGap,
+    maxNoteToStep: maxNoteToStep,
+  );
 }
 
 class StaffPainter extends CustomPainter {
@@ -124,6 +218,10 @@ class StaffPainter extends CustomPainter {
   drawGutter; // false = grid only (clef/labels live in a pinned gutter)
   final double? fixedStepX; // pin a column width (handset horizontal scroll)
   final bool ledgers; // free (treble) mode: ledger lines under low notes
+  final double? foldX; // a vertical fold to leave a gap over (see StaffMetrics)
+  final double foldGap;
+  final double? maxNoteToStep; // cap notes to this many column widths
+  final double padRight; // room after the last step for the end repeat
 
   StaffPainter({
     required this.notes,
@@ -142,6 +240,10 @@ class StaffPainter extends CustomPainter {
     this.drawGutter = true,
     this.fixedStepX,
     this.ledgers = false,
+    this.foldX,
+    this.foldGap = 0,
+    this.maxNoteToStep,
+    this.padRight = 0,
   });
 
   @override
@@ -152,14 +254,26 @@ class StaffPainter extends CustomPainter {
       cols,
       rows,
       padLeft: padLeft,
+      padRight: padRight,
       fixedStepX: fixedStepX,
+      foldX: foldX,
+      foldGap: foldGap,
+      maxNoteToStep: maxNoteToStep,
     );
     // The scrolling grid (no gutter) runs its staff lines edge-to-edge so they
-    // meet the pinned gutter flush; the full staff insets them.
+    // meet the pinned gutter flush; the full staff insets them. Split over a
+    // fold, the steps end short of the edge, and the staff ends just past them.
+    final gapRect = m.gapRect;
     final lineL = drawGutter ? 20.0 : 0.0;
-    final lineR = size.width - (drawGutter ? 20.0 : 0.0);
+    final lineR = gapRect != null || padRight > 0
+        ? math.min(size.width - 20.0, m.gridRight + 20.0)
+        : size.width - (drawGutter ? 20.0 : 0.0);
 
     canvas.drawRect(Offset.zero & size, Paint()..color = bgColor);
+    // The fold's gap: a faint spine, so the split reads as the page's own.
+    if (gapRect != null) {
+      canvas.drawRect(gapRect, Paint()..color = const Color(0xFFF1F8F9));
+    }
 
     // Vertical grid lines
     final grid = Paint()
@@ -170,9 +284,18 @@ class StaffPainter extends CustomPainter {
       ..color = const Color(0xFFB2EBF2)
       ..strokeWidth = 2;
     for (var i = 0; i <= cols; i++) {
-      final x = m.padLeft + i * m.stepX;
       final onBeat = i % 4 == 0 && i > 0 && i < cols;
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), onBeat ? beat : grid);
+      // Over a fold, the line between the halves is drawn at both gap edges.
+      final xs = i == m.split && gapRect != null
+          ? [gapRect.left, gapRect.right]
+          : [i == cols ? m.gridRight : m.colLeft(i)];
+      for (final x in xs) {
+        canvas.drawLine(
+          Offset(x, 0),
+          Offset(x, size.height),
+          onBeat ? beat : grid,
+        );
+      }
     }
 
     paintStaffLines(canvas, lineL, lineR, m.stepY, rows, m.marginY);
@@ -207,7 +330,7 @@ class StaffPainter extends CustomPainter {
 
     // Shuttle cursor (when stopped) — a soft amber column marker
     if (!isPlaying && cursorStep >= 0 && cursorStep < cols) {
-      final x = m.padLeft + cursorStep * m.stepX;
+      final x = m.colLeft(cursorStep);
       canvas.drawRect(
         Rect.fromLTWH(x, 0, m.stepX, size.height),
         Paint()..color = const Color(0x33FFD740),
@@ -223,14 +346,15 @@ class StaffPainter extends CustomPainter {
 
     // Playhead
     if (isPlaying) {
-      final x = m.padLeft + (playheadFrac * cols) * m.stepX;
+      // Centred half a step on, so over a fold it jumps the gap whole.
+      final cx = m.xAt(playheadFrac * cols + 0.5);
       canvas.drawRect(
-        Rect.fromLTWH(x, 0, m.stepX, size.height),
+        Rect.fromLTWH(cx - m.stepX / 2, 0, m.stepX, size.height),
         Paint()..color = const Color(0x1AFF4081),
       );
       canvas.drawLine(
-        Offset(x + m.stepX / 2, 0),
-        Offset(x + m.stepX / 2, size.height),
+        Offset(cx, 0),
+        Offset(cx, size.height),
         Paint()
           ..color = const Color(0xFFFF4081)
           ..strokeWidth = 4,
@@ -238,7 +362,7 @@ class StaffPainter extends CustomPainter {
     }
 
     // Notes. Ledger lines go down first so every note sits on top of them.
-    final size0 = m.stepY * 1.9;
+    final size0 = m.noteSize;
     if (ledgers) {
       final ledger = Paint()
         ..color = const Color(0xFF90A4AE)
@@ -597,6 +721,12 @@ TextPainter _clefGlyph(double fontSize) {
   );
 }
 
+/// Fonts the staff falls back to for its emoji. Empty in the app, where the
+/// platform finds its emoji font itself; a render test, whose engine has none,
+/// names one it loaded.
+@visibleForTesting
+List<String> debugStaffFontFallback = const [];
+
 final Map<String, TextPainter> _glyphCache = {};
 TextPainter _staffGlyph(String s, double fontSize, Color? shadow) {
   final key = '$s|${fontSize.toStringAsFixed(1)}|${shadow == null ? 0 : 1}';
@@ -607,6 +737,9 @@ TextPainter _staffGlyph(String s, double fontSize, Color? shadow) {
         style: TextStyle(
           fontSize: fontSize,
           color: shadow,
+          fontFamilyFallback: debugStaffFontFallback.isEmpty
+              ? null
+              : debugStaffFontFallback,
         ), // null => full-color emoji
       ),
       textDirection: TextDirection.ltr,

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../layout.dart';
 import '../theme.dart';
 import 'access.dart';
 import 'purchases.dart';
@@ -300,6 +301,7 @@ Future<void> _showUnlockSheet(
   PremiumFeature? reason,
 }) => showModalBottomSheet<void>(
   context: context,
+  anchorPoint: foldAnchor(context),
   backgroundColor: Toy.bg,
   isScrollControlled: true,
   builder: (sheetContext) => UnlockSheet(

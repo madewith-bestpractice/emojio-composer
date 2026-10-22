@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'categories.dart';
+import 'layout.dart';
 import 'theme.dart';
 
 /// Tabbed emoji picker (a modal sheet). Returns the chosen emoji, or null if
@@ -18,6 +19,7 @@ Future<String?> showEmojiPicker(
 }) {
   return showModalBottomSheet<String>(
     context: context,
+    anchorPoint: foldAnchor(context),
     backgroundColor: _brandYellow,
     showDragHandle: true,
     isScrollControlled: true,
@@ -151,7 +153,10 @@ class _PickerBodyState extends State<_PickerBody>
                     ),
                 ],
               ),
-              SizedBox(
+              // Flexible: on half of an open iPhone Duo the sheet can be
+              // shorter than the grid, which then scrolls.
+              Flexible(
+                child: SizedBox(
                 height: math.min(gridH, capH),
                 child: TabBarView(
                   controller: _tab,
@@ -164,6 +169,7 @@ class _PickerBodyState extends State<_PickerBody>
                           onPreview: widget.onPreview),
                   ],
                 ),
+              ),
               ),
               SizedBox(height: bottomInset),
             ],
