@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.1.4+16
+version: 1.1.5+17
 
 environment:
   sdk: ^3.11.5
@@ -50,6 +50,8 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  integration_test:
+    sdk: flutter
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -59,6 +61,12 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.4
   flutter_native_splash: ^2.4.7
+
+# flutter_midi_command_darwin 1.0.2 never connects a virtual MIDI source that has no
+# destination of the same name. Patched copy; see third_party/flutter_midi_command_darwin/README.md.
+dependency_overrides:
+  flutter_midi_command_darwin:
+    path: third_party/flutter_midi_command_darwin
 
 # App icon generation: `dart run flutter_launcher_icons`
 flutter_launcher_icons:
