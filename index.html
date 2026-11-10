@@ -1468,15 +1468,10 @@
         };
 
         // Rows of SCALE (G5 at the top) that carry the five treble-staff lines,
-        // F5 D5 B4 G4 E4. The odd rows below them (C4, A3) sit on ledger lines.
+        // F5 D5 B4 G4 E4. The rows above and below the staff are plain grid: no
+        // ledger lines or guides, so any emoji (drums included) can go on any row.
         const STAFF_LINE_ROWS = [1, 3, 5, 7, 9];
         const G_LINE_ROW = 7; // the treble clef's curl wraps G4
-        // Ledger lines a note on `row` needs: every odd row between the staff and it.
-        function ledgerRowsFor(row) {
-            const rows = [];
-            for (let r = 11; r <= row; r += 2) rows.push(r);
-            return rows;
-        }
         // Space above the top row and below the bottom one: 40px on a big screen,
         // less on a short staff so its rows aren't squeezed to nothing.
         function staffMarginY(h) { return Math.min(40, Math.max(16, h * 0.06)); }
@@ -2698,19 +2693,16 @@
             }
         }
 
-        // The five treble-staff lines solid, and the ledger rows below (C4, A3) as
-        // faint dashed guides so those rows are still easy to aim at. Shared by the
-        // scrolling staff and the pinned gutter so the gutter's line stubs meet the
-        // staff's lines exactly at the seam.
+        // The five treble-staff lines. Shared by the scrolling staff and the pinned
+        // gutter so the gutter's line stubs meet the staff's lines exactly at the seam.
         function drawStaffLines(g, x0, x1) {
             g.save();
-            for (let i = 1; i < GRID_ROWS; i += 2) {
+            g.strokeStyle = COLORS.staffLine;
+            g.lineWidth = 4;
+            g.lineCap = 'round';
+            for (const i of STAFF_LINE_ROWS) {
+                if (i >= GRID_ROWS) continue;
                 const y = staffMargin + i * stepY;
-                const isStaff = STAFF_LINE_ROWS.includes(i);
-                g.strokeStyle = isStaff ? COLORS.staffLine : '#cfd8dc';
-                g.lineWidth = isStaff ? 4 : 2;
-                g.lineCap = isStaff ? 'round' : 'butt';
-                g.setLineDash(isStaff ? [] : [7, 7]);
                 g.beginPath();
                 g.moveTo(x0, y);
                 g.lineTo(x1, y);
@@ -2872,25 +2864,9 @@
                 ctx.beginPath(); ctx.moveTo(x + stepX/2, 0); ctx.lineTo(x + stepX/2, canvas.height); ctx.stroke();
             }
 
-            // Notes. Ledger lines go down first so every note sits on top of them.
+            // Notes
             const now = Date.now();
             let animateNextFrame = false;
-            if (state.scaleMode === 'free') {
-                const half = stepY * 1.9 * 0.65;
-                ctx.strokeStyle = COLORS.staffLine;
-                ctx.lineWidth = 3;
-                ctx.lineCap = 'round';
-                state.notes.forEach(note => {
-                    const cx = staffPaddingLeft + note.gridX * stepX + stepX / 2;
-                    for (const r of ledgerRowsFor(note.gridY)) {
-                        const y = marginY + r * stepY;
-                        ctx.beginPath();
-                        ctx.moveTo(cx - half, y);
-                        ctx.lineTo(cx + half, y);
-                        ctx.stroke();
-                    }
-                });
-            }
 
             state.notes.forEach(note => {
                 const x = staffPaddingLeft + note.gridX * stepX;
