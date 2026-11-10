@@ -296,7 +296,7 @@ void main() {
       await _boot(tester, pose);
       await tester.tap(find.text('SONGS'));
       await _settle(tester);
-      expect(find.text('Frog Jam'), findsOneWidget);
+      expect(find.text('Happy Hop'), findsOneWidget);
       await _save(tester, '${pose.name}-library');
       _expectClearOfFold(tester, pose);
       semantics.dispose();

@@ -18,7 +18,15 @@ class _Evt {
   final int onsetFrame;
   final double pan; // -1..1
   final double gain; // velocity
-  _Evt(this.pcm, this.rate, this.onsetFrame, this.pan, this.gain);
+  final int startFrame; // leading silence to skip (Zone.startSec)
+  _Evt(
+    this.pcm,
+    this.rate,
+    this.onsetFrame,
+    this.pan,
+    this.gain,
+    this.startFrame,
+  );
 }
 
 /// Offline (faster-than-realtime) render of the sequence to stereo PCM, mirroring
@@ -53,7 +61,14 @@ class SongExporter {
         final rate = math.pow(2, (targetMidi - zone.midi) / 12).toDouble();
         final onsetFrame = (onsetMs(loop * cols + n.gridX) / 1000 * sampleRate)
             .round();
-        maxEnd = math.max(maxEnd, onsetFrame + (pcm.length / rate).floor());
+        final startFrame = math.min(
+          (zone.startSec * m.sampleRate).round(),
+          pcm.length,
+        );
+        maxEnd = math.max(
+          maxEnd,
+          onsetFrame + ((pcm.length - startFrame) / rate).floor(),
+        );
         events.add(
           _Evt(
             pcm,
@@ -61,6 +76,7 @@ class SongExporter {
             onsetFrame,
             engine.panForEmoji(n.emoji),
             n.velocity.clamp(0.0, 1.0),
+            startFrame,
           ),
         );
       }
@@ -76,9 +92,9 @@ class SongExporter {
       final theta = (e.pan.clamp(-1.0, 1.0) + 1) * (math.pi / 4);
       final lg = math.cos(theta) * e.gain * 0.7; // 0.7 headroom vs summing
       final rg = math.sin(theta) * e.gain * 0.7;
-      final count = (e.pcm.length / e.rate).floor();
+      final count = ((e.pcm.length - e.startFrame) / e.rate).floor();
       for (var j = 0; j < count; j++) {
-        final srcPos = j * e.rate;
+        final srcPos = e.startFrame + j * e.rate;
         final i0 = srcPos.floor();
         if (i0 + 1 >= e.pcm.length) break;
         final frac = srcPos - i0;

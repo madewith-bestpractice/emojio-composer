@@ -39,15 +39,13 @@ double staffHeightForStep(double stepY, int rows) {
 }
 
 /// Rows (indices into the manifest scale, G5 at the top) that carry the five
-/// treble-staff lines, F5 D5 B4 G4 E4. The other odd rows (C4, A3) sit on
-/// ledger lines.
+/// treble-staff lines, F5 D5 B4 G4 E4. The rows above and below the staff are
+/// plain grid: no ledger lines or guides, so any emoji (drums included) can go
+/// on any row.
 const kStaffLineRows = {1, 3, 5, 7, 9};
 
 /// The treble clef's curl wraps the G4 line.
 const kGLineRow = 7;
-
-/// Ledger lines a note on [row] needs: every odd row between the staff and it.
-List<int> ledgerRowsFor(int row) => [for (var r = 11; r <= row; r += 2) r];
 
 /// Geometry shared by the painter and hit-testing so taps line up with pixels.
 class StaffMetrics {
@@ -141,9 +139,8 @@ class StaffMetrics {
   double get gridRight => colLeft(cols - 1) + stepX;
 
   /// The fold gap, if the staff has one.
-  Rect? get gapRect => gap > 0
-      ? Rect.fromLTWH(padLeft + split * stepX, 0, gap, height)
-      : null;
+  Rect? get gapRect =>
+      gap > 0 ? Rect.fromLTWH(padLeft + split * stepX, 0, gap, height) : null;
 
   Offset cellCenter(int gx, int gy) =>
       Offset(colLeft(gx) + stepX / 2, marginY + gy * stepY);
@@ -217,7 +214,6 @@ class StaffPainter extends CustomPainter {
   final bool
   drawGutter; // false = grid only (clef/labels live in a pinned gutter)
   final double? fixedStepX; // pin a column width (handset horizontal scroll)
-  final bool ledgers; // free (treble) mode: ledger lines under low notes
   final double? foldX; // a vertical fold to leave a gap over (see StaffMetrics)
   final double foldGap;
   final double? maxNoteToStep; // cap notes to this many column widths
@@ -239,7 +235,6 @@ class StaffPainter extends CustomPainter {
     this.padLeft = 88.0,
     this.drawGutter = true,
     this.fixedStepX,
-    this.ledgers = false,
     this.foldX,
     this.foldGap = 0,
     this.maxNoteToStep,
@@ -361,25 +356,8 @@ class StaffPainter extends CustomPainter {
       );
     }
 
-    // Notes. Ledger lines go down first so every note sits on top of them.
+    // Notes
     final size0 = m.noteSize;
-    if (ledgers) {
-      final ledger = Paint()
-        ..color = const Color(0xFF90A4AE)
-        ..strokeWidth = 3
-        ..strokeCap = StrokeCap.round;
-      for (final n in notes) {
-        final cx = m.cellCenter(n.gridX, n.gridY).dx;
-        for (final r in ledgerRowsFor(n.gridY)) {
-          final y = m.marginY + r * m.stepY;
-          canvas.drawLine(
-            Offset(cx - size0 * 0.65, y),
-            Offset(cx + size0 * 0.65, y),
-            ledger,
-          );
-        }
-      }
-    }
     for (final n in notes) {
       final c = m.cellCenter(n.gridX, n.gridY);
       final active = isPlaying && n.gridX == currentStep;
@@ -512,10 +490,9 @@ class StaffGutterPainter extends CustomPainter {
       old.rowLabels != rowLabels;
 }
 
-/// The staff's ruled lines: the five treble-staff lines solid, and the ledger
-/// rows below (C4, A3) as faint dashed guides so those rows are still easy to
-/// aim at. Shared so the grid, the pinned gutter and the torn edge that
-/// continues it can't drift apart.
+/// The staff's ruled lines: just the five treble-staff lines. Shared so the
+/// grid, the pinned gutter and the torn edge that continues it can't drift
+/// apart.
 void paintStaffLines(
   Canvas canvas,
   double x0,
@@ -528,18 +505,10 @@ void paintStaffLines(
     ..color = const Color(0xFF90A4AE)
     ..strokeWidth = 4
     ..strokeCap = StrokeCap.round;
-  final guide = Paint()
-    ..color = const Color(0xFFCFD8DC)
-    ..strokeWidth = 2;
-  for (var i = 1; i < rows; i += 2) {
+  for (final i in kStaffLineRows) {
+    if (i >= rows) continue;
     final y = marginY + i * stepY;
-    if (kStaffLineRows.contains(i)) {
-      canvas.drawLine(Offset(x0, y), Offset(x1, y), line);
-    } else {
-      for (var x = x0; x < x1; x += 14) {
-        canvas.drawLine(Offset(x, y), Offset(math.min(x + 7, x1), y), guide);
-      }
-    }
+    canvas.drawLine(Offset(x0, y), Offset(x1, y), line);
   }
 }
 

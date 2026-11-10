@@ -12,11 +12,19 @@ class Zone {
   final String note;
   final String file;
   final double durSec;
-  const Zone(this.midi, this.note, this.file, this.durSec);
 
-  factory Zone.fromJson(Map<String, dynamic> j) =>
-      Zone(j['midi'] as int, j['note'] as String, j['file'] as String,
-          (j['durSec'] as num).toDouble());
+  /// Leading silence before the sound starts (tool/voice_onsets.py). Playback
+  /// and export skip it so every voice lands right on its step.
+  final double startSec;
+  const Zone(this.midi, this.note, this.file, this.durSec, [this.startSec = 0]);
+
+  factory Zone.fromJson(Map<String, dynamic> j) => Zone(
+    j['midi'] as int,
+    j['note'] as String,
+    j['file'] as String,
+    (j['durSec'] as num).toDouble(),
+    (j['startSec'] as num?)?.toDouble() ?? 0,
+  );
 }
 
 class Loop {
@@ -24,8 +32,10 @@ class Loop {
   final double endFrac;
   const Loop(this.startFrac, this.endFrac);
 
-  factory Loop.fromJson(Map<String, dynamic> j) =>
-      Loop((j['startFrac'] as num).toDouble(), (j['endFrac'] as num).toDouble());
+  factory Loop.fromJson(Map<String, dynamic> j) => Loop(
+    (j['startFrac'] as num).toDouble(),
+    (j['endFrac'] as num).toDouble(),
+  );
 }
 
 class Voice {
@@ -38,15 +48,18 @@ class Voice {
   bool get isSustain => type == 'sustain';
 
   factory Voice.fromJson(Map<String, dynamic> j) => Voice(
-        j['type'] as String,
-        (j['volumeDb'] as num?)?.toDouble() ?? 0,
-        j['loop'] == null ? null : Loop.fromJson(j['loop'] as Map<String, dynamic>),
-        (j['zones'] as List).map((z) => Zone.fromJson(z as Map<String, dynamic>)).toList(),
-      );
+    j['type'] as String,
+    (j['volumeDb'] as num?)?.toDouble() ?? 0,
+    j['loop'] == null ? null : Loop.fromJson(j['loop'] as Map<String, dynamic>),
+    (j['zones'] as List)
+        .map((z) => Zone.fromJson(z as Map<String, dynamic>))
+        .toList(),
+  );
 
   /// Zone whose base pitch is closest to [midi] — the one to varispeed from.
   Zone nearestZone(int midi) => zones.reduce(
-      (a, b) => (b.midi - midi).abs() < (a.midi - midi).abs() ? b : a);
+    (a, b) => (b.midi - midi).abs() < (a.midi - midi).abs() ? b : a,
+  );
 }
 
 class EmojiVoice {
@@ -56,16 +69,25 @@ class EmojiVoice {
   const EmojiVoice(this.synth, this.semi, this.dur);
 
   factory EmojiVoice.fromJson(Map<String, dynamic> j) => EmojiVoice(
-      j['synth'] as String, (j['semi'] as num?)?.toInt() ?? 0, '${j['dur']}');
+    j['synth'] as String,
+    (j['semi'] as num?)?.toInt() ?? 0,
+    '${j['dur']}',
+  );
 }
 
 class VoiceManifest {
   final int sampleRate;
-  final List<String> scale; // 15 note names, high -> low (matches the app's SCALE)
+  final List<String>
+  scale; // 15 note names, high -> low (matches the app's SCALE)
   final Map<String, Voice> voices;
   final Map<String, EmojiVoice> emojiVoices;
 
-  const VoiceManifest(this.sampleRate, this.scale, this.voices, this.emojiVoices);
+  const VoiceManifest(
+    this.sampleRate,
+    this.scale,
+    this.voices,
+    this.emojiVoices,
+  );
 
   /// Emojis whose voice is actually bundled (present in [voices]) — so every
   /// palette entry is guaranteed to make sound.
@@ -80,10 +102,12 @@ class VoiceManifest {
     return VoiceManifest(
       (j['sampleRate'] as num).toInt(),
       (j['scale'] as List).cast<String>(),
-      (j['voices'] as Map<String, dynamic>)
-          .map((k, v) => MapEntry(k, Voice.fromJson(v as Map<String, dynamic>))),
-      (j['emojiVoices'] as Map<String, dynamic>)
-          .map((k, v) => MapEntry(k, EmojiVoice.fromJson(v as Map<String, dynamic>))),
+      (j['voices'] as Map<String, dynamic>).map(
+        (k, v) => MapEntry(k, Voice.fromJson(v as Map<String, dynamic>)),
+      ),
+      (j['emojiVoices'] as Map<String, dynamic>).map(
+        (k, v) => MapEntry(k, EmojiVoice.fromJson(v as Map<String, dynamic>)),
+      ),
     );
   }
 }

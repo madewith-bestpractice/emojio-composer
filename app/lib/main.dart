@@ -881,7 +881,6 @@ class _HarnessPageState extends State<HarnessPage>
       tMs: tMs,
       rowLabels: rowLabels,
       showClef: showClef,
-      ledgers: showClef,
       bgColor: const Color(0xFFFFF696), // brand yellow
     ).paint(Canvas(recorder), Size(width.toDouble(), height.toDouble()));
     final img = await recorder.endRecording().toImage(width, height);
@@ -2443,7 +2442,6 @@ class _HarnessPageState extends State<HarnessPage>
         padLeft: withGutter ? 88.0 : _handsetLead,
         drawGutter: withGutter,
         fixedStepX: fixedStepX,
-        ledgers: showClef,
       );
 
       Widget grid(Size size, {double? fixedStepX, required bool withGutter}) =>
