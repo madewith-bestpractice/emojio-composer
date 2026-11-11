@@ -93,14 +93,13 @@ void main() {
       expect(l.verticalBand, isNull);
     });
 
-    test('a tall window splits at its middle without a reported fold', () {
-      final l = ComposerLayout.resolve(
-        const Size(834, 1194),
-        const [],
-        padding: _status,
-      );
-      expect(l.pose, ComposerPose.table);
-      expect(l.band!.center.dy, 597);
+    test('an upright iPad, with no fold, gets the deck on top', () {
+      for (final size in const [Size(834, 1194), Size(1032, 1376)]) {
+        final l = ComposerLayout.resolve(size, const [], padding: _status);
+        expect(l.pose, ComposerPose.upright, reason: '$size');
+        expect(l.band, isNull);
+        expect(l.verticalBand, isNull);
+      }
     });
 
     test('a squat upright window keeps the full staff under the header', () {

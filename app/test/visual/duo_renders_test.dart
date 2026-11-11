@@ -279,6 +279,32 @@ void main() {
     });
   }
 
+  // The phone's order wherever there's no horizontal fold: the blue deck (or
+  // header) on top, the palette under it, the staff filling the rest.
+  for (final pose in [_ipad, _ipadPortrait, _phone]) {
+    testWidgets('${pose.name}: controls, then palette, then staff', (
+      tester,
+    ) async {
+      await _boot(tester, pose);
+      final premium = tester.getRect(find.text('PREMIUM'));
+      final add = tester.getRect(find.bySemanticsLabel('Add a sound'));
+      final staff = tester.getRect(find.bySemanticsLabel('Music staff'));
+      expect(premium.bottom, lessThan(add.top));
+      expect(add.bottom, lessThan(staff.top));
+      expect(staff.bottom, closeTo(pose.size.height, 1));
+    });
+  }
+
+  testWidgets('table: the staff on top, the controls under the fold', (
+    tester,
+  ) async {
+    await _boot(tester, _table);
+    final staff = tester.getRect(find.bySemanticsLabel('Music staff'));
+    final add = tester.getRect(find.bySemanticsLabel('Add a sound'));
+    expect(staff.bottom, lessThan(475.5));
+    expect(add.top, greaterThan(475.5));
+  });
+
   for (final pose in [_closed, _book, _table]) {
     testWidgets('${pose.name}: trial ribbon', (tester) async {
       final semantics = tester.ensureSemantics();

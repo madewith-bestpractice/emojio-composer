@@ -20,6 +20,20 @@ void main() {
       );
     });
 
+    test('the lines carry on every other row to the bottom', () {
+      // 15 rows 50 apart under a 40pt margin: the odd rows 1..13.
+      expect(staffLineYs(50, 40, 40 * 2 + 14 * 50), [
+        for (var r = 1; r <= 13; r += 2) 40.0 + r * 50,
+      ]);
+      // Paper taller than the rows: the lines run on past the last row.
+      expect(staffLineYs(30, 40, 600).last, 40 + 17 * 30);
+      expect(staffLineYs(30, 40, 600).length, 9);
+      // The first five are the staff itself.
+      expect(staffLineYs(30, 40, 500).take(5), [
+        for (final r in kStaffLineRows) 40.0 + r * 30,
+      ]);
+    });
+
     test('the clef curls round G4', () {
       expect(scale[kGLineRow], 'G4');
     });

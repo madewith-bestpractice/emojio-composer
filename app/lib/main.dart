@@ -1082,10 +1082,22 @@ class _HarnessPageState extends State<HarnessPage>
   }
 
   void _snapshotForUndo() {
-    _undoStack.add(_notes.map((n) => Note(
-      n.emoji, n.gridX, n.gridY, n.rotation, n.createdAtMs,
-      velocity: n.velocity, pitchOffset: n.pitchOffset, pitchEdited: n.pitchEdited,
-    )).toList());
+    _undoStack.add(
+      _notes
+          .map(
+            (n) => Note(
+              n.emoji,
+              n.gridX,
+              n.gridY,
+              n.rotation,
+              n.createdAtMs,
+              velocity: n.velocity,
+              pitchOffset: n.pitchOffset,
+              pitchEdited: n.pitchEdited,
+            ),
+          )
+          .toList(),
+    );
     if (_undoStack.length > _maxUndo) _undoStack.removeAt(0);
   }
 
@@ -1272,19 +1284,26 @@ class _HarnessPageState extends State<HarnessPage>
     _notes
       ..clear()
       ..addAll(
-        s.notes.where((n) => n.gridX >= 0 && n.gridX < kCols &&
-            n.gridY >= 0 && n.gridY < _rows).map(
-          (n) => Note(
-            n.emoji,
-            n.gridX,
-            n.gridY,
-            (_rng.nextDouble() - 0.5) * 0.3,
-            _nowMs,
-            velocity: n.velocity,
-            pitchOffset: n.pitchOffset,
-            pitchEdited: n.pitchEdited,
-          ),
-        ),
+        s.notes
+            .where(
+              (n) =>
+                  n.gridX >= 0 &&
+                  n.gridX < kCols &&
+                  n.gridY >= 0 &&
+                  n.gridY < _rows,
+            )
+            .map(
+              (n) => Note(
+                n.emoji,
+                n.gridX,
+                n.gridY,
+                (_rng.nextDouble() - 0.5) * 0.3,
+                _nowMs,
+                velocity: n.velocity,
+                pitchOffset: n.pitchOffset,
+                pitchEdited: n.pitchEdited,
+              ),
+            ),
       );
   });
 
@@ -1353,19 +1372,26 @@ class _HarnessPageState extends State<HarnessPage>
     _notes
       ..clear()
       ..addAll(
-        s.notes.where((n) => n.gridX >= 0 && n.gridX < kCols &&
-            n.gridY >= 0 && n.gridY < _rows).map(
-          (n) => Note(
-            n.emoji,
-            n.gridX,
-            n.gridY,
-            (_rng.nextDouble() - 0.5) * 0.3,
-            _nowMs,
-            velocity: n.velocity,
-            pitchOffset: n.pitchOffset,
-            pitchEdited: n.pitchEdited,
-          ),
-        ),
+        s.notes
+            .where(
+              (n) =>
+                  n.gridX >= 0 &&
+                  n.gridX < kCols &&
+                  n.gridY >= 0 &&
+                  n.gridY < _rows,
+            )
+            .map(
+              (n) => Note(
+                n.emoji,
+                n.gridX,
+                n.gridY,
+                (_rng.nextDouble() - 0.5) * 0.3,
+                _nowMs,
+                velocity: n.velocity,
+                pitchOffset: n.pitchOffset,
+                pitchEdited: n.pitchEdited,
+              ),
+            ),
       );
   });
 
@@ -1426,6 +1452,7 @@ class _HarnessPageState extends State<HarnessPage>
     // a fold mid-session re-lays the composer out.
     final layout = ComposerLayout.of(context);
     if (layout.pose == ComposerPose.table) return _tableComposer(layout);
+    if (layout.pose == ComposerPose.upright) return _uprightComposer(layout);
     // Edge-to-edge: the coloured bars run to every screen edge. The blue header
     // owns the top (including the status-bar inset), so the top of the screen is
     // always blue; the trial ribbon, if any, sits just beneath it. Side insets
@@ -1525,6 +1552,33 @@ class _HarnessPageState extends State<HarnessPage>
     );
   }
 
+  // ---- upright: an iPad held upright, or any tall window without a fold ----
+  // The phone's order: the control deck under the status bar (which sits on
+  // its blue), the palette under it, then the full staff filling the rest.
+  Widget _uprightComposer(ComposerLayout layout) {
+    final pad = MediaQuery.paddingOf(context);
+    return Scaffold(
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            decoration: _headerDeco,
+            padding: EdgeInsets.fromLTRB(
+              14 + pad.left,
+              10 + pad.top,
+              14 + pad.right,
+              14,
+            ),
+            child: _deckControls(),
+          ),
+          if (_showTrialBanner) _trialBanner(null),
+          _paletteBar(layout),
+          Expanded(child: _sideInset(_staff(layout))),
+        ],
+      ),
+    );
+  }
+
   // The table's control deck: brand, Play and the tempo slider on one row,
   // every other button wrapped below. Scrolls rather than overflow.
   Widget _tableDeck(EdgeInsets pad) => Container(
@@ -1544,41 +1598,39 @@ class _HarnessPageState extends State<HarnessPage>
           constraints: BoxConstraints(
             minHeight: math.max(0, box.maxHeight - 28 - pad.bottom),
           ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  _brandTitle(),
-                  const SizedBox(width: 12),
-                  _playButton(),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: LayoutBuilder(
-                      // The slider takes the rest of the row, less the pill's
-                      // turtle, rabbit and readout.
-                      builder: (context, row) => Align(
-                        alignment: Alignment.centerRight,
-                        child: _tempo(
-                          width: math.max(104, row.maxWidth - 100),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: _barGap,
-                runSpacing: 12,
-                children: _actionButtons(),
-              ),
-            ],
-          ),
+          child: Center(child: _deckControls()),
         ),
       ),
     ),
+  );
+
+  // The tablet deck's controls: brand, Play and the tempo slider on one row,
+  // every other button wrapped below.
+  Widget _deckControls() => Column(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Row(
+        children: [
+          _brandTitle(),
+          const SizedBox(width: 12),
+          _playButton(),
+          const SizedBox(width: 12),
+          Expanded(
+            child: LayoutBuilder(
+              // The slider takes the rest of the row, less the pill's
+              // turtle, rabbit and readout.
+              builder: (context, row) => Align(
+                alignment: Alignment.centerRight,
+                child: _tempo(width: math.max(104, row.maxWidth - 100)),
+              ),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 16),
+      Wrap(spacing: _barGap, runSpacing: 12, children: _actionButtons()),
+    ],
   );
 
   static const _headerDeco = BoxDecoration(
@@ -1797,7 +1849,10 @@ class _HarnessPageState extends State<HarnessPage>
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: EdgeInsets.only(left: 14 + pad.left, right: 14 + pad.right),
+            padding: EdgeInsets.only(
+              left: 14 + pad.left,
+              right: 14 + pad.right,
+            ),
             child: Row(
               children: [
                 _brandTitle(),
@@ -2092,94 +2147,94 @@ class _HarnessPageState extends State<HarnessPage>
   }
 
   Widget _paletteStrip() => Stack(
-          clipBehavior: Clip.hardEdge,
-          children: [
-            // The scrolling set runs the full width but is inset so that, at
-            // rest, stickers sit between the two pinned controls; swiping
-            // slides them under the opaque active swatch / add button.
-            Positioned(
-              left: 0,
-              right: 0,
-              top: 0,
-              height: _barH,
-              child: SingleChildScrollView(
-                controller: _paletteScroll,
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.only(
-                  left: _activeLeadPad,
-                  right: _addTrailPad,
-                ),
-                child: SizedBox(
-                  height: _barH,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [for (final e in _palette) _paletteItem(e)],
+    clipBehavior: Clip.hardEdge,
+    children: [
+      // The scrolling set runs the full width but is inset so that, at
+      // rest, stickers sit between the two pinned controls; swiping
+      // slides them under the opaque active swatch / add button.
+      Positioned(
+        left: 0,
+        right: 0,
+        top: 0,
+        height: _barH,
+        child: SingleChildScrollView(
+          controller: _paletteScroll,
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.only(
+            left: _activeLeadPad,
+            right: _addTrailPad,
+          ),
+          child: SizedBox(
+            height: _barH,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [for (final e in _palette) _paletteItem(e)],
+            ),
+          ),
+        ),
+      ),
+      // Soft shadow the active swatch casts over the strip — fades in
+      // over the first few pixels of swipe so stickers read as sliding
+      // under it.
+      Positioned(
+        left: _activeLeadPad - 14,
+        top: 0,
+        height: _barH,
+        width: 16,
+        child: IgnorePointer(
+          child: AnimatedBuilder(
+            animation: _paletteScroll,
+            builder: (context, _) {
+              final off = _paletteScroll.hasClients
+                  ? _paletteScroll.offset
+                  : 0.0;
+              final op = (off / 14).clamp(0.0, 1.0);
+              return Opacity(
+                opacity: op,
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: [
+                        Toy.text.withValues(alpha: 0.22),
+                        Toy.text.withValues(alpha: 0.0),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ),
-            // Soft shadow the active swatch casts over the strip — fades in
-            // over the first few pixels of swipe so stickers read as sliding
-            // under it.
-            Positioned(
-              left: _activeLeadPad - 14,
-              top: 0,
-              height: _barH,
-              width: 16,
-              child: IgnorePointer(
-                child: AnimatedBuilder(
-                  animation: _paletteScroll,
-                  builder: (context, _) {
-                    final off = _paletteScroll.hasClients
-                        ? _paletteScroll.offset
-                        : 0.0;
-                    final op = (off / 14).clamp(0.0, 1.0);
-                    return Opacity(
-                      opacity: op,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.centerLeft,
-                            end: Alignment.centerRight,
-                            colors: [
-                              Toy.text.withValues(alpha: 0.22),
-                              Toy.text.withValues(alpha: 0.0),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-            // Pinned active swatch (left), opaque so the set vanishes behind it.
-            Positioned(
-              left: 0,
-              top: 0,
-              height: _barH,
-              child: Container(
-                width: _activeLeadPad - 8,
-                color: Toy.panel,
-                alignment: Alignment.centerLeft,
-                child: _activeSwatch(),
-              ),
-            ),
-            if (_pitchPickerOpen)
-              Positioned(left: 0, top: _barH + 2, child: _pitchPopover()),
-            // Pinned add button (right), opaque mask on the far end.
-            Positioned(
-              right: 0,
-              top: 0,
-              height: _barH,
-              child: Container(
-                color: Toy.panel,
-                alignment: Alignment.centerRight,
-                child: _addButton(),
-              ),
-            ),
-          ],
-        );
+              );
+            },
+          ),
+        ),
+      ),
+      // Pinned active swatch (left), opaque so the set vanishes behind it.
+      Positioned(
+        left: 0,
+        top: 0,
+        height: _barH,
+        child: Container(
+          width: _activeLeadPad - 8,
+          color: Toy.panel,
+          alignment: Alignment.centerLeft,
+          child: _activeSwatch(),
+        ),
+      ),
+      if (_pitchPickerOpen)
+        Positioned(left: 0, top: _barH + 2, child: _pitchPopover()),
+      // Pinned add button (right), opaque mask on the far end.
+      Positioned(
+        right: 0,
+        top: 0,
+        height: _barH,
+        child: Container(
+          color: Toy.panel,
+          alignment: Alignment.centerRight,
+          child: _addButton(),
+        ),
+      ),
+    ],
+  );
 
   Widget _activeSwatch() => Semantics(
     label: _pitchManuallySet
@@ -2395,7 +2450,10 @@ class _HarnessPageState extends State<HarnessPage>
       // The full staff runs the window's width, less its side insets, so a
       // vertical fold sits at the band's centre minus the left inset.
       final band = layout.verticalBand;
-      final table = layout.pose == ComposerPose.table;
+      // Taller than wide: narrow columns.
+      final table =
+          layout.pose == ComposerPose.table ||
+          layout.pose == ComposerPose.upright;
       final fullSpec = StaffSpec(
         // An upright window's narrow columns would run the last step into
         // the end-repeat sign; give the sign its own room.
@@ -2796,10 +2854,18 @@ class _LibrarySheetState extends State<_LibrarySheet> {
                             anchorPoint: foldAnchor(context),
                             builder: (ctx) => AlertDialog(
                               title: const Text('Delete song?'),
-                              content: Text('Delete "${s.name.isEmpty ? 'Untitled' : s.name}"? This can\'t be undone.'),
+                              content: Text(
+                                'Delete "${s.name.isEmpty ? 'Untitled' : s.name}"? This can\'t be undone.',
+                              ),
                               actions: [
-                                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-                                TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete')),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: const Text('Cancel'),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  child: const Text('Delete'),
+                                ),
                               ],
                             ),
                           );

@@ -37,11 +37,15 @@ enum ComposerPose {
   /// like a book (which also has a vertical fold to keep clear).
   regular,
 
-  /// Taller than wide with room for two halves: the staff on the top half,
-  /// the palette and controls on the bottom half, a band between them. An
-  /// open iPhone Duo standing on a table (a horizontal fold), or an iPad
-  /// held upright.
+  /// A horizontal fold across the window: the staff on the top half, the
+  /// palette and controls on the bottom half, a band between them. An open
+  /// iPhone Duo standing on a table.
   table,
+
+  /// Taller than wide with no fold, and roomy: the phone's order, with the
+  /// control deck under the status bar, the palette under it, and a staff
+  /// that shows all 16 steps filling the rest. An iPad held upright.
+  upright,
 }
 
 /// The composer's layout for one window size.
@@ -57,8 +61,7 @@ class ComposerLayout {
   /// display reports a vertical fold (an iPhone Duo in book, an Android
   /// foldable): an iPad or a Mac window has none, and keeps its layout. In
   /// [ComposerPose.table] it's a horizontal strip centred on the fold the
-  /// display reports, else on the middle, so the split reads as deliberate on
-  /// any tall window. Null otherwise.
+  /// display reports. Null otherwise.
   final Rect? band;
 
   /// Picks the layout for a window of [size], with safe-area [padding], whose
@@ -80,22 +83,23 @@ class ComposerLayout {
       );
     }
     final fold = _fold(features, size, vertical: false);
+    // A real fold across the window always splits: a staff across it would be
+    // worse than a short one.
+    if (fold != null) {
+      return ComposerLayout._(
+        ComposerPose.table,
+        size,
+        _bandAround(fold, size, vertical: false),
+      );
+    }
+    // Without one, a window tall enough for the table's deck keeps it, on top
+    // in the phone's order; a squat one keeps the full staff under the header.
     final half = (size.height - kFoldBand) / 2;
     final roomy = half - math.max(padding.top, padding.bottom) >= kTableHalfMin;
-    // A real fold across the window always splits: a staff across it would be
-    // worse than a short one. Without one, only a window tall enough for both
-    // halves does; a squat one keeps the full staff under the header.
-    if (fold == null && !roomy) {
-      return ComposerLayout._(ComposerPose.regular, size, null);
-    }
     return ComposerLayout._(
-      ComposerPose.table,
+      roomy ? ComposerPose.upright : ComposerPose.regular,
       size,
-      _bandAround(
-        fold ?? Rect.fromLTWH(0, size.height / 2, size.width, 0),
-        size,
-        vertical: false,
-      ),
+      null,
     );
   }
 

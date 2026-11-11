@@ -39,10 +39,19 @@ double staffHeightForStep(double stepY, int rows) {
 }
 
 /// Rows (indices into the manifest scale, G5 at the top) that carry the five
-/// treble-staff lines, F5 D5 B4 G4 E4. The rows above and below the staff are
-/// plain grid: no ledger lines or guides, so any emoji (drums included) can go
-/// on any row.
+/// treble-staff lines, F5 D5 B4 G4 E4. Below the staff the same lines carry on,
+/// one every other row, to the bottom of the paper ([staffLineYs]): no ledger
+/// stubs or guides, so any emoji (drums included) can go on any row.
 const kStaffLineRows = {1, 3, 5, 7, 9};
+
+/// The y of every ruled line on a staff [height] tall: the five staff lines,
+/// then one on every other row below them (rows 11, 13, ...) for as far as
+/// the paper runs, past the last row if it's taller than the rows.
+List<double> staffLineYs(double stepY, double marginY, double height) => [
+  if (stepY > 0)
+    for (var i = kStaffLineRows.first; marginY + i * stepY <= height; i += 2)
+      marginY + i * stepY,
+];
 
 /// The treble clef's curl wraps the G4 line.
 const kGLineRow = 7;
@@ -293,7 +302,7 @@ class StaffPainter extends CustomPainter {
       }
     }
 
-    paintStaffLines(canvas, lineL, lineR, m.stepY, rows, m.marginY);
+    paintStaffLines(canvas, lineL, lineR, m.stepY, m.marginY, size.height);
     _paintEndRepeat(canvas, lineR, m);
 
     // Treble clef (Free mode) or per-row pitch labels (scale mode).
@@ -453,7 +462,7 @@ class StaffGutterPainter extends CustomPainter {
     canvas.drawRect(Offset.zero & size, Paint()..color = Colors.white);
 
     // Line stubs that meet the scrolling grid flush at the right edge.
-    paintStaffLines(canvas, 20, size.width, stepY, rows, marginY);
+    paintStaffLines(canvas, 20, size.width, stepY, marginY, size.height);
     if (showClef) {
       paintClef(
         canvas,
@@ -490,24 +499,22 @@ class StaffGutterPainter extends CustomPainter {
       old.rowLabels != rowLabels;
 }
 
-/// The staff's ruled lines: just the five treble-staff lines. Shared so the
-/// grid, the pinned gutter and the torn edge that continues it can't drift
-/// apart.
+/// The staff's ruled lines: the five treble-staff lines, carried on every
+/// other row down to [height] ([staffLineYs]). Shared so the grid, the pinned
+/// gutter and the torn edge that continues it can't drift apart.
 void paintStaffLines(
   Canvas canvas,
   double x0,
   double x1,
   double stepY,
-  int rows,
   double marginY,
+  double height,
 ) {
   final line = Paint()
     ..color = const Color(0xFF90A4AE)
     ..strokeWidth = 4
     ..strokeCap = StrokeCap.round;
-  for (final i in kStaffLineRows) {
-    if (i >= rows) continue;
-    final y = marginY + i * stepY;
+  for (final y in staffLineYs(stepY, marginY, height)) {
     canvas.drawLine(Offset(x0, y), Offset(x1, y), line);
   }
 }
@@ -601,8 +608,8 @@ class TornEdgePainter extends CustomPainter {
       0,
       size.width,
       (size.height - marginY * 2) / (rows - 1),
-      rows,
       marginY,
+      size.height,
     );
     canvas.restore();
   }
