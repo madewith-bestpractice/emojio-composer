@@ -85,7 +85,9 @@ def build(name, spec, frames):
         if spec.get("crop_top"):  # drop the iOS status bar for Play
             im = im.crop((0, int(im.height * spec["crop_top"]), im.width, im.height))
         aspect = im.width / im.height
-        card_w = w * (0.84 if portrait else 0.86)  # the page shrinks it to fit
+        # The page shrinks it to fit; a set can widen it (a 3:4 iPad shot in a
+        # 9:16 Play tablet frame is width-bound and leaves a gap otherwise).
+        card_w = w * spec.get("card_w", 0.84 if portrait else 0.86)
         html = template
         for key, value in {
             "fonts": f"file://{APP}/assets/fonts", "w": w, "h": h, "unit": f"{unit:.2f}",
