@@ -14,27 +14,28 @@ void main() {
             as List;
 
     test('the five lines are F5 D5 B4 G4 E4', () {
-      expect([for (final r in kStaffLineRows) scale[r]], [
-        'F5',
-        'D5',
-        'B4',
-        'G4',
-        'E4',
+      expect(
+        [for (final r in kStaffLineRows) scale[r]],
+        ['F5', 'D5', 'B4', 'G4', 'E4'],
+      );
+    });
+
+    test('the lines carry on every other row to the bottom', () {
+      // 15 rows 50 apart under a 40pt margin: the odd rows 1..13.
+      expect(staffLineYs(50, 40, 40 * 2 + 14 * 50), [
+        for (var r = 1; r <= 13; r += 2) 40.0 + r * 50,
+      ]);
+      // Paper taller than the rows: the lines run on past the last row.
+      expect(staffLineYs(30, 40, 600).last, 40 + 17 * 30);
+      expect(staffLineYs(30, 40, 600).length, 9);
+      // The first five are the staff itself.
+      expect(staffLineYs(30, 40, 500).take(5), [
+        for (final r in kStaffLineRows) 40.0 + r * 30,
       ]);
     });
 
     test('the clef curls round G4', () {
       expect(scale[kGLineRow], 'G4');
-    });
-
-    test('ledger lines only below the staff, one per line passed', () {
-      for (var r = 0; r <= 10; r++) {
-        expect(ledgerRowsFor(r), isEmpty, reason: '${scale[r]}');
-      }
-      expect(ledgerRowsFor(11), [11]); // C4 sits on one
-      expect(ledgerRowsFor(12), [11]); // B3 hangs under it
-      expect(ledgerRowsFor(13), [11, 13]); // A3
-      expect(ledgerRowsFor(14), [11, 13]); // G3
     });
   });
 
@@ -68,7 +69,7 @@ void main() {
     });
   });
 
-  test('paints low notes with ledger lines without throwing', () {
+  test('paints notes below the staff without throwing', () {
     final recorder = ui.PictureRecorder();
     StaffPainter(
       notes: [Note('🐶', 0, 14, 0, 0), Note('🐱', 15, 11, 0, 0)],
@@ -78,7 +79,6 @@ void main() {
       currentStep: 0,
       playheadFrac: 0,
       tMs: 0,
-      ledgers: true,
     ).paint(Canvas(recorder), const Size(390, 420));
     recorder.endRecording().dispose();
   });

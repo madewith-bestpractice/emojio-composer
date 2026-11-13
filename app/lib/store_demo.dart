@@ -27,35 +27,36 @@ Future<void> loadStoreDemo() async {
   } catch (_) {}
 }
 
-const _palette = ['🐸', '🎹', '🐶', '🎺', '🥁', '👏'];
+const _palette = ['🐸', '🦄', '🐶', '🐔', '🥁', '👏'];
 
-/// The hero song: a melody arcing over the staff, drums and claps below it.
+/// The hero song: a sunny one-bar hook in C major. The melody climbs C-E-G,
+/// peaks, steps back down, and the chicken's B leads it round into the next
+/// loop. A four-on-the-floor kick sits on the bottom line and claps land on
+/// beats 2 and 4 (percussion goes on any row, like any emoji).
 SharedSong demoSong() => SharedSong(
-  bpm: 112,
+  bpm: 120,
   palette: _palette,
   notes: [
     for (final (e, x, y) in const [
-      ('🎹', 0, 7),
-      ('🐸', 1, 5),
-      ('🎹', 2, 4),
-      ('🐶', 3, 2),
-      ('🎺', 4, 3),
-      ('🐸', 6, 4),
-      ('🎹', 7, 6),
-      ('🐶', 8, 7),
-      ('🎺', 9, 5),
-      ('🐸', 10, 3),
-      ('🎹', 11, 1),
-      ('🐶', 12, 0),
-      ('🎺', 14, 2),
-      ('🐸', 15, 4),
-      ('🥁', 0, 14),
-      ('🥁', 4, 14),
-      ('🥁', 8, 14),
-      ('🥁', 12, 14),
-      ('🥁', 10, 13),
-      ('👏', 4, 11),
-      ('👏', 12, 11),
+      // Melody (row: 0 = G5, 2 = E5, 4 = C5, 7 = G4).
+      ('🐸', 0, 4), // C5
+      ('🐸', 2, 2), // E5
+      ('🦄', 4, 0), // G5
+      ('🦄', 6, 2), // E5
+      ('🐶', 7, 1), // F5
+      ('🐶', 8, 0), // G5
+      ('🐸', 10, 2), // E5
+      ('🦄', 12, 3), // D5
+      ('🐶', 13, 7), // G4
+      ('🐔', 14, 5), // B4, back to C
+      // Kick on every beat plus a skip, claps on 2 and 4.
+      ('🥁', 0, 9),
+      ('🥁', 4, 9),
+      ('🥁', 8, 9),
+      ('🥁', 10, 9),
+      ('🥁', 12, 9),
+      ('👏', 4, 6),
+      ('👏', 12, 6),
     ])
       SongNote(e, x, y),
   ],
@@ -70,12 +71,12 @@ List<(String, SharedSong)> demoLibrary() {
         notes: [for (final (p, x, y) in notes) SongNote(palette[p], x, y)],
       );
   return [
-    ('Frog Jam', demoSong()),
+    ('Happy Hop', demoSong()),
     (
       'Drum Party',
       song(
         ['🥁', '👏', '💥', '🪇'],
-        [for (var x = 0; x < 16; x++) (x % 4, x, 14 - (x % 4) * 2)],
+        [for (var x = 0; x < 16; x++) (x % 4, x, 9 - (x % 4) * 2)],
       ),
     ),
     (

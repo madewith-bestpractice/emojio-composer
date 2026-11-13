@@ -14,6 +14,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'export/song_exporter.dart';
 import 'export/wav.dart';
+import 'layout.dart';
 import 'manifest.dart';
 import 'midi/clock_out.dart';
 import 'midi/host_time.dart';
@@ -36,22 +37,17 @@ import 'voice_engine.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  // Tablets compose in landscape (iPad ignores this anyway). A phone stands
-  // upright: on its side there's too little height left for 15 staff rows
-  // under the header and palette.
-  final display = ui.PlatformDispatcher.instance.displays.firstOrNull;
-  final shortest = display == null || display.devicePixelRatio == 0
-      ? 0.0
-      : display.size.shortestSide / display.devicePixelRatio;
-  if (shortest > 0) {
-    SystemChrome.setPreferredOrientations(
-      shortest < 600
-          ? const [DeviceOrientation.portraitUp]
-          : const [
-              DeviceOrientation.landscapeLeft,
-              DeviceOrientation.landscapeRight,
-            ],
-    );
+  // A phone stands upright: on its side there's too little height left for 15
+  // staff rows under the header and palette. A roomier window composes in
+  // landscape (iPad, the Mac and an iPhone Duo's inner display ignore this).
+  // Asked once here so launch doesn't rotate, then again by OrientationPolicy
+  // whenever the window changes, e.g. as a Duo folds onto its outer display.
+  final view = ui.PlatformDispatcher.instance.implicitView;
+  if (view != null && view.devicePixelRatio > 0) {
+    final size = view.physicalSize / view.devicePixelRatio;
+    if (!size.isEmpty) {
+      SystemChrome.setPreferredOrientations(preferredOrientationsFor(size));
+    }
   }
   runApp(const EmojioApp());
 }
@@ -62,33 +58,64 @@ class EmojioApp extends StatelessWidget {
   Widget build(BuildContext context) => MaterialApp(
     title: 'Emojio',
     debugShowCheckedModeBanner: false,
-    theme: ThemeData(
-      useMaterial3: true,
-      fontFamily: Toy.font,
-      colorSchemeSeed: Toy.header,
-      scaffoldBackgroundColor: Toy.bg,
-    ),
+    theme: emojioTheme(),
+    // The iPhone Duo's fold into MediaQuery, and orientation requests that
+    // follow the window as it changes.
+    builder: (context, child) =>
+        FoldBridge(child: OrientationPolicy(child: child!)),
     home: const HarnessPage(),
   );
 }
 
+/// The app's theme. [fontFamilyFallback] is for a render test, whose engine
+/// has no system emoji font to fall back to; the app leaves it to the platform.
+ThemeData emojioTheme({List<String>? fontFamilyFallback}) => ThemeData(
+  useMaterial3: true,
+  fontFamily: Toy.font,
+  fontFamilyFallback: fontFamilyFallback,
+  colorSchemeSeed: Toy.header,
+  scaffoldBackgroundColor: Toy.bg,
+);
+
 const int kCols = 16;
 
+/// What the composer runs on. The app makes the real ones; a test hands in
+/// stand-ins that need no audio engine, store or device.
+class ComposerServices {
+  const ComposerServices({
+    this.engine,
+    this.library,
+    this.trial,
+    this.purchases,
+    this.midi,
+    this.song,
+  });
+
+  /// A song to open once booted, as if from a shared link.
+  final SharedSong? song;
+  final VoiceEngine? engine;
+  final SongLibrary? library;
+  final TrialManager? trial;
+  final PurchaseManager? purchases;
+  final MidiManager? midi;
+}
+
 class HarnessPage extends StatefulWidget {
-  const HarnessPage({super.key});
+  const HarnessPage({super.key, this.services = const ComposerServices()});
+  final ComposerServices services;
   @override
   State<HarnessPage> createState() => _HarnessPageState();
 }
 
 class _HarnessPageState extends State<HarnessPage>
     with SingleTickerProviderStateMixin {
-  final _engine = VoiceEngine();
-  final _library = SongLibrary();
-  final _trial = TrialManager();
+  late final _engine = widget.services.engine ?? VoiceEngine();
+  late final _library = widget.services.library ?? SongLibrary();
+  late final _trial = widget.services.trial ?? TrialManager();
   final _reviewPrompt = ReviewPrompt();
-  bool _paywallSeen = false; // this session; no rating prompt after a paywall
-  final _purchases = PurchaseManager();
-  final _midi = MidiManager();
+  DateTime? _paywallAt; // last paywall shown; no rating prompt right after
+  late final _purchases = widget.services.purchases ?? PurchaseManager();
+  late final _midi = widget.services.midi ?? MidiManager();
   MidiClockOut?
   _clockOut; // MIDI clock master (null if the host clock is unavailable)
   final _appLinks = AppLinks();
@@ -128,15 +155,29 @@ class _HarnessPageState extends State<HarnessPage>
   Future<bool> _requirePremium(PremiumFeature f) async {
     if (_access.allows(f)) return true;
     if (_playing) _togglePlay();
-    _paywallSeen = true;
+    _paywallAt = DateTime.now();
     return presentEmojioPaywall(context, _purchases, reason: f);
   }
 
-  /// A song saved, exported or shared: maybe ask for a store rating.
-  void _noteSuccess() => _reviewPrompt.noteSuccess(
-    installed: _trial.startedAt,
-    paywallSeen: _paywallSeen,
-  );
+  /// A song saved, exported, shared or listened to all the way through: maybe
+  /// ask for a store rating (see ReviewPrompt for the rules).
+  void _noteSuccess() => _reviewPrompt.noteSuccess(paywallAt: _paywallAt);
+
+  /// Play/Stop pressed by the player (button or MIDI). A Stop after a full
+  /// listen of a real song counts as a win; the app's own stops (before a
+  /// dialog, the paywall, an export) go through [_togglePlay] and never do.
+  void _playStopPressed() {
+    final finishedListen =
+        _playing &&
+        !_midi.externalSync &&
+        ReviewPrompt.playedThrough(
+          noteCount: _notes.length,
+          stepsPlayed: _globalStep,
+          stepsPerLoop: kCols,
+        );
+    _togglePlay();
+    if (finishedListen) _noteSuccess();
+  }
 
   VoiceManifest? _manifest;
   String? _bootError;
@@ -264,6 +305,8 @@ class _HarnessPageState extends State<HarnessPage>
         if (_palette.isNotEmpty) _selected = _palette.first;
       });
       _ticker.start();
+      final song = widget.services.song;
+      if (song != null) _loadShared(song);
       await _initDeepLinks();
       await loadStoreDemo();
       final demo = storeDemo;
@@ -403,7 +446,7 @@ class _HarnessPageState extends State<HarnessPage>
   void _doMidiAction(MidiAction a) {
     switch (a) {
       case MidiAction.playStop:
-        _togglePlay();
+        _playStopPressed();
       case MidiAction.clear:
         _snapshotForUndo();
         setState(_notes.clear);
@@ -521,6 +564,7 @@ class _HarnessPageState extends State<HarnessPage>
     if (!await _requirePremium(PremiumFeature.midi) || !mounted) return;
     await showModalBottomSheet<void>(
       context: context,
+      anchorPoint: foldAnchor(context),
       isScrollControlled: true,
       showDragHandle: true,
       backgroundColor: Colors.white,
@@ -539,6 +583,10 @@ class _HarnessPageState extends State<HarnessPage>
     if (_playing) _togglePlay();
     await showModalBottomSheet<void>(
       context: context,
+      anchorPoint: foldAnchor(context),
+      // Sized to its content: on half of an open iPhone Duo the default cap
+      // (9/16 of the half) is shorter than the two export buttons.
+      isScrollControlled: true,
       showDragHandle: true,
       builder: (ctx) => Padding(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
@@ -600,6 +648,7 @@ class _HarnessPageState extends State<HarnessPage>
 
   void _showProgress(String msg) => showDialog<void>(
     context: context,
+    anchorPoint: foldAnchor(context),
     barrierDismissible: false,
     builder: (_) => AlertDialog(
       content: Row(
@@ -832,7 +881,6 @@ class _HarnessPageState extends State<HarnessPage>
       tMs: tMs,
       rowLabels: rowLabels,
       showClef: showClef,
-      ledgers: showClef,
       bgColor: const Color(0xFFFFF696), // brand yellow
     ).paint(Canvas(recorder), Size(width.toDouble(), height.toDouble()));
     final img = await recorder.endRecording().toImage(width, height);
@@ -865,28 +913,16 @@ class _HarnessPageState extends State<HarnessPage>
   void _toggleAt(
     Offset p,
     Size size, {
-    double padLeft = 88,
-    double? fixedStepX,
+    StaffSpec spec = const StaffSpec(),
     Offset? globalPosition,
   }) {
-    final pitchNote = _pitchBadgeNoteAt(
-      p,
-      size,
-      padLeft: padLeft,
-      fixedStepX: fixedStepX,
-    );
+    final pitchNote = _pitchBadgeNoteAt(p, size, spec: spec);
     if (pitchNote != null) {
       _openNotePitchMenu(pitchNote, globalPosition);
       return;
     }
 
-    final hit = StaffMetrics.of(
-      size,
-      kCols,
-      _rows,
-      padLeft: padLeft,
-      fixedStepX: fixedStepX,
-    ).hitTest(p);
+    final hit = spec.metrics(size, kCols, _rows).hitTest(p);
     if (hit == null) return;
     final (gx, gy) = hit;
     final idx = _notes.indexWhere((n) => n.gridX == gx && n.gridY == gy);
@@ -922,17 +958,10 @@ class _HarnessPageState extends State<HarnessPage>
   Note? _pitchBadgeNoteAt(
     Offset p,
     Size size, {
-    double padLeft = 88,
-    double? fixedStepX,
+    StaffSpec spec = const StaffSpec(),
   }) {
-    final m = StaffMetrics.of(
-      size,
-      kCols,
-      _rows,
-      padLeft: padLeft,
-      fixedStepX: fixedStepX,
-    );
-    final noteSize = m.stepY * 1.9;
+    final m = spec.metrics(size, kCols, _rows);
+    final noteSize = m.noteSize;
     final radius = (noteSize * 0.23).clamp(8.0, 15.0).toDouble();
     for (final n in _notes.reversed) {
       if (!n.pitchEdited) continue;
@@ -985,17 +1014,8 @@ class _HarnessPageState extends State<HarnessPage>
   // ---- drag a placed note to a new cell (long-press to grab) ----
   Note? _dragNote;
 
-  StaffMetrics _metrics(Size size, double padLeft, double? fixedStepX) =>
-      StaffMetrics.of(
-        size,
-        kCols,
-        _rows,
-        padLeft: padLeft,
-        fixedStepX: fixedStepX,
-      );
-
-  void _grabAt(Offset p, Size size, {double padLeft = 88, double? fixedStepX}) {
-    final hit = _metrics(size, padLeft, fixedStepX).hitTest(p);
+  void _grabAt(Offset p, Size size, {StaffSpec spec = const StaffSpec()}) {
+    final hit = spec.metrics(size, kCols, _rows).hitTest(p);
     if (hit == null) return;
     final (gx, gy) = hit;
     final idx = _notes.indexWhere((n) => n.gridX == gx && n.gridY == gy);
@@ -1005,10 +1025,10 @@ class _HarnessPageState extends State<HarnessPage>
     setState(() => _dragNote = _notes[idx]);
   }
 
-  void _dragTo(Offset p, Size size, {double padLeft = 88, double? fixedStepX}) {
+  void _dragTo(Offset p, Size size, {StaffSpec spec = const StaffSpec()}) {
     final n = _dragNote;
     if (n == null) return;
-    final hit = _metrics(size, padLeft, fixedStepX).hitTest(p);
+    final hit = spec.metrics(size, kCols, _rows).hitTest(p);
     if (hit == null) return;
     final (gx, gy) = hit;
     if (n.gridX == gx && n.gridY == gy) return;
@@ -1029,19 +1049,8 @@ class _HarnessPageState extends State<HarnessPage>
     setState(() => _dragNote = null);
   }
 
-  void _paintAt(
-    Offset p,
-    Size size, {
-    double padLeft = 88,
-    double? fixedStepX,
-  }) {
-    final hit = StaffMetrics.of(
-      size,
-      kCols,
-      _rows,
-      padLeft: padLeft,
-      fixedStepX: fixedStepX,
-    ).hitTest(p);
+  void _paintAt(Offset p, Size size, {StaffSpec spec = const StaffSpec()}) {
+    final hit = spec.metrics(size, kCols, _rows).hitTest(p);
     if (hit == null || hit == _lastPainted) return;
     _lastPainted = hit;
     final (gx, gy) = hit;
@@ -1073,10 +1082,22 @@ class _HarnessPageState extends State<HarnessPage>
   }
 
   void _snapshotForUndo() {
-    _undoStack.add(_notes.map((n) => Note(
-      n.emoji, n.gridX, n.gridY, n.rotation, n.createdAtMs,
-      velocity: n.velocity, pitchOffset: n.pitchOffset, pitchEdited: n.pitchEdited,
-    )).toList());
+    _undoStack.add(
+      _notes
+          .map(
+            (n) => Note(
+              n.emoji,
+              n.gridX,
+              n.gridY,
+              n.rotation,
+              n.createdAtMs,
+              velocity: n.velocity,
+              pitchOffset: n.pitchOffset,
+              pitchEdited: n.pitchEdited,
+            ),
+          )
+          .toList(),
+    );
     if (_undoStack.length > _maxUndo) _undoStack.removeAt(0);
   }
 
@@ -1247,6 +1268,7 @@ class _HarnessPageState extends State<HarnessPage>
 
   Future<String?> _promptName({required String initial}) => showDialog<String>(
     context: context,
+    anchorPoint: foldAnchor(context),
     barrierDismissible:
         false, // must use Cancel/Save — avoids stray-tap dismissal
     builder: (ctx) => _NameDialog(initial: initial),
@@ -1262,19 +1284,26 @@ class _HarnessPageState extends State<HarnessPage>
     _notes
       ..clear()
       ..addAll(
-        s.notes.where((n) => n.gridX >= 0 && n.gridX < kCols &&
-            n.gridY >= 0 && n.gridY < _rows).map(
-          (n) => Note(
-            n.emoji,
-            n.gridX,
-            n.gridY,
-            (_rng.nextDouble() - 0.5) * 0.3,
-            _nowMs,
-            velocity: n.velocity,
-            pitchOffset: n.pitchOffset,
-            pitchEdited: n.pitchEdited,
-          ),
-        ),
+        s.notes
+            .where(
+              (n) =>
+                  n.gridX >= 0 &&
+                  n.gridX < kCols &&
+                  n.gridY >= 0 &&
+                  n.gridY < _rows,
+            )
+            .map(
+              (n) => Note(
+                n.emoji,
+                n.gridX,
+                n.gridY,
+                (_rng.nextDouble() - 0.5) * 0.3,
+                _nowMs,
+                velocity: n.velocity,
+                pitchOffset: n.pitchOffset,
+                pitchEdited: n.pitchEdited,
+              ),
+            ),
       );
   });
 
@@ -1343,19 +1372,26 @@ class _HarnessPageState extends State<HarnessPage>
     _notes
       ..clear()
       ..addAll(
-        s.notes.where((n) => n.gridX >= 0 && n.gridX < kCols &&
-            n.gridY >= 0 && n.gridY < _rows).map(
-          (n) => Note(
-            n.emoji,
-            n.gridX,
-            n.gridY,
-            (_rng.nextDouble() - 0.5) * 0.3,
-            _nowMs,
-            velocity: n.velocity,
-            pitchOffset: n.pitchOffset,
-            pitchEdited: n.pitchEdited,
-          ),
-        ),
+        s.notes
+            .where(
+              (n) =>
+                  n.gridX >= 0 &&
+                  n.gridX < kCols &&
+                  n.gridY >= 0 &&
+                  n.gridY < _rows,
+            )
+            .map(
+              (n) => Note(
+                n.emoji,
+                n.gridX,
+                n.gridY,
+                (_rng.nextDouble() - 0.5) * 0.3,
+                _nowMs,
+                velocity: n.velocity,
+                pitchOffset: n.pitchOffset,
+                pitchEdited: n.pitchEdited,
+              ),
+            ),
       );
   });
 
@@ -1363,6 +1399,10 @@ class _HarnessPageState extends State<HarnessPage>
     if (_playing) _togglePlay();
     await showModalBottomSheet<void>(
       context: context,
+      anchorPoint: foldAnchor(context),
+      // Its own fixed height, not the default 9/16 cap, which on half of an
+      // open iPhone Duo would show barely two songs.
+      isScrollControlled: true,
       showDragHandle: true,
       builder: (_) => _LibrarySheet(
         library: _library,
@@ -1396,7 +1436,7 @@ class _HarnessPageState extends State<HarnessPage>
   // banner). Fire-and-forget: the purchase manager's customer-info listener
   // updates state on completion.
   void _openPaywall() {
-    _paywallSeen = true;
+    _paywallAt = DateTime.now();
     presentEmojioPaywall(context, _purchases);
   }
 
@@ -1408,23 +1448,190 @@ class _HarnessPageState extends State<HarnessPage>
   Widget build(BuildContext context) {
     if (_bootError != null) return _errorScreen(_bootError!);
     if (_manifest == null) return const SplashScreen();
+    // Chosen from the window's size (and fold) on every build, so a resize or
+    // a fold mid-session re-lays the composer out.
+    final layout = ComposerLayout.of(context);
+    if (layout.pose == ComposerPose.table) return _tableComposer(layout);
+    if (layout.pose == ComposerPose.upright) return _uprightComposer(layout);
     // Edge-to-edge: the coloured bars run to every screen edge. The blue header
     // owns the top (including the status-bar inset), so the top of the screen is
-    // always blue; the trial ribbon, if any, sits just beneath it.
-    final topInset = MediaQuery.of(context).padding.top;
+    // always blue; the trial ribbon, if any, sits just beneath it. Side insets
+    // (the closed iPhone Duo's camera strip) keep content in, colour out.
+    final topInset = MediaQuery.paddingOf(context).top;
     return Scaffold(
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch, // bars span full width
         children: [
-          _header(topInset: topInset),
-          if (!_purchases.unlocked && _trial.active && storeDemo == null)
-            TrialBanner(trial: _trial, onTap: _openPaywall),
-          _paletteBar(),
-          Expanded(child: _staff()),
+          _header(layout, topInset: topInset),
+          if (_showTrialBanner) _trialBanner(layout.verticalBand),
+          _paletteBar(layout),
+          Expanded(child: _sideInset(_staff(layout))),
         ],
       ),
     );
   }
+
+  bool get _showTrialBanner =>
+      !_purchases.unlocked && _trial.active && storeDemo == null;
+
+  // Over a vertical fold the ribbon (one tap target, end to end) keeps to the
+  // left half; the rest of the strip stays ribbon-coloured.
+  Widget _trialBanner(Rect? band) {
+    final pad = MediaQuery.paddingOf(context);
+    final banner = TrialBanner(trial: _trial, onTap: _openPaywall);
+    return ColoredBox(
+      color: Toy.highlight,
+      child: Padding(
+        padding: EdgeInsets.only(left: pad.left, right: pad.right),
+        child: band == null
+            ? banner
+            : Row(
+                children: [
+                  SizedBox(width: band.left - pad.left, child: banner),
+                ],
+              ),
+      ),
+    );
+  }
+
+  /// [child] kept inside the window's side safe area, on staff paper.
+  Widget _sideInset(Widget child) {
+    final pad = MediaQuery.paddingOf(context);
+    if (pad.left == 0 && pad.right == 0) return child;
+    return ColoredBox(
+      color: Colors.white,
+      child: Padding(
+        padding: EdgeInsets.only(left: pad.left, right: pad.right),
+        child: child,
+      ),
+    );
+  }
+
+  // ---- table: an open iPhone Duo stood on a table, or an upright iPad ----
+  // The staff, to watch, on the top half; the palette and every control, to
+  // touch, on the bottom half; nothing in the band between them.
+  Widget _tableComposer(ComposerLayout layout) {
+    final band = layout.band!;
+    final pad = MediaQuery.paddingOf(context);
+    return Scaffold(
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            height: band.top,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // The status bar sits on the header's blue.
+                Container(
+                  height: pad.top + 4,
+                  decoration: const BoxDecoration(
+                    color: Toy.header,
+                    border: Border(
+                      bottom: BorderSide(color: Toy.text, width: 4),
+                    ),
+                  ),
+                ),
+                Expanded(child: _sideInset(_staff(layout))),
+              ],
+            ),
+          ),
+          SizedBox(height: band.height, child: const _FoldSpine()),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (_showTrialBanner) _trialBanner(null),
+                _paletteBar(layout),
+                Expanded(child: _tableDeck(pad)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---- upright: an iPad held upright, or any tall window without a fold ----
+  // The phone's order: the control deck under the status bar (which sits on
+  // its blue), the palette under it, then the full staff filling the rest.
+  Widget _uprightComposer(ComposerLayout layout) {
+    final pad = MediaQuery.paddingOf(context);
+    return Scaffold(
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            decoration: _headerDeco,
+            padding: EdgeInsets.fromLTRB(
+              14 + pad.left,
+              10 + pad.top,
+              14 + pad.right,
+              14,
+            ),
+            child: _deckControls(),
+          ),
+          if (_showTrialBanner) _trialBanner(null),
+          _paletteBar(layout),
+          Expanded(child: _sideInset(_staff(layout))),
+        ],
+      ),
+    );
+  }
+
+  // The table's control deck: brand, Play and the tempo slider on one row,
+  // every other button wrapped below. Scrolls rather than overflow.
+  Widget _tableDeck(EdgeInsets pad) => Container(
+    decoration: const BoxDecoration(
+      color: Toy.header,
+      border: Border(top: BorderSide(color: Toy.text, width: 4)),
+    ),
+    child: LayoutBuilder(
+      builder: (context, box) => SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(
+          14 + pad.left,
+          14,
+          14 + pad.right,
+          14 + pad.bottom,
+        ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: math.max(0, box.maxHeight - 28 - pad.bottom),
+          ),
+          child: Center(child: _deckControls()),
+        ),
+      ),
+    ),
+  );
+
+  // The tablet deck's controls: brand, Play and the tempo slider on one row,
+  // every other button wrapped below.
+  Widget _deckControls() => Column(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Row(
+        children: [
+          _brandTitle(),
+          const SizedBox(width: 12),
+          _playButton(),
+          const SizedBox(width: 12),
+          Expanded(
+            child: LayoutBuilder(
+              // The slider takes the rest of the row, less the pill's
+              // turtle, rabbit and readout.
+              builder: (context, row) => Align(
+                alignment: Alignment.centerRight,
+                child: _tempo(width: math.max(104, row.maxWidth - 100)),
+              ),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 16),
+      Wrap(spacing: _barGap, runSpacing: 12, children: _actionButtons()),
+    ],
+  );
 
   static const _headerDeco = BoxDecoration(
     color: Toy.header,
@@ -1505,14 +1712,18 @@ class _HarnessPageState extends State<HarnessPage>
     label: _playing ? 'Stop' : 'Play',
     emoji: _playing ? '⏹️' : '▶️',
     color: _playing ? Toy.red : Toy.green,
-    onPressed: _togglePlay,
+    onPressed: _playStopPressed,
   );
 
   // Creative + utility actions, in the order the user set: Play (prepended)
   // New, Random, Save, Songs, Export, Share, MIDI. All identical to Play but
   // for colour. (_exportKey anchors the export share-sheet on iPad; _shareKey
   // anchors Share's.)
-  List<Widget> _actionButtons() => [
+  List<Widget> _actionButtons() => [..._composeActions(), ..._fileActions()];
+
+  // Over a vertical fold the header splits its buttons in two: these on the
+  // left half...
+  List<Widget> _composeActions() => [
     // Purchase entry point, first so it survives the row scrolling on a
     // handset. The trial ribbon alone wasn't findable — App Review rejected
     // 1.0 for it — so Premium also lives here, shaped like every other button
@@ -1545,6 +1756,10 @@ class _HarnessPageState extends State<HarnessPage>
       textColor: _undoStack.isEmpty ? Toy.line : Toy.text,
       onPressed: _undo,
     ),
+  ];
+
+  // ...and these on the right.
+  List<Widget> _fileActions() => [
     _barButton(
       label: 'Save',
       emoji: '💾',
@@ -1594,17 +1809,23 @@ class _HarnessPageState extends State<HarnessPage>
     ),
   );
 
-  Widget _header({double topInset = 0}) {
-    final landscape =
-        MediaQuery.of(context).orientation == Orientation.landscape;
+  Widget _header(ComposerLayout layout, {double topInset = 0}) {
     // Same split as the staff: a handset hands the slider to a sheet, a tablet has
     // the room to keep it inline.
-    final handset = MediaQuery.of(context).size.shortestSide < 600;
-    if (landscape) {
+    final handset = layout.compact;
+    final pad = MediaQuery.paddingOf(context);
+    final band = layout.verticalBand;
+    if (band != null) return _foldHeader(band, pad, topInset: topInset);
+    if (layout.oneRowHeader) {
       // One tidy blue row: brand · Play · actions · tempo.
       return Container(
         decoration: _headerDeco,
-        padding: EdgeInsets.fromLTRB(14, 10 + topInset, 14, 10),
+        padding: EdgeInsets.fromLTRB(
+          14 + pad.left,
+          10 + topInset,
+          14 + pad.right,
+          10,
+        ),
         child: Row(
           children: [
             _brandTitle(),
@@ -1628,7 +1849,10 @@ class _HarnessPageState extends State<HarnessPage>
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
+            padding: EdgeInsets.only(
+              left: 14 + pad.left,
+              right: 14 + pad.right,
+            ),
             child: Row(
               children: [
                 _brandTitle(),
@@ -1638,24 +1862,71 @@ class _HarnessPageState extends State<HarnessPage>
             ),
           ),
           const SizedBox(height: 10),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            // Bottom room so the buttons' hard offset shadow isn't clipped by
-            // the scroll viewport.
-            padding: const EdgeInsets.fromLTRB(14, 0, 14, 6),
-            child: Row(
-              children: [
-                for (final b in [_playButton(), ..._actionButtons()]) ...[
-                  b,
-                  const SizedBox(width: _barGap),
+          // The row bleeds to the window's safe edges, never under a side
+          // strip (the closed iPhone Duo's camera).
+          Padding(
+            padding: EdgeInsets.only(left: pad.left, right: pad.right),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              // Bottom room so the buttons' hard offset shadow isn't clipped by
+              // the scroll viewport.
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 6),
+              child: Row(
+                children: [
+                  for (final b in [_playButton(), ..._actionButtons()]) ...[
+                    b,
+                    const SizedBox(width: _barGap),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ],
       ),
     );
   }
+
+  // The header over a vertical fold (an open iPhone Duo held like a book): two
+  // halves either side of the fold's band, each scrolling on its own, so no
+  // button ever sits on the fold. Brand, Play and the composing buttons on the
+  // left; the song's buttons and the tempo on the right.
+  Widget _foldHeader(Rect band, EdgeInsets pad, {double topInset = 0}) =>
+      Container(
+        decoration: _headerDeco,
+        padding: EdgeInsets.only(top: 10 + topInset, bottom: 10),
+        child: Row(
+          children: [
+            SizedBox(
+              width: band.left,
+              child: Padding(
+                padding: EdgeInsets.only(left: 14 + pad.left),
+                child: Row(
+                  children: [
+                    _brandTitle(),
+                    const SizedBox(width: 12),
+                    _playButton(),
+                    const SizedBox(width: 12),
+                    Expanded(child: _FadingRow(children: _composeActions())),
+                  ],
+                ),
+              ),
+            ),
+            SizedBox(width: band.width),
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(right: 14 + pad.right),
+                child: Row(
+                  children: [
+                    Expanded(child: _FadingRow(children: _fileActions())),
+                    const SizedBox(width: 10),
+                    _tempo(width: 104),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
 
   void _setBpm(double v) {
     setState(() => _bpm = v);
@@ -1665,6 +1936,7 @@ class _HarnessPageState extends State<HarnessPage>
   // Dismissal comes free with the sheet: drag it down, tap outside, or press back.
   void _openTempo() => showModalBottomSheet<void>(
     context: context,
+    anchorPoint: foldAnchor(context),
     showDragHandle: true,
     backgroundColor: Colors.white,
     shape: const RoundedRectangleBorder(
@@ -1771,106 +2043,197 @@ class _HarnessPageState extends State<HarnessPage>
     _engine.playEmoji(_selected, 7, pitchOffset: next);
   }
 
-  Widget _paletteBar() => Container(
-    color: Toy.panel,
-    padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
-    child: AnimatedSize(
-      duration: const Duration(milliseconds: 140),
-      curve: Curves.easeOut,
-      alignment: Alignment.topLeft,
-      child: SizedBox(
-        height: _pitchPickerOpen ? _barH + 54 : _barH,
-        child: Stack(
-          clipBehavior: Clip.hardEdge,
-          children: [
-            // The scrolling set runs the full width but is inset so that, at
-            // rest, stickers sit between the two pinned controls; swiping
-            // slides them under the opaque active swatch / add button.
-            Positioned(
-              left: 0,
-              right: 0,
-              top: 0,
-              height: _barH,
-              child: SingleChildScrollView(
-                controller: _paletteScroll,
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.only(
-                  left: _activeLeadPad,
-                  right: _addTrailPad,
-                ),
-                child: SizedBox(
-                  height: _barH,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [for (final e in _palette) _paletteItem(e)],
-                  ),
-                ),
-              ),
-            ),
-            // Soft shadow the active swatch casts over the strip — fades in
-            // over the first few pixels of swipe so stickers read as sliding
-            // under it.
-            Positioned(
-              left: _activeLeadPad - 14,
-              top: 0,
-              height: _barH,
-              width: 16,
-              child: IgnorePointer(
-                child: AnimatedBuilder(
-                  animation: _paletteScroll,
-                  builder: (context, _) {
-                    final off = _paletteScroll.hasClients
-                        ? _paletteScroll.offset
-                        : 0.0;
-                    final op = (off / 14).clamp(0.0, 1.0);
-                    return Opacity(
-                      opacity: op,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.centerLeft,
-                            end: Alignment.centerRight,
-                            colors: [
-                              Toy.text.withValues(alpha: 0.22),
-                              Toy.text.withValues(alpha: 0.0),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-            // Pinned active swatch (left), opaque so the set vanishes behind it.
-            Positioned(
-              left: 0,
-              top: 0,
-              height: _barH,
-              child: Container(
-                width: _activeLeadPad - 8,
-                color: Toy.panel,
-                alignment: Alignment.centerLeft,
-                child: _activeSwatch(),
-              ),
-            ),
-            if (_pitchPickerOpen)
-              Positioned(left: 0, top: _barH + 2, child: _pitchPopover()),
-            // Pinned add button (right), opaque mask on the far end.
-            Positioned(
-              right: 0,
-              top: 0,
-              height: _barH,
-              child: Container(
-                color: Toy.panel,
-                alignment: Alignment.centerRight,
-                child: _addButton(),
-              ),
-            ),
-          ],
+  Widget _paletteBar(ComposerLayout layout) {
+    final pad = MediaQuery.paddingOf(context);
+    final band = layout.verticalBand;
+    final left = 16 + pad.left;
+    return Container(
+      color: Toy.panel,
+      padding: EdgeInsets.fromLTRB(left, 14, 16 + pad.right, 12),
+      child: AnimatedSize(
+        duration: const Duration(milliseconds: 140),
+        curve: Curves.easeOut,
+        alignment: Alignment.topLeft,
+        child: SizedBox(
+          height: _pitchPickerOpen ? _barH + 54 : _barH,
+          child: band == null
+              ? _paletteStrip()
+              // The band in this bar's coordinates.
+              : _foldPalette(band.shift(Offset(-left, 0))),
         ),
       ),
-    ),
+    );
+  }
+
+  static const double _paletteItemExtent = 62.0; // a sticker + its padding
+
+  // The palette over a vertical fold: the active swatch and the first stickers
+  // on the left half, the rest and the add button on the right, nothing in
+  // the band between. Ten stickers (the cap) fit without scrolling; each half
+  // scrolls on its own if not.
+  Widget _foldPalette(Rect band) {
+    final fit = math.max(
+      0,
+      ((band.left - _activeLeadPad) / _paletteItemExtent).floor(),
+    );
+    final first = _palette.take(fit).toList();
+    final rest = _palette.skip(fit).toList();
+    Widget strip(List<String> items, EdgeInsets padding) =>
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: padding,
+          child: SizedBox(
+            height: _barH,
+            child: Row(children: [for (final e in items) _paletteItem(e)]),
+          ),
+        );
+    return Stack(
+      clipBehavior: Clip.hardEdge,
+      children: [
+        Positioned(
+          left: 0,
+          top: 0,
+          width: band.left,
+          height: _barH,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: strip(
+                  first,
+                  const EdgeInsets.only(left: _activeLeadPad),
+                ),
+              ),
+              Positioned(
+                left: 0,
+                top: 0,
+                height: _barH,
+                child: Container(
+                  width: _activeLeadPad - 8,
+                  color: Toy.panel,
+                  alignment: Alignment.centerLeft,
+                  child: _activeSwatch(),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Positioned(
+          left: band.right,
+          right: 0,
+          top: 0,
+          height: _barH,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: strip(rest, const EdgeInsets.only(right: _addTrailPad)),
+              ),
+              Positioned(
+                right: 0,
+                top: 0,
+                height: _barH,
+                child: Container(
+                  color: Toy.panel,
+                  alignment: Alignment.centerRight,
+                  child: _addButton(),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (_pitchPickerOpen)
+          Positioned(left: 0, top: _barH + 2, child: _pitchPopover()),
+      ],
+    );
+  }
+
+  Widget _paletteStrip() => Stack(
+    clipBehavior: Clip.hardEdge,
+    children: [
+      // The scrolling set runs the full width but is inset so that, at
+      // rest, stickers sit between the two pinned controls; swiping
+      // slides them under the opaque active swatch / add button.
+      Positioned(
+        left: 0,
+        right: 0,
+        top: 0,
+        height: _barH,
+        child: SingleChildScrollView(
+          controller: _paletteScroll,
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.only(
+            left: _activeLeadPad,
+            right: _addTrailPad,
+          ),
+          child: SizedBox(
+            height: _barH,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [for (final e in _palette) _paletteItem(e)],
+            ),
+          ),
+        ),
+      ),
+      // Soft shadow the active swatch casts over the strip — fades in
+      // over the first few pixels of swipe so stickers read as sliding
+      // under it.
+      Positioned(
+        left: _activeLeadPad - 14,
+        top: 0,
+        height: _barH,
+        width: 16,
+        child: IgnorePointer(
+          child: AnimatedBuilder(
+            animation: _paletteScroll,
+            builder: (context, _) {
+              final off = _paletteScroll.hasClients
+                  ? _paletteScroll.offset
+                  : 0.0;
+              final op = (off / 14).clamp(0.0, 1.0);
+              return Opacity(
+                opacity: op,
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: [
+                        Toy.text.withValues(alpha: 0.22),
+                        Toy.text.withValues(alpha: 0.0),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+      // Pinned active swatch (left), opaque so the set vanishes behind it.
+      Positioned(
+        left: 0,
+        top: 0,
+        height: _barH,
+        child: Container(
+          width: _activeLeadPad - 8,
+          color: Toy.panel,
+          alignment: Alignment.centerLeft,
+          child: _activeSwatch(),
+        ),
+      ),
+      if (_pitchPickerOpen)
+        Positioned(left: 0, top: _barH + 2, child: _pitchPopover()),
+      // Pinned add button (right), opaque mask on the far end.
+      Positioned(
+        right: 0,
+        top: 0,
+        height: _barH,
+        child: Container(
+          color: Toy.panel,
+          alignment: Alignment.centerRight,
+          child: _addButton(),
+        ),
+      ),
+    ],
   );
 
   Widget _activeSwatch() => Semantics(
@@ -2074,12 +2437,39 @@ class _HarnessPageState extends State<HarnessPage>
   // gutter's torn edge, which overhangs the grid by up to 16.
   static const double _handsetLead = 16.0;
   static const double _handsetMinStepY = 24.0;
+  static const _handsetSpec = StaffSpec(
+    padLeft: _handsetLead,
+    fixedStepX: _handsetStepX,
+  );
 
-  Widget _staff() => LayoutBuilder(
+  Widget _staff(ComposerLayout layout) => LayoutBuilder(
     builder: (context, constraints) {
       final reduceMotion =
           MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-      final handset = MediaQuery.of(context).size.shortestSide < 600;
+      final handset = layout.compact;
+      // The full staff runs the window's width, less its side insets, so a
+      // vertical fold sits at the band's centre minus the left inset.
+      final band = layout.verticalBand;
+      // Taller than wide: narrow columns.
+      final table =
+          layout.pose == ComposerPose.table ||
+          layout.pose == ComposerPose.upright;
+      final fullSpec = StaffSpec(
+        // An upright window's narrow columns would run the last step into
+        // the end-repeat sign; give the sign its own room.
+        padRight: table ? 40 : 0,
+        foldX: band == null
+            ? null
+            : band.center.dx - MediaQuery.paddingOf(context).left,
+        foldGap: math.max(kStaffFoldGap, (band?.width ?? 0) + 16),
+        // Narrow columns (a fold's halves, or an upright window) cap the notes
+        // so they don't swamp their neighbours, or reach into the fold.
+        maxNoteToStep: band != null
+            ? 1.0
+            : table
+            ? 1.15
+            : null,
+      );
       final labels = _engine.scaleMode == ScaleMode.free
           ? null
           : List.generate(_rows, (i) => _pcName(_engine.midiForRow(i)));
@@ -2092,6 +2482,10 @@ class _HarnessPageState extends State<HarnessPage>
         required bool withGutter,
         double? fixedStepX,
       }) => StaffPainter(
+        foldX: withGutter ? fullSpec.foldX : null,
+        padRight: withGutter ? fullSpec.padRight : 0,
+        foldGap: withGutter ? fullSpec.foldGap : 0,
+        maxNoteToStep: withGutter ? fullSpec.maxNoteToStep : null,
         notes: _notes,
         cols: kCols,
         rows: _rows,
@@ -2106,7 +2500,6 @@ class _HarnessPageState extends State<HarnessPage>
         padLeft: withGutter ? 88.0 : _handsetLead,
         drawGutter: withGutter,
         fixedStepX: fixedStepX,
-        ledgers: showClef,
       );
 
       Widget grid(Size size, {double? fixedStepX, required bool withGutter}) =>
@@ -2131,21 +2524,27 @@ class _HarnessPageState extends State<HarnessPage>
           onPointerDown: _capturePressure,
           onPointerMove: _capturePressure,
           child: GestureDetector(
+            // Over a fold, VoiceOver's activate would tap the staff's centre:
+            // the fold's gap, where nothing can be placed.
+            excludeFromSemantics: band != null,
             onTapUp: (d) => _toggleAt(
               d.localPosition,
               size,
+              spec: fullSpec,
               globalPosition: d.globalPosition,
             ),
             onPanStart: (d) {
               _snapshotForUndo();
               _lastPainted = null;
-              _paintAt(d.localPosition, size);
+              _paintAt(d.localPosition, size, spec: fullSpec);
             },
-            onPanUpdate: (d) => _paintAt(d.localPosition, size),
+            onPanUpdate: (d) => _paintAt(d.localPosition, size, spec: fullSpec),
             onPanEnd: (_) => _lastPainted = null,
             // Hold a placed note to grab it, then drag to move.
-            onLongPressStart: (d) => _grabAt(d.localPosition, size),
-            onLongPressMoveUpdate: (d) => _dragTo(d.localPosition, size),
+            onLongPressStart: (d) =>
+                _grabAt(d.localPosition, size, spec: fullSpec),
+            onLongPressMoveUpdate: (d) =>
+                _dragTo(d.localPosition, size, spec: fullSpec),
             onLongPressEnd: (_) => _dropNote(),
             child: grid(size, withGutter: true),
           ),
@@ -2193,8 +2592,7 @@ class _HarnessPageState extends State<HarnessPage>
                         onTapUp: (d) => _toggleAt(
                           d.localPosition,
                           gridSize,
-                          padLeft: _handsetLead,
-                          fixedStepX: _handsetStepX,
+                          spec: _handsetSpec,
                           globalPosition: d.globalPosition,
                         ),
                         // Hold a placed note to grab it, then drag to move
@@ -2202,14 +2600,12 @@ class _HarnessPageState extends State<HarnessPage>
                         onLongPressStart: (d) => _grabAt(
                           d.localPosition,
                           gridSize,
-                          padLeft: _handsetLead,
-                          fixedStepX: _handsetStepX,
+                          spec: _handsetSpec,
                         ),
                         onLongPressMoveUpdate: (d) => _dragTo(
                           d.localPosition,
                           gridSize,
-                          padLeft: _handsetLead,
-                          fixedStepX: _handsetStepX,
+                          spec: _handsetSpec,
                         ),
                         onLongPressEnd: (_) => _dropNote(),
                         child: grid(
@@ -2455,12 +2851,21 @@ class _LibrarySheetState extends State<_LibrarySheet> {
                         onPressed: () async {
                           final confirmed = await showDialog<bool>(
                             context: context,
+                            anchorPoint: foldAnchor(context),
                             builder: (ctx) => AlertDialog(
                               title: const Text('Delete song?'),
-                              content: Text('Delete "${s.name.isEmpty ? 'Untitled' : s.name}"? This can\'t be undone.'),
+                              content: Text(
+                                'Delete "${s.name.isEmpty ? 'Untitled' : s.name}"? This can\'t be undone.',
+                              ),
                               actions: [
-                                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-                                TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete')),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: const Text('Cancel'),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  child: const Text('Delete'),
+                                ),
                               ],
                             ),
                           );
@@ -2478,6 +2883,110 @@ class _LibrarySheetState extends State<_LibrarySheet> {
           );
         },
       ),
+    );
+  }
+}
+
+/// The band over a horizontal fold between the table's two halves: toy-paper
+/// stripes, nothing to read and nothing to tap.
+class _FoldSpine extends StatelessWidget {
+  const _FoldSpine();
+
+  @override
+  Widget build(BuildContext context) => const DecoratedBox(
+    decoration: BoxDecoration(
+      color: Toy.bg,
+      border: Border(
+        top: BorderSide(color: Toy.text, width: 4),
+        bottom: BorderSide(color: Toy.text, width: 4),
+      ),
+    ),
+  );
+}
+
+/// A header row of buttons that scrolls sideways and fades out at whichever
+/// end has more to scroll to, so a button cut by the fold's band reads as
+/// "more this way" instead of a stray sliver.
+class _FadingRow extends StatefulWidget {
+  const _FadingRow({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  State<_FadingRow> createState() => _FadingRowState();
+}
+
+class _FadingRowState extends State<_FadingRow> {
+  static const double _fade = 32;
+  final _scroll = ScrollController();
+  bool _moreLeft = false, _moreRight = false;
+
+  void _measure() {
+    if (!_scroll.hasClients || !_scroll.position.hasContentDimensions) return;
+    final p = _scroll.position;
+    final left = p.pixels > p.minScrollExtent + 0.5;
+    final right = p.pixels < p.maxScrollExtent - 0.5;
+    if (left != _moreLeft || right != _moreRight) {
+      setState(() {
+        _moreLeft = left;
+        _moreRight = right;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _measure();
+    });
+    final row = NotificationListener<ScrollMetricsNotification>(
+      onNotification: (_) {
+        _measure();
+        return false;
+      },
+      child: NotificationListener<ScrollUpdateNotification>(
+        onNotification: (_) {
+          _measure();
+          return false;
+        },
+        child: SingleChildScrollView(
+          controller: _scroll,
+          scrollDirection: Axis.horizontal,
+          // Bottom room so the buttons' hard offset shadow isn't clipped.
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Row(
+            children: [
+              for (final b in widget.children) ...[
+                b,
+                const SizedBox(width: _HarnessPageState._barGap),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!_moreLeft && !_moreRight) return row;
+    return ShaderMask(
+      blendMode: BlendMode.dstIn,
+      shaderCallback: (r) {
+        final f = r.width <= 0 ? 0.0 : (_fade / r.width).clamp(0.0, 0.5);
+        return LinearGradient(
+          colors: [
+            _moreLeft ? Colors.transparent : Colors.black,
+            Colors.black,
+            Colors.black,
+            _moreRight ? Colors.transparent : Colors.black,
+          ],
+          stops: [0, f, 1 - f, 1],
+        ).createShader(r);
+      },
+      child: row,
     );
   }
 }

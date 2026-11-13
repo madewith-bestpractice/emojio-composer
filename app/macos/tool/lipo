@@ -1,0 +1,20 @@
+#!/bin/sh
+# Xcode 27's lipo accepts only one arch after -verify_arch, but Flutter's thinFramework
+# passes all of them ("arm64 x86_64"). Verify each arch separately; pass everything else through.
+# The Flutter script phases put this directory first on PATH. /usr/bin/lipo is called by path so
+# it can't recurse into this shim.
+case " $* " in
+  *" -verify_arch "*) ;;
+  *) exec /usr/bin/lipo "$@" ;;
+esac
+file=""; archs=""; seen=0
+for a in "$@"; do
+  if [ "$a" = "-verify_arch" ]; then seen=1
+  elif [ $seen -eq 1 ]; then archs="$archs $a"
+  else file="$a"
+  fi
+done
+for arch in $archs; do
+  /usr/bin/lipo "$file" -verify_arch "$arch" || exit 1
+done
+exit 0

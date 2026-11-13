@@ -161,6 +161,10 @@ class VoiceEngine {
       h,
       pan.clamp(-1.0, 1.0),
     ); // positioned before the first sample is heard
+    // Skip the sample's leading silence so the sound starts on the step.
+    if (z.startSec > 0) {
+      _soloud.seek(h, Duration(microseconds: (z.startSec * 1e6).round()));
+    }
     _soloud.setPause(h, false);
     return h;
   }

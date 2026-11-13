@@ -86,6 +86,23 @@
         "midi"
       ]
     },
+    "play-tablet": {
+      "store": "play",
+      "raw": "ipad",
+      "size": [
+        1920,
+        2560
+      ],
+      "crop_top": 0.018,
+      "frames": [
+        "play",
+        "compose",
+        "picker",
+        "library",
+        "export",
+        "midi"
+      ]
+    },
     "appstore-mac": {
       "store": "appstore",
       "raw": "mac",
