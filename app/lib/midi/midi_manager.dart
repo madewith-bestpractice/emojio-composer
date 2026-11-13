@@ -2,7 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_midi_command/flutter_midi_command.dart';
+import 'package:flutter_midi_command_ble/flutter_midi_command_ble.dart';
+import 'package:universal_ble/universal_ble.dart';
 import 'package:path_provider/path_provider.dart';
 import 'host_time.dart';
 
@@ -161,12 +164,24 @@ class MidiManager extends ChangeNotifier {
 
   bool isConnected(MidiDevice d) => _connectedIds.contains(d.id);
 
+  /// Apple's own Bluetooth MIDI panel (ios/Runner/AppDelegate.swift,
+  /// macos/Runner/MainFlutterWindow.swift). A device connected there is an
+  /// ordinary CoreMIDI device after that, listed and connected like USB.
+  static const _applePanel = MethodChannel('emojio/bluetooth_midi');
+  Timer? _bleScanStop;
+  static const _bleScanTime = Duration(seconds: 20);
+
   Future<void> init() async {
     await _load(); // restore saved mappings + settings first
     try {
       _hostClock = MachHostClock();
     } catch (_) {
       // non-Apple platform — jitter readout stays 0, everything else works
+    }
+    // Android has no system screen for Bluetooth MIDI, so the app scans for
+    // it itself. Apple platforms use Apple's panel instead (see scanBluetooth).
+    if (Platform.isAndroid) {
+      _midi.configureBleTransport(UniversalBleMidiTransport());
     }
     try {
       _dataSub = _midi.onMidiDataReceived?.listen(_onData);
@@ -269,12 +284,73 @@ class MidiManager extends ChangeNotifier {
   }
 
   Future<void> scanBluetooth() async {
+    if (Platform.isIOS || Platform.isMacOS) {
+      try {
+        final shown = await _applePanel.invokeMethod<bool>('show') ?? false;
+        status = shown
+            ? 'Connect your Bluetooth MIDI device in the panel, then tap Connect here'
+            : 'Bluetooth MIDI isn’t available here';
+      } on MissingPluginException {
+        status = 'Bluetooth MIDI isn’t available here';
+      } on PlatformException catch (e) {
+        status = 'Bluetooth MIDI isn’t available: ${e.message ?? e.code}';
+      }
+      notifyListeners();
+      return;
+    }
+    if (!Platform.isAndroid) {
+      status = 'Bluetooth MIDI isn’t available here';
+      notifyListeners();
+      return;
+    }
     try {
+      // Android 12+ asks for "Nearby devices" (scan + connect, never location;
+      // see AndroidManifest.xml). Android 11 and older can only scan with a
+      // location permission, which Emojio doesn't ask for, so this throws there.
+      await UniversalBle.requestPermissions();
+    } catch (e) {
+      status = '$e'.contains('not declared')
+          ? 'Bluetooth MIDI needs Android 12 or later. Plug in over USB instead.'
+          : 'Allow “Nearby devices” for Emojio in Settings to use Bluetooth MIDI';
+      notifyListeners();
+      return;
+    }
+    try {
+      final state = await UniversalBle.getBluetoothAvailabilityState();
+      if (state == AvailabilityState.poweredOff) {
+        status = 'Turn on Bluetooth, then scan again';
+        notifyListeners();
+        return;
+      }
+      if (state == AvailabilityState.unauthorized) {
+        status = 'Allow “Nearby devices” for Emojio in Settings to use Bluetooth MIDI';
+        notifyListeners();
+        return;
+      }
       await _midi.startBluetooth();
       await _midi.startScanningForBluetoothDevices();
-      status = 'Scanning for Bluetooth MIDI…';
+      status = 'Looking for Bluetooth MIDI devices… put yours in pairing mode';
+      _bleScanStop?.cancel();
+      _bleScanStop = Timer(_bleScanTime, stopBluetoothScan);
     } catch (e) {
-      status = 'Bluetooth unavailable: $e';
+      status = 'Bluetooth MIDI didn’t start: $e';
+    }
+    notifyListeners();
+  }
+
+  /// Ends an Android Bluetooth scan (it also stops by itself after
+  /// [_bleScanTime]); devices already found stay listed.
+  void stopBluetoothScan() {
+    _bleScanStop?.cancel();
+    _bleScanStop = null;
+    if (!Platform.isAndroid) return;
+    try {
+      _midi.stopScanningForBluetoothDevices();
+    } catch (_) {}
+    if (status.startsWith('Looking for Bluetooth')) {
+      status = devices.any((d) => d.type == MidiDeviceType.ble)
+          ? 'Tap Connect next to your Bluetooth device'
+          : 'No Bluetooth MIDI device found. Is it in pairing mode?';
     }
     notifyListeners();
   }
@@ -521,6 +597,12 @@ class MidiManager extends ChangeNotifier {
 
   @override
   void dispose() {
+    _bleScanStop?.cancel();
+    if (Platform.isAndroid) {
+      try {
+        _midi.stopScanningForBluetoothDevices();
+      } catch (_) {}
+    }
     _dataSub?.cancel();
     _setupSub?.cancel();
     _saveTimer?.cancel();

@@ -1,3 +1,4 @@
+import CoreAudioKit
 import Flutter
 import UIKit
 
@@ -16,6 +17,33 @@ import UIKit
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "EmojioFoldReporter") {
       foldReporter = FoldReporter(registrar: registrar)
+    }
+    // Scan Bluetooth in the 🎹 sheet: iOS has no system screen that connects a
+    // Bluetooth MIDI keyboard, so an app shows Apple's own panel for it. Once
+    // connected there it is an ordinary CoreMIDI device, which the MIDI plugin
+    // lists and connects like USB. (Same as Chopmatic.)
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "EmojioBluetoothMidi") {
+      let channel = FlutterMethodChannel(
+        name: "emojio/bluetooth_midi", binaryMessenger: registrar.messenger())
+      channel.setMethodCallHandler { [weak registrar] call, result in
+        guard call.method == "show" else {
+          result(FlutterMethodNotImplemented)
+          return
+        }
+        guard var top = registrar?.viewController else {
+          result(false)
+          return
+        }
+        while let shown = top.presentedViewController { top = shown }
+        let panel = CABTMIDICentralViewController()
+        let nav = UINavigationController(rootViewController: panel)
+        panel.navigationItem.rightBarButtonItem = UIBarButtonItem(
+          systemItem: .done,
+          primaryAction: UIAction { [weak nav] _ in nav?.dismiss(animated: true) })
+        nav.modalPresentationStyle = .formSheet
+        top.present(nav, animated: true)
+        result(true)
+      }
     }
   }
 }
