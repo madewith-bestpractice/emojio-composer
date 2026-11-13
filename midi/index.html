@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Emojio MIDI — play emoji music from a keyboard</title>
+    <meta name="description" content="Plug a MIDI keyboard, drum pads or controller into Emojio. Every key plays the emoji you picked, at the note you press. Record into the staff, drive other gear, sync to MIDI clock.">
+    <link rel="canonical" href="https://emojio-composer.madewithbestpractice.com/midi/">
+    <meta name="theme-color" content="#81d4fa">
+    <meta name="robots" content="index, follow">
+    <meta property="og:title" content="Emojio MIDI: play emoji music from a keyboard">
+    <meta property="og:description" content="Every key plays the emoji you picked. Record into the staff, drive other gear, sync to MIDI clock.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://emojio-composer.madewithbestpractice.com/midi/">
+    <meta property="og:image" content="https://emojio-composer.madewithbestpractice.com/midi/og.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta name="twitter:card" content="summary_large_image">
+    <link rel="icon" type="image/png" href="/emojio-icon.png">
+    <link rel="apple-touch-icon" href="/emojio-icon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #e0f7fa;
+            --panel-bg: #fff9c4;
+            --header-bg: #81d4fa;
+            --accent-color: #ff4081;
+            --highlight-color: #ffd740;
+            --text-color: #37474f;
+            --line-color: #90a4ae;
+            --border-width: 4px;
+            --border-radius: 12px;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-size: 17px;
+            line-height: 1.6;
+            -webkit-text-size-adjust: 100%;
+        }
+        .pixel { font-family: 'Press Start 2P', cursive; }
+        header.top {
+            background: var(--header-bg);
+            border-bottom: var(--border-width) solid var(--text-color);
+            padding: 14px 20px;
+        }
+        header.top a {
+            display: inline-flex; align-items: center; gap: 12px;
+            color: var(--text-color); text-decoration: none;
+            font-family: 'Press Start 2P', cursive; font-size: 13px;
+        }
+        header.top img { width: 40px; height: 40px; }
+        .wrap { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
+
+        .hero { display: grid; grid-template-columns: 1.1fr 1fr; gap: 40px; align-items: center; padding: 48px 0 24px; }
+        .eyebrow { font-family: 'Press Start 2P', cursive; font-size: 12px; color: var(--accent-color); letter-spacing: 1px; }
+        h1 { font-size: 44px; line-height: 1.1; margin: 14px 0 16px; font-weight: 900; }
+        h1 b { color: var(--accent-color); }
+        .lede { font-size: 19px; margin: 0 0 24px; }
+        .shot {
+            width: 100%; height: auto; display: block;
+            border: var(--border-width) solid var(--text-color);
+            border-radius: 22px; background: #fff;
+            box-shadow: 8px 8px 0 var(--text-color);
+        }
+
+        .badges { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+        .badges img { height: 52px; width: auto; display: block; }
+        .badges .play img { height: 52px; }
+        .small { font-size: 14px; color: #607d8b; margin: 12px 0 0; }
+        .small a { color: var(--accent-color); font-weight: 600; }
+
+        h2 { font-family: 'Press Start 2P', cursive; font-size: 16px; line-height: 1.6; margin: 56px 0 18px; }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+        .card {
+            background: var(--panel-bg);
+            border: var(--border-width) solid var(--text-color);
+            border-radius: var(--border-radius);
+            padding: 18px 20px;
+        }
+        .card .ic { font-size: 30px; line-height: 1; }
+        .card h3 { font-size: 18px; margin: 10px 0 6px; }
+        .card p { margin: 0; font-size: 16px; }
+
+        .split { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; }
+        ol.steps { padding-left: 0; list-style: none; counter-reset: s; margin: 0; }
+        ol.steps li { counter-increment: s; position: relative; padding-left: 48px; margin: 0 0 18px; }
+        ol.steps li::before {
+            content: counter(s); position: absolute; left: 0; top: 0;
+            width: 32px; height: 32px; border-radius: 50%;
+            background: var(--highlight-color); border: 3px solid var(--text-color);
+            font-family: 'Press Start 2P', cursive; font-size: 12px;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        table.devices { width: 100%; border-collapse: collapse; background: #fff; border: var(--border-width) solid var(--text-color); border-radius: var(--border-radius); overflow: hidden; }
+        table.devices th, table.devices td { padding: 12px 14px; text-align: left; border-bottom: 2px solid #eceff1; vertical-align: top; }
+        table.devices th { background: var(--header-bg); font-size: 15px; }
+        table.devices tr:last-child td { border-bottom: 0; }
+        .yes { color: #2e7d32; font-weight: 700; }
+        .no { color: #90a4ae; }
+
+        .cta {
+            margin: 56px 0 0; padding: 28px;
+            background: var(--panel-bg); border: var(--border-width) solid var(--text-color);
+            border-radius: var(--border-radius); text-align: center;
+        }
+        .cta h2 { margin: 0 0 10px; }
+        .cta p { margin: 0 0 18px; }
+        .cta .badges { justify-content: center; }
+
+        details { background: #fff; border: 3px solid var(--text-color); border-radius: var(--border-radius); padding: 12px 16px; margin: 0 0 12px; }
+        summary { font-weight: 700; cursor: pointer; }
+        details p { margin: 10px 0 2px; }
+
+        footer.foot { margin: 56px 0 0; padding: 24px 0 48px; border-top: 2px solid var(--line-color); font-size: 15px; color: #607d8b; }
+        footer.foot a { color: var(--accent-color); }
+
+        @media (max-width: 820px) {
+            .hero, .split { grid-template-columns: 1fr; gap: 28px; }
+            .grid { grid-template-columns: 1fr 1fr; }
+            h1 { font-size: 34px; }
+            .hero { padding-top: 32px; }
+        }
+        @media (max-width: 520px) {
+            .grid { grid-template-columns: 1fr; }
+            h1 { font-size: 30px; }
+            .lede { font-size: 17px; }
+            table.devices th, table.devices td { padding: 10px 8px; font-size: 14px; }
+        }
+    </style>
+</head>
+<body>
+    <header class="top">
+        <a href="/"><img src="/emojio-icon.png" alt="" width="40" height="40">Emojio</a>
+    </header>
+
+    <main class="wrap">
+        <section class="hero">
+            <div>
+                <div class="eyebrow">EMOJIO + MIDI</div>
+                <h1>Play emoji music from a <b>real keyboard</b></h1>
+                <p class="lede">Plug in a MIDI keyboard, drum pads or a controller. Every key plays the emoji you picked, at the note you press. Hit record and your playing lands on the staff as stickers, ready to loop, save and share.</p>
+                <div class="badges">
+                    <a href="https://apps.apple.com/us/app/emojio-emoji-music-maker/id6789785325" target="_blank" rel="noopener" aria-label="Download Emojio on the App Store">
+                        <img src="https://toolbox.marketingtools.apple.com/api/v2/badges/download-on-the-app-store/black/en-us" alt="Download on the App Store" width="156" height="52">
+                    </a>
+                    <a class="play" href="https://play.google.com/store/apps/details?id=com.madewithbestpractice.emojio&amp;listing=midi&amp;referrer=utm_source%3Demojio-web%26utm_medium%3Dmidi-page" target="_blank" rel="noopener" aria-label="Get Emojio on Google Play">
+                        <img src="/google-play-badge.png" alt="Get it on Google Play">
+                    </a>
+                </div>
+                <p class="small">MIDI is part of Premium, a one-time purchase with no subscription. The app is free to download. No keyboard handy? <a href="/">Try Emojio in your browser</a> (the web version has no MIDI).</p>
+            </div>
+            <img class="shot" src="midi-panel-ipad.webp" width="900" height="1158" alt="Emojio's MIDI settings on iPad: a connected device, input channel, octave, live play, velocity, record, MIDI out, MIDI clock and MIDI learn controls">
+        </section>
+
+        <h2>What it does</h2>
+        <div class="grid">
+            <div class="card">
+                <div class="ic" aria-hidden="true">🎹</div>
+                <h3>Every key is an emoji</h3>
+                <p>Pick a frog, a bell or a drum, and the keyboard plays that sound at the pitch you press. Listen on all channels or just one, and shift octaves up or down.</p>
+            </div>
+            <div class="card">
+                <div class="ic" aria-hidden="true">🔴</div>
+                <h3>Record into the staff</h3>
+                <p>Turn on recording, press Play, and play along. Each note drops onto the staff at the playhead, on the right line, so you can see and edit what you played.</p>
+            </div>
+            <div class="card">
+                <div class="ic" aria-hidden="true">💥</div>
+                <h3>Soft or loud</h3>
+                <p>Velocity sets each note's loudness, and it's saved with the note. On a tablet, stylus or Apple Pencil pressure does the same when you tap stickers in.</p>
+            </div>
+            <div class="card">
+                <div class="ic" aria-hidden="true">🥁</div>
+                <h3>Drum pads play your palette</h3>
+                <p>Map pads or keys to the stickers in your palette. A pad learns the slot, so whatever emoji you put there is what it plays.</p>
+            </div>
+            <div class="card">
+                <div class="ic" aria-hidden="true">🎛️</div>
+                <h3>Knobs and buttons, learned</h3>
+                <p>Play/Stop, Clear, next and previous voice, octave, and a jog wheel to scrub through the song. Each comes with a default, and MIDI learn fits your controller.</p>
+            </div>
+            <div class="card">
+                <div class="ic" aria-hidden="true">⏱️</div>
+                <h3>In time with your gear</h3>
+                <p>Send your song's notes out on any channel to drive a synth or drum machine. Follow another device's MIDI clock, or (on iPhone, iPad and Mac) send clock so your gear follows Emojio.</p>
+            </div>
+        </div>
+
+        <h2>How to start</h2>
+        <div class="split">
+            <ol class="steps">
+                <li><strong>Connect.</strong> Plug in a USB MIDI keyboard or controller (a USB-C adapter works for most keyboards). On iPhone, iPad and Mac you can also scan for Bluetooth MIDI.</li>
+                <li><strong>Open the 🎹 MIDI sheet</strong> in Emojio and tap Connect next to your device.</li>
+                <li><strong>Pick an emoji</strong> from your palette and play. Switch emoji as you go to layer a melody, a bass line and drums.</li>
+                <li><strong>Record and save.</strong> Turn on "Record into grid while playing", press Play, and play along with the loop. Save the song, export it as audio or video, or share a link.</li>
+            </ol>
+            <img class="shot" src="song-ipad.webp" width="900" height="1158" alt="A song in Emojio on iPad: frog, unicorn, dog and drum stickers on a music staff" loading="lazy">
+        </div>
+
+        <h2>Works on</h2>
+        <table class="devices">
+            <thead>
+                <tr><th></th><th>iPhone, iPad and Mac</th><th>Android</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>USB MIDI keyboards and controllers</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                <tr><td>Bluetooth MIDI</td><td class="yes">Yes</td><td class="no">Not yet</td></tr>
+                <tr><td>Network MIDI sessions</td><td class="yes">Yes</td><td class="no">No</td></tr>
+                <tr><td>Play, record, velocity, MIDI learn, notes out</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                <tr><td>Follow external MIDI clock</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+                <tr><td>Send MIDI clock</td><td class="yes">Yes</td><td class="no">Not yet</td></tr>
+            </tbody>
+        </table>
+        <p class="small">The web version of Emojio, in your browser, has no MIDI.</p>
+
+        <h2>Questions</h2>
+        <details>
+            <summary>Do I need to read music?</summary>
+            <p>No. If you can press a key, you can play. Recorded notes show up as emoji on the staff, and you can edit them like any sticker you tapped in.</p>
+        </details>
+        <details>
+            <summary>Is MIDI included with the app?</summary>
+            <p>MIDI is part of Premium. Premium is a one-time purchase, not a subscription, and it also unlocks every sticker sound, video export and unlimited saved songs.</p>
+        </details>
+        <details>
+            <summary>Which keyboards work?</summary>
+            <p>Any class-compliant USB MIDI keyboard, pad controller or synth, which covers most of them. On iPhone, iPad and Mac, Bluetooth MIDI devices work too.</p>
+        </details>
+
+        <section class="cta">
+            <h2>Get Emojio</h2>
+            <p>Free to download. MIDI comes with Premium.</p>
+            <div class="badges">
+                <a href="https://apps.apple.com/us/app/emojio-emoji-music-maker/id6789785325" target="_blank" rel="noopener" aria-label="Download Emojio on the App Store">
+                    <img src="https://toolbox.marketingtools.apple.com/api/v2/badges/download-on-the-app-store/black/en-us" alt="Download on the App Store" width="156" height="52">
+                </a>
+                <a class="play" href="https://play.google.com/store/apps/details?id=com.madewithbestpractice.emojio&amp;listing=midi&amp;referrer=utm_source%3Demojio-web%26utm_medium%3Dmidi-page" target="_blank" rel="noopener" aria-label="Get Emojio on Google Play">
+                    <img src="/google-play-badge.png" alt="Get it on Google Play">
+                </a>
+            </div>
+        </section>
+
+        <footer class="foot">
+            <p><a href="/">Open Emojio</a> · <a href="/privacy">Privacy</a> · <a href="/terms">Terms of Use</a></p>
+        </footer>
+    </main>
+</body>
+</html>
