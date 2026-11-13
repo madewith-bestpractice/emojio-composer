@@ -1,4 +1,26 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- Bluetooth MIDI keyboards (lib/midi/midi_manager.dart scanBluetooth),
+         Android 12 and later only. neverForLocation: the scan finds MIDI
+         instruments, not where the phone is, so no location permission is
+         asked for, here or on older Android (a Families-program app; see the
+         removals below). Android 11
+         and older can't scan without location, so Emojio says "use USB" there.
+         The BLUETOOTH / BLUETOOTH_ADMIN entries (maxSdk 30) come from universal_ble. -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <!-- flutter_midi_command_ble declares location for Android 11 and older,
+         where BLE scanning needs it. Emojio doesn't ask for location, so those
+         versions say "use USB" instead (midi_manager.dart). -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" tools:node="remove" />
+    <!-- Bluetooth permissions would otherwise make Play list only devices with
+         Bluetooth; it's optional here (USB MIDI and the rest work without it). -->
+    <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
     <application
         android:label="Emojio"
         android:name="${applicationName}"

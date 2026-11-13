@@ -73,6 +73,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.2.4"
+  bluez:
+    dependency: transitive
+    description:
+      name: bluez
+      sha256: "61a7204381925896a374301498f2f5399e59827c6498ae1e924aaa598751b545"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.8.3"
   boolean_selector:
     dependency: transitive
     description:
@@ -161,6 +169,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.9"
+  dbus:
+    dependency: transitive
+    description:
+      name: dbus
+      sha256: a48d5da28e89bd02196e80d81ed8d7954923d00a0f4a68cc20b575038f023383
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.7.15"
   equatable:
     dependency: transitive
     description:
@@ -239,57 +255,65 @@ packages:
     dependency: "direct main"
     description:
       name: flutter_midi_command
-      sha256: "3bca948b6a36aca3233ae4899a77cc31b344638fa36d589669c22fd0e46df57d"
+      sha256: "8e614fe2eafc1288f4e99e9eb34e36dfee1f363de919cf1b6434db44f0c44d5e"
       url: "https://pub.dev"
     source: hosted
-    version: "1.0.2"
+    version: "1.4.0"
   flutter_midi_command_android:
     dependency: transitive
     description:
       name: flutter_midi_command_android
-      sha256: f8b00b80e3c3488df42d54b5c735efe6c4cb8be67444d8a07c72ad2f56dedd79
+      sha256: "1e3e09f8fad8b78d342fcebc203af6662a7e26d274ced266d7e2c8c05a2a0cff"
       url: "https://pub.dev"
     source: hosted
-    version: "1.0.2"
+    version: "1.4.0"
+  flutter_midi_command_ble:
+    dependency: "direct main"
+    description:
+      name: flutter_midi_command_ble
+      sha256: "0a24f9dabfdbcaa580f2832c8bbc0628a6fae32bfa151f178a74b43b5b6d2563"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.4.0"
   flutter_midi_command_darwin:
     dependency: "direct overridden"
     description:
       path: "third_party/flutter_midi_command_darwin"
       relative: true
     source: path
-    version: "1.0.2+emojio.1"
+    version: "1.4.0+emojio.1"
   flutter_midi_command_linux:
     dependency: transitive
     description:
       name: flutter_midi_command_linux
-      sha256: f3c7f4878f0f277f4c755fea745b6f8eb3a7e849b0dfeaa11f57c63c2d4ae9d7
+      sha256: "54e974fa4f694b3452294a9cfadb8a8ad570b58433e4efc32b32801ba4ec962a"
       url: "https://pub.dev"
     source: hosted
-    version: "1.0.2"
+    version: "1.4.0"
   flutter_midi_command_platform_interface:
     dependency: transitive
     description:
       name: flutter_midi_command_platform_interface
-      sha256: "1e3a50a11a742245178f97d7ba524b94994fb7e960797132cbfc517f6d35020d"
+      sha256: b461b95c4b30056cbe1188bf5991664e92ce6e878ff6631e4047824c9da1b1b0
       url: "https://pub.dev"
     source: hosted
-    version: "1.0.2"
+    version: "1.4.0"
   flutter_midi_command_web:
     dependency: transitive
     description:
       name: flutter_midi_command_web
-      sha256: "3f2c404d5dc6d62c7493b9022d47ef31b64cac1801ba8862b250a2a0eb5e0572"
+      sha256: "4a08f522fb627902b9b906486436c6b6e5ebc0e65029912fa9d05dfbec0c7d7e"
       url: "https://pub.dev"
     source: hosted
-    version: "1.0.2"
+    version: "1.4.0"
   flutter_midi_command_windows:
     dependency: transitive
     description:
       name: flutter_midi_command_windows
-      sha256: "7a5dd483d90a9ad1c139685a24c3384610cff30a58739f22cef05f8429e0f5e1"
+      sha256: ccf2e75a4094c1ed8e3a759308aee9c75375171f99b2cb4b3279486a681d0164
       url: "https://pub.dev"
     source: hosted
-    version: "1.0.2"
+    version: "1.4.0"
   flutter_native_splash:
     dependency: "direct dev"
     description:
@@ -367,6 +391,14 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
+  flutter_web_bluetooth:
+    dependency: transitive
+    description:
+      name: flutter_web_bluetooth
+      sha256: "71fa37f699032b4416d56aeb5214363ba057f6aed4eba544cc26293e2582b85d"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.2.0"
   flutter_web_plugins:
     dependency: transitive
     description: flutter
@@ -771,6 +803,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.4.0"
+  universal_ble:
+    dependency: "direct main"
+    description:
+      name: universal_ble
+      sha256: bdebe7d4ff3a24f28b5e56c999104ea1584a9de55da4ee0b4c2346bcf8f8c528
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.3.0"
   universal_io:
     dependency: transitive
     description:
