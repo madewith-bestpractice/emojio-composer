@@ -21,6 +21,13 @@
          Bluetooth; it's optional here (USB MIDI and the rest work without it). -->
     <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
+    <!-- MIDI isn't required: a phone without Android's MIDI service still
+         composes, and Bluetooth MIDI doesn't use that service. The plugin
+         (flutter_midi_command_android) checks for it and lists no USB devices
+         when it's missing. tools:replace because the plugin's own manifest says
+         required="true", which otherwise wins the merge. -->
+    <uses-feature android:name="android.software.midi" android:required="false"
+        tools:replace="android:required" />
     <application
         android:label="Emojio"
         android:name="${applicationName}"
