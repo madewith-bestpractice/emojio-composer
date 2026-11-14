@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.1.5+17
+version: 1.1.6+18
 
 environment:
   sdk: ^3.11.5
@@ -76,7 +76,9 @@ flutter_launcher_icons:
   # padded transparent logo rather than the full-bleed square. logo.png already
   # carries its own padding; the default 16% inset on top of it would shrink the
   # notes to ~50% of the visible area vs 68% on the store listing, so trim it.
-  adaptive_icon_background: "#fff696"
+  # Nov 2026 icon: the yellow gradient behind the beamed notes (icon_bg.png is
+  # the background of app_icon.png on its own).
+  adaptive_icon_background: "assets/branding/icon_bg.png"
   adaptive_icon_foreground: "assets/branding/logo.png"
   adaptive_icon_foreground_inset: 5
   ios: true
@@ -86,12 +88,14 @@ flutter_launcher_icons:
     image_path: "assets/branding/app_icon.png"
 
 # Native launch screen: `dart run flutter_native_splash:create`
-# Brand yellow with the centered app icon (same image as favicon + launcher
-# icon); the in-app tiled splash follows during boot.
+# Brand yellow with the notes logo centred (the new icon's bright square would
+# sit oddly on it); the in-app splash, the same logo tiled on the same yellow,
+# follows during boot.
 flutter_native_splash:
   color: "#fff696"
-  image: "assets/branding/app_icon.png"
+  image: "assets/branding/logo.png"
   ios: true
+  android: false # Android keeps its own launch screen
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
