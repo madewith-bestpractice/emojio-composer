@@ -1,4 +1,4 @@
-// Emojio patch (flutter_midi_command_darwin 1.0.2): see third_party/flutter_midi_command_darwin/README.md.
+// Emojio patch (flutter_midi_command_darwin 1.4.0): see third_party/flutter_midi_command_darwin/README.md.
 import Foundation
 
 /// A virtual device's id is "<destination>:<source>". Either half is empty when

@@ -30,5 +30,7 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Connect Bluetooth MIDI keyboards and controllers to play Emojio.</string>
 </dict>
 </plist>

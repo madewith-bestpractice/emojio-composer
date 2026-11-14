@@ -1,6 +1,6 @@
 # flutter_midi_command_darwin (Emojio patch)
 
-Vendored copy of `flutter_midi_command_darwin` **1.0.2** from pub.dev, with one fix.
+Vendored copy of `flutter_midi_command_darwin` **1.4.0** from pub.dev (first vendored at 1.0.2; 1.4.0 still has the bug), with one fix.
 Emojio points at it with `dependency_overrides` in `app/pubspec.yaml`.
 
 ## The bug
@@ -20,7 +20,7 @@ never affected either.
   `parseVirtualDeviceId(_:)` splits with `omittingEmptySubsequences: false`.
 - `SwiftFlutterMidiCommandPlugin.swift`: `ConnectedVirtualDevice.init` uses it instead of the inline split.
 - New `Tests/.../VirtualDeviceIdTests.swift`.
-- `pubspec.yaml`: version `1.0.2+emojio.1`. Nothing else differs from 1.0.2.
+- `pubspec.yaml`: version `1.4.0+emojio.1`. Nothing else differs from 1.4.0.
 
 Emojio's check is `app/integration_test/midi_source_only_test.dart` (run with
 `app/tool/midi_source_only/run.sh`), which uses a source-only virtual device.
