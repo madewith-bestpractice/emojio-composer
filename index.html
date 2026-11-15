@@ -6,13 +6,76 @@
     <title>Emojio Paint Composer</title>
     <meta name="description" content="A playful emoji-stamp music composer. Paint sounds on a staff and share songs with a single link.">
     <meta name="theme-color" content="#81d4fa">
-    <meta property="og:title" content="Emojio Paint Composer">
-    <meta property="og:description" content="A playful emoji-stamp music composer. Paint sounds on a staff and share songs with a single link.">
+    <link rel="canonical" href="https://emojio-composer.madewithbestpractice.com/">
     <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Emojio">
+    <meta property="og:title" content="Emojio Paint Composer">
+    <meta property="og:description" content="A playful emoji-stamp music composer. Paint sounds on a staff and share songs with a single link. Free in your browser and as an app for iPhone, iPad, Mac and Android.">
+    <meta property="og:url" content="https://emojio-composer.madewithbestpractice.com/">
     <meta property="og:image" content="https://emojio-composer.madewithbestpractice.com/emojio-icon.png">
+    <meta property="og:image:width" content="512">
+    <meta property="og:image:height" content="512">
+    <meta property="og:image:alt" content="The Emojio icon">
+    <meta property="og:locale" content="en_US">
     <meta name="twitter:card" content="summary">
     <meta name="twitter:title" content="Emojio Paint Composer">
     <meta name="twitter:description" content="Paint sounds on a staff and share songs with a single link.">
+    <meta name="twitter:image" content="https://emojio-composer.madewithbestpractice.com/emojio-icon.png">
+    <link rel="alternate" type="text/plain" title="llms.txt" href="/llms.txt">
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://madewithbestpractice.com/#org",
+          "name": "Best Practice",
+          "legalName": "Made with Best Practice LLC",
+          "url": "https://madewithbestpractice.com/",
+          "email": "hello@madewithbestpractice.com"
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://emojio-composer.madewithbestpractice.com/#site",
+          "url": "https://emojio-composer.madewithbestpractice.com/",
+          "name": "Emojio Paint Composer",
+          "publisher": { "@id": "https://madewithbestpractice.com/#org" }
+        },
+        {
+          "@type": "SoftwareApplication",
+          "@id": "https://emojio-composer.madewithbestpractice.com/#app",
+          "name": "Emojio",
+          "alternateName": ["Emojio: Emoji Music Maker", "Emojio Paint Composer"],
+          "description": "Paint music with emoji: stamp emoji sounds onto a musical staff, press Play to hear the song loop, and share it as a link. Free in a web browser and as an app for iPhone, iPad, Mac and Android, with an optional one-time Premium purchase in the app that adds every sound, video export, MIDI keyboard play and recording, Apple Pencil pressure and unlimited saved songs. No accounts, no ads, no subscription.",
+          "url": "https://emojio-composer.madewithbestpractice.com/",
+          "applicationCategory": "MusicApplication",
+          "operatingSystem": "iOS 15.0+, iPadOS 15.0+, macOS 12.0+, Android 7.0+, Web browser",
+          "availableOnDevice": "iPhone, iPad, Mac, Android phone, Android tablet, web browser",
+          "softwareRequirements": "iOS 15 or iPadOS 15 or later, macOS 12 or later, or Android 7.0 or later with Android MIDI support; or any current web browser. Premium MIDI: USB or Bluetooth MIDI on iPhone, iPad and Mac, USB MIDI on Android.",
+          "softwareVersion": "1.1.6",
+          "inLanguage": "en",
+          "image": "https://emojio-composer.madewithbestpractice.com/emojio-icon.png",
+          "downloadUrl": [
+            "https://apps.apple.com/us/app/emojio-emoji-music-maker/id6789785325",
+            "https://play.google.com/store/apps/details?id=com.madewithbestpractice.emojio"
+          ],
+          "sameAs": [
+            "https://apps.apple.com/us/app/emojio-emoji-music-maker/id6789785325",
+            "https://play.google.com/store/apps/details?id=com.madewithbestpractice.emojio"
+          ],
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD",
+            "category": "Free",
+            "description": "Free in the browser and as a free download with no time limit. Premium (the Lifetime Unlock) is an optional one-time in-app purchase, never a subscription; new players get Premium free for their first 3 days."
+          },
+          "publisher": { "@id": "https://madewithbestpractice.com/#org" }
+        }
+      ]
+    }
+    </script>
 
     <link rel="icon" type="image/png" href="emojio-icon.png">
     <link rel="apple-touch-icon" href="emojio-icon.png">
@@ -861,6 +924,20 @@
         .store-badges .badge-google img { height: 54px; }
         .app-later { display: block; width: 100%; }
 
+        /* Compatibility (#compatibility): in the page for search engines and AI
+           agents, shown as a sheet when the URL ends in #compatibility. */
+        .compat-overlay { display: none; position: fixed; }
+        .compat-overlay:target { display: flex; }
+        .compat-box { max-width: 560px; max-height: 85vh; overflow-y: auto; text-align: left; }
+        .compat-box h2 { font-size: 0.75rem; line-height: 1.6; margin: 0 0 12px; text-align: center; }
+        .compat-box h3 { font-size: 0.62rem; line-height: 1.5; margin: 18px 0 8px; }
+        .compat-box p, .compat-box li { font-size: 0.52rem; line-height: 1.75; color: var(--text-color); }
+        .compat-box p { margin: 0 0 8px; }
+        .compat-box ul { margin: 0; padding-left: 1.2em; display: grid; gap: 8px; }
+        .compat-box a { color: inherit; }
+        .compat-close { display: block; margin-top: 18px; text-align: center; text-decoration: none; }
+        .compat-link { display: block; margin: 0 0 12px; text-align: center; font-size: 0.52rem; color: #555; }
+
         /* Textarea for Sharing */
         textarea {
             font-family: 'Press Start 2P', cursive;
@@ -1366,9 +1443,37 @@
                          alt="Get it on Google Play">
                 </a>
             </div>
+            <a class="compat-link" id="compatLink" href="#compatibility">Which devices does it run on?</a>
             <button id="closeAppModalBtn" class="action-btn app-later">Maybe later</button>
         </div>
     </div>
+
+    <!-- Compatibility: shown when the URL ends in #compatibility (CSS :target). -->
+    <section id="compatibility" class="modal-overlay compat-overlay" aria-labelledby="compatibilityTitle">
+        <div class="modal-box compat-box">
+            <h2 id="compatibilityTitle">Compatibility: iPhone, iPad, Mac, Android and the web</h2>
+            <p>Emojio Paint Composer runs right here in your browser. The Emojio app runs on iPhone, iPad, Mac and Android phones and tablets.</p>
+            <h3 id="compatibility-devices">Devices and minimum OS</h3>
+            <ul>
+                <li><strong>iPhone and iPad:</strong> iOS 15 and iPadOS 15 or later, from the App Store.</li>
+                <li><strong>Mac:</strong> macOS 12 Monterey or later, on Apple Silicon or Intel, from the Mac App Store.</li>
+                <li><strong>Android phone and tablet:</strong> Android 7.0 or later, from Google Play. The app needs Android&rsquo;s built-in MIDI support, so Google Play offers it to devices that report it.</li>
+                <li><strong>Web:</strong> any current browser (Safari, Chrome, Firefox, Edge) on a computer, tablet or phone, with no install. MIDI keyboards, video export and pencil pressure are in the app only.</li>
+                <li>There is no Apple Watch, Wear OS, Apple TV or Android TV version.</li>
+            </ul>
+            <h3 id="compatibility-hardware">Hardware (Premium, in the app)</h3>
+            <ul>
+                <li><strong>MIDI keyboards and controllers:</strong> USB or Bluetooth MIDI on iPhone, iPad and Mac; USB MIDI on Android. Play and record live, send notes and MIDI clock out, or follow an external clock.</li>
+                <li><strong>Stylus:</strong> Apple Pencil on iPad, or a pressure-sensitive stylus on an Android tablet, sets each note&rsquo;s volume. Fingers, mice and trackpads play every note at full volume.</li>
+            </ul>
+            <h3 id="compatibility-limits">Connections and limits</h3>
+            <ul>
+                <li>The app works offline; its only network call checks the Premium purchase. The web composer needs a connection to load.</li>
+                <li>Songs stay on the device they were made on, with no account or sync. Share a song&rsquo;s link to open it somewhere else; on iPhone and iPad the link opens in the app when it&rsquo;s installed.</li>
+            </ul>
+            <a href="#" class="action-btn compat-close" id="closeCompatBtn">Close</a>
+        </div>
+    </section>
 
     <!-- Drag anywhere on this to slide the staff sideways. Shown only when the song is
          wider than the screen (see resizeCanvas). -->
@@ -3552,6 +3657,13 @@
         closeAppModalBtn.addEventListener('click', closeAppModal);
         // Tap the dim backdrop or press Esc to dismiss.
         appModal.addEventListener('click', (e) => { if (e.target === appModal) closeAppModal(); });
+        // Compatibility sheet (#compatibility, shown by CSS :target).
+        const compatSheet = document.getElementById('compatibility');
+        document.getElementById('compatLink').addEventListener('click', closeAppModal);
+        compatSheet.addEventListener('click', (e) => { if (e.target === compatSheet) location.hash = ''; });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && location.hash === '#compatibility') location.hash = '';
+        });
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && !appModal.classList.contains('hidden')) closeAppModal();
         });

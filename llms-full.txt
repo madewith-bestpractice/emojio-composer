@@ -1,0 +1,87 @@
+# Emojio: full text for AI agents
+
+> Emojio paints music with emoji: stamp emoji sounds onto a musical staff, press Play to hear the song loop, and share it as a link. Free in a web browser as Emojio Paint Composer and as an app for iPhone, iPad, Mac and Android, with an optional one-time Premium purchase in the app. This file collects the site's content in Markdown. The short index is https://emojio-composer.madewithbestpractice.com/llms.txt. Checked against the app's code and store listings on 2026-11-15 (app version 1.1.6).
+
+## At a glance
+
+- Maker: Best Practice (Made with Best Practice LLC), https://madewithbestpractice.com/
+- Web: https://emojio-composer.madewithbestpractice.com/ (Emojio Paint Composer, free, no install)
+- App Store (iPhone, iPad and Mac): https://apps.apple.com/us/app/emojio-emoji-music-maker/id6789785325
+- Google Play (Android): https://play.google.com/store/apps/details?id=com.madewithbestpractice.emojio
+- Platforms: web browser; iOS and iPadOS 15.0+; macOS 12.0+; Android 7.0+.
+- Price model: free. In the app, Premium is a single one-time in-app purchase (the Lifetime Unlock), never a subscription. New players get Premium free for their first 3 days; after that the app returns to the free version and nothing is deleted or charged.
+- Accounts, ads, subscriptions: none.
+- Contact: hello@madewithbestpractice.com
+
+## What Emojio does
+
+### Paint a song
+
+- A big, friendly staff: tap to drop an emoji, tap it again to remove it. No notes to read and no theory to learn.
+- Every emoji has its own voice. Faces, animals, music and a full drum kit are free; Premium adds vehicles, characters, food, sports, nature and more.
+- Set the pace with the turtle-and-hare tempo slider, press Play and hear it loop.
+- Drums and claps go on any row, and every sound lands on the beat.
+- On an upright iPad the controls sit up top and the full 16-step staff fills the screen.
+- With Premium, Apple Pencil pressure sets each note's volume, so you can play soft or loud.
+- The web composer also has an optional pentatonic scale lock, randomize, and a named song library in the browser.
+
+### Save and share
+
+- Save songs on the device, name them and reopen them any time. The free app keeps 3; Premium keeps as many as you like.
+- Export a song as audio (WAV), or with Premium as a video (MP4).
+- Share a link that opens the song. The song is encoded inside the link itself; nothing is uploaded. On iPhone and iPad a shared link opens in the app when it's installed, and in the web composer otherwise.
+
+### Play with real gear (Premium, in the app)
+
+- Connect a MIDI keyboard or controller to play and record live, including controllers that only send notes.
+- Send notes and MIDI clock out to drive external gear, or follow an external clock to stay in sync.
+- Sound plays even with the iPhone's silent switch on.
+
+## Compatibility
+
+Minimum OS and devices come from the app's build settings.
+
+### Devices and minimum OS
+
+- iPhone and iPad: iOS 15 and iPadOS 15 or later, from the App Store.
+- Mac: macOS 12 Monterey or later, on Apple Silicon or Intel, from the Mac App Store.
+- Android phone and tablet: Android 7.0 or later, from Google Play. The app needs Android's built-in MIDI support, so Google Play offers it to devices that report it.
+- Web: Emojio Paint Composer runs in any current browser (Safari, Chrome, Firefox, Edge) on a computer, tablet or phone, with no install. MIDI keyboards, video export and pencil pressure are app-only.
+- There is no Apple Watch, Wear OS, Apple TV or Android TV version.
+
+### Hardware
+
+- MIDI keyboards and controllers (Premium): USB or Bluetooth MIDI on iPhone, iPad and Mac; USB MIDI on Android (Bluetooth MIDI isn't offered on Android).
+- Stylus (Premium): Apple Pencil on iPad, or a pressure-sensitive stylus on an Android tablet, sets each note's volume. Fingers, mice and trackpads play every note at full volume.
+
+### Connections and limits
+
+- The app works offline; its only network call checks the Premium purchase. The web composer needs a connection to load.
+- Songs stay on the device they were made on; there's no account or sync. Share a link to move a song to another device.
+
+## Pricing and Premium
+
+- Free, with no time limit: the full composer, a starter set of sounds, sharing, audio export and 3 saved songs.
+- Premium adds every sound, video export, MIDI keyboard support, Apple Pencil pressure and unlimited saved songs.
+- The first 3 days after you first open the app include Premium free. The free days never turn into a paid plan.
+- Premium is the Lifetime Unlock (emojio.unlock_forever): one non-consumable in-app purchase, charged once, never a subscription. The price shows in your currency before you confirm. Restore Purchases brings it back on a new device or after reinstalling.
+- If you bought Emojio before it became free, you already have Premium.
+
+## Privacy Policy (summary)
+
+Full text: https://emojio-composer.madewithbestpractice.com/privacy (last updated 2026-10-05).
+
+- No account, sign-in or profile. No advertising, tracking or crash-reporting SDKs. Emojio does not collect your name, email, contacts, location, photos or microphone input, and sells or shares no personal information.
+- Songs, settings, exports and the date you first opened the app (for the free Premium days) stay on the device. MIDI note data is processed on the device and not recorded or sent.
+- Purchases are handled by Apple or Google; Best Practice never sees card details. RevenueCat validates and restores the unlock using a random anonymous ID, the purchase receipt and basic device and app-version information.
+- Shared songs live inside the link itself and are not uploaded or stored.
+- The website (not the app) counts visits with Cloudflare Web Analytics, which uses no cookies and no persistent identifier.
+
+## Terms of Use (summary)
+
+Full text: https://emojio-composer.madewithbestpractice.com/terms (last updated 2026-10-05).
+
+- Emojio is free to use with no time limit. Premium is a one-time purchase that does not auto-renew.
+- Payment, restore and refunds go through the store you bought from; Apple refunds are requested at reportaproblem.apple.com.
+- Songs you make are yours; anyone with a shared link can open that song.
+- The app is provided as is. Apple's standard Licensed Application EULA also applies on Apple devices.

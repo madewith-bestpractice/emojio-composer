@@ -1,0 +1,26 @@
+# Emojio
+
+> Emojio paints music with emoji: you stamp emoji sounds onto a musical staff, press Play to hear the song loop, and share it as a link. It is free in a web browser as Emojio Paint Composer (https://emojio-composer.madewithbestpractice.com/) and as an app for iPhone, iPad, Mac and Android. In the app, Premium is an optional one-time purchase (no subscription) that adds every sound, video export, MIDI keyboard play and recording, Apple Pencil pressure and unlimited saved songs; new players get Premium free for their first 3 days. No accounts, no ads. Made by Best Practice (Made with Best Practice LLC).
+
+- Platforms: web browser; iOS and iPadOS 15 or later; macOS 12 or later; Android 7.0 or later.
+- Compatibility: iPhone and iPad with iOS 15.0+ and iPadOS 15.0+; Mac with macOS 12.0+ (Apple Silicon or Intel); Android phones and tablets with Android 7.0+ that report Android MIDI support; any current web browser (no install). Premium plays and records from a MIDI keyboard over USB or Bluetooth MIDI on iPhone, iPad and Mac, and over USB on Android; Apple Pencil (or a pressure-sensitive stylus) sets each note's volume. No Apple Watch, Wear OS or TV version. Details: https://emojio-composer.madewithbestpractice.com/#compatibility
+- Price model: the web composer is free. The app is a free download with no time limit; Premium (the Lifetime Unlock) is a single one-time in-app purchase, never a subscription. If you bought Emojio before it went free, you already have Premium.
+- Privacy: songs and settings stay on the device. A shared song is encoded inside the link itself and never uploaded. The app has no analytics, ads or tracking; the website counts visits with cookie-free Cloudflare Web Analytics.
+
+## Get the app
+
+- [App Store (iPhone, iPad and Mac)](https://apps.apple.com/us/app/emojio-emoji-music-maker/id6789785325)
+- [Google Play (Android)](https://play.google.com/store/apps/details?id=com.madewithbestpractice.emojio)
+- [Emojio Paint Composer in the browser](https://emojio-composer.madewithbestpractice.com/)
+
+## Docs
+
+- [Full text for AI agents](https://emojio-composer.madewithbestpractice.com/llms-full.txt): features, compatibility, pricing, the privacy policy and the terms of use in one Markdown file.
+- [Compatibility](https://emojio-composer.madewithbestpractice.com/#compatibility): minimum OS per platform, MIDI and stylus support, and limits.
+- [Privacy Policy](https://emojio-composer.madewithbestpractice.com/privacy)
+- [Terms of Use](https://emojio-composer.madewithbestpractice.com/terms)
+
+## Optional
+
+- [Best Practice, the studio](https://madewithbestpractice.com/): other apps, with its own llms.txt at https://madewithbestpractice.com/llms.txt
+- [Contact](mailto:hello@madewithbestpractice.com)
